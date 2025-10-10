@@ -1,0 +1,54 @@
+{% extends "core/base.html" %}
+{% block title %}Agregar producto — Logistic{% endblock %}
+{% block content %}
+
+<h1 class="h1">Agregar producto</h1>
+
+<form class="form grid-2">
+  <div class="field">
+    <label>Nombre</label>
+    <input type="text" placeholder="Nombre del producto">
+  </div>
+  <div class="field">
+    <label>Código / SKU</label>
+    <input type="text" placeholder="SKU o código interno">
+  </div>
+
+  <div class="field col-span-1">
+    <label>Descripción</label>
+    <textarea rows="4" placeholder="Descripción breve"></textarea>
+  </div>
+  <div class="field">
+    <label>Cantidad inicial</label>
+    <input type="number" placeholder="0">
+  </div>
+
+  <div class="field">
+    <label>Categoría</label>
+    <select>
+      <option>Seleccionar</option>
+      <option>Poleras</option>
+      <option>Deportes</option>
+      <option>Pantalones</option>
+    </select>
+  </div>
+  <div class="field">
+    <label>Disponibilidad (sucursales)</label>
+    <input type="text" placeholder="Ej: 3 sucursales">
+  </div>
+
+  <div class="field">
+    <label>Precio</label>
+    <input type="number" placeholder="0,00" step="0.01">
+  </div>
+  <div class="field">
+    <label>Fotos / Notas</label>
+    <textarea rows="4" placeholder="(demo) pega URLs o notas"></textarea>
+  </div>
+
+  <div class="col-span-2">
+    <button type="button" class="btn big">Guardar producto</button>
+  </div>
+</form>
+
+{% endblock %}
