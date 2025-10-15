@@ -27,9 +27,6 @@ urlpatterns = [
     path("category/<slug:slug>/", category, name="category"),
     path("products/add/", product_add, name="product_add"),
 
-
-
-
     path('login/', login_view, name='login'),
     path('logout/', logout_view, name='logout'),
 
