@@ -21,6 +21,7 @@ from core.views import dashboard, products, category, product_add
 
 urlpatterns = [
     path('admin/', admin.site.urls),
+    path('', include('accounts.urls')),
     path("", dashboard, name="dashboard"),
     path("products/", products, name="products"),
     path("category/<slug:slug>/", category, name="category"),
