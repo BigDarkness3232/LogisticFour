@@ -47,4 +47,14 @@ urlpatterns = [
     path('reset/done/',
          auth_views.PasswordResetCompleteView.as_view(template_name='accounts/password_reset_complete.html'),
          name='password_reset_complete'),
+
+
+    path("productos/", ProductoListView.as_view(), name="producto-list"),
+    path("productos/nuevo/", ProductoCreateView.as_view(), name="producto-create"),
+    path("productos/<int:pk>/", ProductoDetailView.as_view(), name="producto-detail"),
+    path("productos/<int:pk>/editar/", ProductoUpdateView.as_view(), name="producto-update"),
+    path("productos/<int:pk>/eliminar/", ProductoDeleteView.as_view(), name="producto-delete"),
+
+    # (Opcional) alias si en algún template usaste 'product_add'
+    path("productos/agregar/", ProductoCreateView.as_view(), name="product_add"),     
 ]
