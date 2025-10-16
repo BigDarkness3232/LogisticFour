@@ -94,6 +94,9 @@
       <!-- Solo aparece esta opción si NO hay sesión -->
       <a href="{% url 'login' %}" class="item">🔐 Iniciar sesión</a>
     {% endif %}
+    {% if user.is_authenticated %}
+      <a href="{% url 'usuario-list' %}" class="item">👥 Usuarios</a>
+    {% endif %}
   </nav>
 
   <div class="sidenav-footer">
