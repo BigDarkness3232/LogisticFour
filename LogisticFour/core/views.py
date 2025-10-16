@@ -1,3 +1,6 @@
+import io
+import segno
+
 from django.shortcuts import render, redirect
 from django.contrib.auth import authenticate, login, logout
 from django.contrib.auth.decorators import login_required, user_passes_test
@@ -7,8 +10,10 @@ from django.contrib.auth.forms import UserCreationForm
 from django.contrib.auth.models import User
 from django.db import transaction
 from django import forms
-from core.forms import SignupUserForm, UsuarioPerfilForm
-from core.models import UsuarioPerfil
+from core.forms import *
+from core.models import *
+from django.http import HttpResponse, Http404
+from django.conf import settings
 
 
 
@@ -200,3 +205,24 @@ def user_list(request):
         .order_by("username")
     )
     return render(request, "account/user_list.html", {"users": data})
+
+@login_required
+def qr_producto_png(request, pk: int):
+    try:
+        p = Producto.objects.get(pk=pk)
+    except Producto.DoesNotExist:
+        raise Http404("Producto no encontrado")
+
+    path = reverse("core:producto-detail", kwargs={"pk": p.pk})
+    base = getattr(settings, "SITE_URL", "").rstrip("/")
+    payload = f"{base}{path}" if base else path
+
+    # Genera PNG en memoria
+    qr = segno.make(payload)
+    buf = io.BytesIO()
+    qr.save(buf, kind="png", scale=6, border=2)  # escala y borde imprimibles
+    buf.seek(0)
+
+    resp = HttpResponse(buf.read(), content_type="image/png")
+    resp["Content-Disposition"] = f'inline; filename="producto_{p.pk}_qr.png"'
+    return resp

@@ -4,6 +4,9 @@ from django.contrib.auth.models import User, Group
 from django.core.exceptions import ValidationError
 from django.db.models.signals import post_save
 from django.dispatch import receiver
+import segno
+from django.urls import reverse
+from django.conf import settings
 
 
 # =============================================
@@ -223,6 +226,19 @@ class Producto(MarcaTiempo):
     activo = models.BooleanField(default=True)
     es_serializado = models.BooleanField(default=False)
     tiene_vencimiento = models.BooleanField(default=False)
+
+
+    @property
+    def qr_svg(self):
+        """
+        Devuelve un SVG embebible con el QR del producto.
+        El payload apunta al detalle del producto.
+        """
+        path = reverse("core:producto-detail", kwargs={"pk": self.pk})
+        base = getattr(settings, "SITE_URL", "").rstrip("/")
+        payload = f"{base}{path}" if base else path
+        qr = segno.make(payload)
+        return qr.svg_inline(scale=4)  # ajusta scale si lo quieres más grande/pequeño
 
     class Meta:
         db_table = "productos"
