@@ -20,6 +20,7 @@ class UsuarioPerfilForm(forms.ModelForm):
         widgets = {
             "telefono": forms.TextInput(attrs={"placeholder": "+56 9 1234 5678"}),
         }
+        
 class ProductoForm(forms.ModelForm):
     # Opcional: forzar empty_label más claro en los FKs opcionales
     marca = forms.ModelChoiceField(
