@@ -14,6 +14,14 @@ from core.forms import *
 from core.models import *
 from django.http import HttpResponse, Http404
 from django.conf import settings
+from django.views.generic import ListView, CreateView, UpdateView, DeleteView, DetailView
+from django.contrib.auth.mixins import LoginRequiredMixin  # agrega PermissionRequiredMixin si ya manejas permisos
+from django.contrib.messages.views import SuccessMessageMixin
+from django.urls import reverse_lazy
+from django.db.models import Q
+from django.shortcuts import redirect
+from django.contrib import messages
+
 
 
 
@@ -206,6 +214,9 @@ def user_list(request):
     )
     return render(request, "account/user_list.html", {"users": data})
 
+
+#Area de productos
+
 @login_required
 def qr_producto_png(request, pk: int):
     try:
@@ -213,7 +224,7 @@ def qr_producto_png(request, pk: int):
     except Producto.DoesNotExist:
         raise Http404("Producto no encontrado")
 
-    path = reverse("core:producto-detail", kwargs={"pk": p.pk})
+    path = reverse("producto-detail", kwargs={"pk": p.pk})
     base = getattr(settings, "SITE_URL", "").rstrip("/")
     payload = f"{base}{path}" if base else path
 
@@ -226,3 +237,74 @@ def qr_producto_png(request, pk: int):
     resp = HttpResponse(buf.read(), content_type="image/png")
     resp["Content-Disposition"] = f'inline; filename="producto_{p.pk}_qr.png"'
     return resp
+
+class ProductsListView(LoginRequiredMixin, ListView):
+    model = Producto
+    template_name = "core/products.html"     # tu listado
+    context_object_name = "productos"
+    paginate_by = 20
+
+    def get_queryset(self):
+        qs = (Producto.objects
+              .select_related("marca", "categoria", "unidad_base", "tasa_impuesto")
+              .order_by("nombre"))
+        q = self.request.GET.get("q", "").strip()
+        if q:
+            qs = qs.filter(
+                Q(nombre__icontains=q) |
+                Q(sku__icontains=q) |
+                Q(marca__nombre__icontains=q) |
+                Q(categoria__nombre__icontains=q)
+            )
+        return qs
+
+    def get_context_data(self, **kwargs):
+        ctx = super().get_context_data(**kwargs)
+        # Inyecta un form por producto para el modal de edición
+        for p in ctx["productos"]:
+            p.form = ProductoForm(instance=p, prefix=f"p{p.id}")
+        ctx["q"] = self.request.GET.get("q", "").strip()
+        return ctx
+
+
+class ProductCreateView(LoginRequiredMixin, SuccessMessageMixin, CreateView):
+    model = Producto
+    form_class = ProductoForm
+    template_name = "core/product_add.html"
+    success_message = "Producto creado correctamente."
+
+    def get_success_url(self):
+        return reverse_lazy("products")
+
+
+class ProductUpdateView(LoginRequiredMixin, SuccessMessageMixin, UpdateView):
+    model = Producto
+    form_class = ProductoForm
+    template_name = "core/product_add.html"  # fallback si entras directo
+    success_message = "Producto actualizado correctamente."
+
+    def form_valid(self, form):
+        resp = super().form_valid(form)
+        nxt = self.request.POST.get("next") or self.request.GET.get("next")
+        if nxt:
+            return redirect(nxt)
+        return resp
+
+    def get_success_url(self):
+        return reverse_lazy("products")
+
+
+class ProductDeleteView(LoginRequiredMixin, DeleteView):
+    model = Producto
+    template_name = "core/product_confirm_delete.html"  # fallback si navegas directo
+    success_url = reverse_lazy("products")
+
+    def delete(self, request, *args, **kwargs):
+        messages.success(request, "Producto eliminado correctamente.")
+        return super().delete(request, *args, **kwargs)
+
+
+class ProductDetailView(LoginRequiredMixin, DetailView):
+    model = Producto
+    template_name = "core/product_detail.html"
+    context_object_name = "producto"
