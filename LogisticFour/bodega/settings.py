@@ -81,18 +81,39 @@ WSGI_APPLICATION = 'bodega.wsgi.application'
 # Database
 # https://docs.djangoproject.com/en/5.2/ref/settings/#databases
 
+SUPABASE_DBNAME   = os.environ.get("SUPABASE_DBNAME", "postgres")
+SUPABASE_USER     = os.environ.get("SUPABASE_USER")
+SUPABASE_PASSWORD = os.environ.get("SUPABASE_PASSWORD")
+
+# Pooler (uso normal de la app)
+SUPABASE_HOST     = os.environ.get("SUPABASE_HOST")            # aws-1-us-east-2.pooler.supabase.com
+SUPABASE_PORT     = os.environ.get("SUPABASE_PORT", "6543")
+
+# Directo (migraciones)
+SUPABASE_DIRECT_HOST = os.environ.get("SUPABASE_DIRECT_HOST")  # aws-1-us-east-2.supabase.com
+SUPABASE_DIRECT_PORT = os.environ.get("SUPABASE_DIRECT_PORT", "5432")
+
 DATABASES = {
-    "default": {
+    "default": {  # usa el pooler
         "ENGINE": "django.db.backends.postgresql",
-        "NAME": os.environ.get("SUPABASE_DBNAME"),
-        "USER": os.environ.get("SUPABASE_USER"),
-        "PASSWORD": os.environ.get("SUPABASE_PASSWORD"),
-        "HOST": os.environ.get("SUPABASE_HOST"),
-        "PORT": os.environ.get("SUPABASE_PORT", "5432"),
-        "OPTIONS": {
-            "sslmode": "require"
-        }
-    }
+        "NAME": SUPABASE_DBNAME,
+        "USER": SUPABASE_USER,
+        "PASSWORD": SUPABASE_PASSWORD,
+        "HOST": SUPABASE_HOST,
+        "PORT": SUPABASE_PORT,
+        "OPTIONS": {"sslmode": "require"},
+        "CONN_MAX_AGE": 0,  # evita conexiones persistentes con el pooler
+    },
+    "direct": {   # usa conexión directa para migraciones
+        "ENGINE": "django.db.backends.postgresql",
+        "NAME": SUPABASE_DBNAME,
+        "USER": SUPABASE_USER,
+        "PASSWORD": SUPABASE_PASSWORD,
+        "HOST": SUPABASE_DIRECT_HOST,
+        "PORT": SUPABASE_DIRECT_PORT,
+        "OPTIONS": {"sslmode": "require"},
+        "CONN_MAX_AGE": 0,
+    },
 }
 
 
