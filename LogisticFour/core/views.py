@@ -1,13 +1,13 @@
 import io
 import segno
 
-from django.shortcuts import render, redirect
+from django.shortcuts import render, redirect, get_object_or_404
 from django.contrib.auth import authenticate, login, logout
 from django.contrib.auth.decorators import login_required, user_passes_test
 from django.urls import reverse, NoReverseMatch
 from django.contrib import messages
 from django.contrib.auth.forms import UserCreationForm
-from django.contrib.auth.models import User
+from django.contrib.auth.models import User, Group
 from django.db import transaction
 from django import forms
 from core.forms import *
@@ -21,7 +21,9 @@ from django.urls import reverse_lazy
 from django.db.models import Q
 from django.shortcuts import redirect
 from django.contrib import messages
-
+from django.core.paginator import Paginator
+from core.forms import SignupUserForm, UsuarioPerfilForm
+from core.models import UsuarioPerfil
 
 
 
@@ -129,8 +131,23 @@ def _is_admin(user: User) -> bool:
         return user.is_authenticated and user.perfil.rol == UsuarioPerfil.Rol.ADMIN
     except Exception:
         return False
+    
+def _sync_user_groups_by_profile(user: User):
+    """
+    Sincroniza el Group del usuario según su perfil.rol.
+    """
+    try:
+        perfil = user.perfil
+        if perfil and perfil.rol:
+            # Asegura que existan todos los grupos
+            for code, _ in UsuarioPerfil.Rol.choices:
+                Group.objects.get_or_create(name=code)
+            user.groups.clear()
+            user.groups.add(Group.objects.get(name=perfil.rol))
+    except Exception:
+        pass
 
-@user_passes_test(_is_admin)  # quita este decorador si no deseas restringir
+@user_passes_test(_is_admin)
 @transaction.atomic
 def signup(request):
     if request.method == "POST":
@@ -159,7 +176,7 @@ def signup(request):
 
     return render(request, "accounts/sign.html", {"user_form": user_form, "perfil_form": perfil_form})
 
-# helper para restringir a ADMIN
+
 def _is_admin(user):
     try:
         return user.is_authenticated and user.perfil.rol == user.perfil.Rol.ADMIN
@@ -170,49 +187,128 @@ def _is_admin(user):
 @transaction.atomic
 def user_create(request):
     """
-    Alta de usuario (User + UsuarioPerfil) solo para ADMIN.
-    Usa template: account/sign.html
+    Alta de usuario (User + UsuarioPerfil).
+    Usa: accounts/sign.html (tu formulario existente).
+    Si viene ?role=PROVEEDOR, se preselecciona ese rol.
     """
+    preset_role = request.GET.get("role")
     if request.method == "POST":
         user_form = SignupUserForm(request.POST)
         perfil_form = UsuarioPerfilForm(request.POST)
-
         if user_form.is_valid() and perfil_form.is_valid():
-            # Crear User
             user = user_form.save(commit=True)
 
-            # Asegurar perfil y actualizar datos (incluye rol)
             perfil, _ = UsuarioPerfil.objects.get_or_create(usuario=user)
+            # copiar campos del form al perfil
             for field, value in perfil_form.cleaned_data.items():
                 setattr(perfil, field, value)
-            perfil.save()  # tu señal post_save ya sincroniza grupos por rol
+
+            # si vino role por query y no se cambió en el form, respétalo
+            if preset_role and not perfil_form.cleaned_data.get("rol"):
+                perfil.rol = preset_role
+
+            perfil.save()
+            _sync_user_groups_by_profile(user)
 
             messages.success(request, "✅ Usuario creado correctamente.")
             return redirect("usuario-list")
-        else:
-            messages.error(request, "❌ Revisa los errores del formulario.")
+        messages.error(request, "❌ Revisa los errores del formulario.")
     else:
         user_form = SignupUserForm()
-        perfil_form = UsuarioPerfilForm()
+        # inicializa el rol si viene por query
+        initial = {}
+        if preset_role in dict(UsuarioPerfil.Rol.choices):
+            initial["rol"] = preset_role
+        perfil_form = UsuarioPerfilForm(initial=initial)
 
-    return render(request, "account/sign.html", {
+    return render(request, "accounts/sign.html", {
         "user_form": user_form,
         "perfil_form": perfil_form,
     })
 
+@user_passes_test(_is_admin)
+@transaction.atomic
+def user_edit(request, user_id: int):
+    obj = get_object_or_404(User.objects.select_related("perfil"), pk=user_id)
+
+    # Evitar que un admin se desactive/elimine a sí mismo por accidente (opcional)
+    editing_self = (request.user.pk == obj.pk)
+
+    # Asegurar que tenga perfil
+    perfil, _ = UsuarioPerfil.objects.get_or_create(usuario=obj)
+
+    if request.method == "POST":
+        uform = UserEditForm(request.POST, instance=obj)
+        pform = UsuarioPerfilEditForm(request.POST, instance=perfil)
+
+        if uform.is_valid() and pform.is_valid():
+            # No permitir que un usuario se desactive a sí mismo (opcional, seguridad)
+            if editing_self and not uform.cleaned_data.get("is_active", True):
+                messages.error(request, "No puedes desactivar tu propio usuario.")
+            else:
+                uform.save()
+                pform.save()
+                _sync_user_groups_by_profile(obj)
+                messages.success(request, "✅ Usuario actualizado.")
+                return redirect("usuario-list")
+        else:
+            messages.error(request, "❌ Revisa los errores del formulario.")
+    else:
+        uform = UserEditForm(instance=obj)
+        pform = UsuarioPerfilEditForm(instance=perfil)
+
+    return render(request, "accounts/user_form.html", {
+        "obj": obj,
+        "user_form": uform,
+        "perfil_form": pform,
+    })
 
 @user_passes_test(_is_admin)
+@transaction.atomic
+def user_delete(request, user_id: int):
+    obj = get_object_or_404(User, pk=user_id)
+
+    # Reglas de seguridad útiles:
+    if request.user.pk == obj.pk:
+        messages.error(request, "No puedes eliminar tu propio usuario.")
+        return redirect("usuario-list")
+    if obj.is_superuser:
+        messages.error(request, "No puedes eliminar un superusuario.")
+        return redirect("usuario-list")
+
+    if request.method == "POST":
+        obj.delete()
+        messages.success(request, "🗑️ Usuario eliminado.")
+        return redirect("usuario-list")
+
+    return render(request, "accounts/user_confirm_delete.html", {"obj": obj})
+
+@user_passes_test(_is_admin)
+@login_required
 def user_list(request):
     """
-    Listado simple de usuarios para navegación después de crear.
-    Usa template: account/user_list.html
+    Listado con búsqueda y filtro por rol.
+    Template: accounts/user_list.html
     """
-    data = (
-        User.objects
-        .select_related("perfil")
-        .order_by("username")
-    )
-    return render(request, "account/user_list.html", {"users": data})
+    q = request.GET.get("q", "").strip()
+    rol = request.GET.get("rol", "").strip()
+
+    qs = User.objects.select_related("perfil").order_by("username")
+    if q:
+        qs = qs.filter(username__icontains=q) | qs.filter(first_name__icontains=q) | qs.filter(last_name__icontains=q) | qs.filter(email__icontains=q)
+    if rol:
+        qs = qs.filter(perfil__rol=rol)
+
+    paginator = Paginator(qs, 20)
+    page = request.GET.get("page", 1)
+    users_page = paginator.get_page(page)
+
+    return render(request, "accounts/user_list.html", {
+        "users": users_page,
+        "q": q,
+        "rol": rol,
+        "roles": UsuarioPerfil.Rol.choices,
+    })
 
 
 #Area de productos

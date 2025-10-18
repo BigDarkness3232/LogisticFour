@@ -21,6 +21,29 @@ class UsuarioPerfilForm(forms.ModelForm):
             "telefono": forms.TextInput(attrs={"placeholder": "+56 9 1234 5678"}),
         }
         
+class UserEditForm(forms.ModelForm):
+    # opcional: permitir activar/desactivar
+    is_active = forms.BooleanField(required=False, label="Activo")
+
+    class Meta:
+        model = User
+        fields = ("username", "first_name", "last_name", "email", "is_active")
+        widgets = {
+            "username":   forms.TextInput(attrs={"class": "form-control"}),
+            "first_name": forms.TextInput(attrs={"class": "form-control"}),
+            "last_name":  forms.TextInput(attrs={"class": "form-control"}),
+            "email":      forms.EmailInput(attrs={"class": "form-control"}),
+        }
+
+class UsuarioPerfilEditForm(forms.ModelForm):
+    class Meta:
+        model = UsuarioPerfil
+        fields = ("telefono", "rol")
+        widgets = {
+            "telefono": forms.TextInput(attrs={"placeholder": "+56 9 1234 5678", "class": "form-control"}),
+            "rol": forms.Select(attrs={"class": "form-select"}),
+        }
+
 class ProductoForm(forms.ModelForm):
     # Opcional: forzar empty_label más claro en los FKs opcionales
     marca = forms.ModelChoiceField(

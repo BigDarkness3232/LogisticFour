@@ -38,6 +38,8 @@ urlpatterns = [
     # Usuarios (solo ADMIN)
     path("users/", views.user_list, name="usuario-list"),
     path("users/create/", views.user_create, name="usuario-create"),
+    path("users/<int:user_id>/edit/", views.user_edit, name="usuario-edit"),
+    path("users/<int:user_id>/delete/", views.user_delete, name="usuario-delete"),
 
     #codigo QR producto
     path("productos/", views.ProductsListView.as_view(), name="products"),

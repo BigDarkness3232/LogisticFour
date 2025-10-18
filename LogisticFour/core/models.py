@@ -35,7 +35,7 @@ class UsuarioPerfil(MarcaTiempo):
 
     rut = models.CharField(max_length=20, blank=True)
     telefono = models.CharField(max_length=50, blank=True)
-    rol = models.CharField(max_length=20, choices=Rol.choices, default=Rol.BODEGUERO)
+    rol = models.CharField(max_length=20, choices=Rol.choices, default=Rol.ADMIN)
 
     class Meta:
         db_table = "usuarios_perfil"
