@@ -1,0 +1,15 @@
+{% extends "core/base.html" %}
+
+{% block title %}Formulario Sucursal{% endblock %}
+
+{% block content %}
+<h1>{% if object %}Editar Sucursal{% else %}Crear Sucursal{% endif %}</h1>
+
+<form method="post">
+  {% csrf_token %}
+  {{ form.as_p }}
+  <button class="btn btn-primary" type="submit">Guardar</button>
+  <a class="btn btn-secondary" href="{% url 'sucursal-list' %}">Cancelar</a>
+</form>
+
+{% endblock %}

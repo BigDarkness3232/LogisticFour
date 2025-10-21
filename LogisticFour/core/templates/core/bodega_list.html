@@ -1,0 +1,84 @@
+{% extends "core/base.html" %}
+
+{% block title %}Bodegas{% endblock %}
+
+{% block content %}
+<h1>Bodegas</h1>
+
+<form method="get" class="mb-3">
+  <div class="input-group">
+    <input type="text" name="q" value="{{ request.GET.q }}" placeholder="Buscar..." class="form-control" />
+    <button class="btn btn-primary" type="submit">Buscar</button>
+  </div>
+</form>
+
+{% if request.user.is_authenticated %}
+  {% if request.user.is_superuser %}
+    <p><a class="btn btn-success" href="{% url 'bodega-create' %}">Crear Bodega</a></p>
+  {% else %}
+    {% if request.user.perfil %}
+      {% if request.user.perfil.rol == 'ADMIN' %}
+        <p><a class="btn btn-success" href="{% url 'bodega-create' %}">Crear Bodega</a></p>
+      {% endif %}
+    {% endif %}
+  {% endif %}
+{% endif %}
+
+<table class="table table-striped">
+  <thead>
+    <tr>
+      <th>Sucursal</th>
+      <th>Código</th>
+      <th>Nombre</th>
+      <th>Activo</th>
+      <th></th>
+    </tr>
+  </thead>
+  <tbody>
+    {% for b in bodegas %}
+    <tr>
+      <td>{{ b.sucursal }}</td>
+      <td>{{ b.codigo }}</td>
+      <td>{{ b.nombre }}</td>
+      <td>{% if b.activo %}Sí{% else %}No{% endif %}</td>
+      <td>
+        {% url 'bodega-edit' b.pk as edit_url %}
+        {% url 'bodega-delete' b.pk as delete_url %}
+        {% with view_url=request.build_absolute_uri edit_url=edit_url delete_url=delete_url %}
+          {% if request.user.is_superuser %}
+            {% include 'core/_actions.html' with can_edit=True can_delete=True %}
+          {% else %}
+            {% if request.user.perfil %}
+              {% if request.user.perfil.rol == 'ADMIN' %}
+                {% include 'core/_actions.html' with can_edit=True can_delete=True %}
+              {% else %}
+                {% include 'core/_actions.html' with can_edit=False can_delete=False %}
+              {% endif %}
+            {% else %}
+              {% include 'core/_actions.html' with can_edit=False can_delete=False %}
+            {% endif %}
+          {% endif %}
+        {% endwith %}
+      </td>
+    </tr>
+    {% empty %}
+    <tr><td colspan="5">No hay bodegas.</td></tr>
+    {% endfor %}
+  </tbody>
+</table>
+
+{% if is_paginated %}
+  <nav aria-label="Page navigation">
+    <ul class="pagination">
+      {% if page_obj.has_previous %}
+        <li class="page-item"><a class="page-link" href="?page={{ page_obj.previous_page_number }}{% if request.GET.q %}&q={{ request.GET.q }}{% endif %}">Anterior</a></li>
+      {% endif %}
+      <li class="page-item disabled"><span class="page-link">Página {{ page_obj.number }} de {{ page_obj.paginator.num_pages }}</span></li>
+      {% if page_obj.has_next %}
+        <li class="page-item"><a class="page-link" href="?page={{ page_obj.next_page_number }}{% if request.GET.q %}&q={{ request.GET.q }}{% endif %}">Siguiente</a></li>
+      {% endif %}
+    </ul>
+  </nav>
+{% endif %}
+
+{% endblock %}

@@ -6,7 +6,13 @@ urlpatterns = [
     # App principal
     path("", views.dashboard, name="dashboard"),
     path("products/", views.products, name="products"),
-    path("category/<slug:slug>/", views.category, name="category"),
+     path("category/<slug:slug>/", views.category, name="category"),
+     # Nuevo: categorías
+     path("categorias/", views.CategoriaListView.as_view(), name="categoria-list"),
+     path("categorias/<slug:slug>/", views.ProductsByCategoryView.as_view(), name="categoria-products"),
+          path("categorias/agregar/", views.CategoriaCreateView.as_view(), name="categoria-create"),
+          path("categorias/<int:pk>/editar/", views.CategoriaUpdateView.as_view(), name="categoria-edit"),
+          path("categorias/<int:pk>/eliminar/", views.CategoriaDeleteView.as_view(), name="categoria-delete"),
     path("products/add/", views.product_add, name="product_add"),
 
     # Auth propias
@@ -48,4 +54,18 @@ urlpatterns = [
     path("productos/<int:pk>/eliminar/", views.ProductDeleteView.as_view(), name="producto-delete"),
     path("productos/<int:pk>/", views.ProductDetailView.as_view(), name="producto-detail"),
     path("productos/<int:pk>/qr.png", views.qr_producto_png, name="producto-qr-png"),
+
+     # Sucursales CRUD
+     path("sucursales/", views.SucursalListView.as_view(), name="sucursal-list"),
+     path("sucursales/agregar/", views.SucursalCreateView.as_view(), name="sucursal-create"),
+     path("sucursales/<int:pk>/editar/", views.SucursalUpdateView.as_view(), name="sucursal-edit"),
+     path("sucursales/<int:pk>/eliminar/", views.SucursalDeleteView.as_view(), name="sucursal-delete"),
+     path("sucursales/<int:pk>/", views.SucursalDetailView.as_view(), name="sucursal-detail"),
+
+     # Bodegas CRUD
+     path("bodegas/", views.BodegaListView.as_view(), name="bodega-list"),
+     path("bodegas/agregar/", views.BodegaCreateView.as_view(), name="bodega-create"),
+     path("bodegas/<int:pk>/editar/", views.BodegaUpdateView.as_view(), name="bodega-edit"),
+     path("bodegas/<int:pk>/eliminar/", views.BodegaDeleteView.as_view(), name="bodega-delete"),
+     path("bodegas/<int:pk>/", views.BodegaDetailView.as_view(), name="bodega-detail"),
 ]

@@ -18,12 +18,15 @@ from django.views.generic import ListView, CreateView, UpdateView, DeleteView, D
 from django.contrib.auth.mixins import LoginRequiredMixin  # agrega PermissionRequiredMixin si ya manejas permisos
 from django.contrib.messages.views import SuccessMessageMixin
 from django.urls import reverse_lazy
-from django.db.models import Q
+from django.db.models import Q, Sum, F, Value, DecimalField
+from django.db.models.functions import Coalesce
 from django.shortcuts import redirect
 from django.contrib import messages
 from django.core.paginator import Paginator
 from core.forms import SignupUserForm, UsuarioPerfilForm
 from core.models import UsuarioPerfil
+from django.contrib.auth.mixins import UserPassesTestMixin
+from django.views import View
 
 
 
@@ -128,7 +131,14 @@ class UsuarioPerfilForm(forms.ModelForm):
 
 def _is_admin(user: User) -> bool:
     try:
-        return user.is_authenticated and user.perfil.rol == UsuarioPerfil.Rol.ADMIN
+        if not user or not user.is_authenticated:
+            return False
+        # Superusuario del sistema siempre tiene permisos de ADMIN
+        if getattr(user, 'is_superuser', False):
+            return True
+        # Asegura que exista perfil para usuarios creados de forma externa
+        perfil, _ = UsuarioPerfil.objects.get_or_create(usuario=user)
+        return perfil.rol == UsuarioPerfil.Rol.ADMIN
     except Exception:
         return False
     
@@ -147,7 +157,17 @@ def _sync_user_groups_by_profile(user: User):
     except Exception:
         pass
 
-@user_passes_test(_is_admin)
+
+def admin_required(view_func):
+    """Decorador para views basadas en funciones que redirige con mensaje si no es admin."""
+    def _wrapped(request, *args, **kwargs):
+        if not _is_admin(request.user):
+            messages.error(request, "No tienes permisos para realizar esa acción.")
+            return redirect('dashboard')
+        return view_func(request, *args, **kwargs)
+    return _wrapped
+
+@admin_required
 @transaction.atomic
 def signup(request):
     if request.method == "POST":
@@ -175,15 +195,7 @@ def signup(request):
         perfil_form = UsuarioPerfilForm()
 
     return render(request, "accounts/sign.html", {"user_form": user_form, "perfil_form": perfil_form})
-
-
-def _is_admin(user):
-    try:
-        return user.is_authenticated and user.perfil.rol == user.perfil.Rol.ADMIN
-    except Exception:
-        return False
-
-@user_passes_test(_is_admin)
+@admin_required
 @transaction.atomic
 def user_create(request):
     """
@@ -226,7 +238,7 @@ def user_create(request):
         "perfil_form": perfil_form,
     })
 
-@user_passes_test(_is_admin)
+@admin_required
 @transaction.atomic
 def user_edit(request, user_id: int):
     obj = get_object_or_404(User.objects.select_related("perfil"), pk=user_id)
@@ -263,7 +275,7 @@ def user_edit(request, user_id: int):
         "perfil_form": pform,
     })
 
-@user_passes_test(_is_admin)
+@admin_required
 @transaction.atomic
 def user_delete(request, user_id: int):
     obj = get_object_or_404(User, pk=user_id)
@@ -283,7 +295,7 @@ def user_delete(request, user_id: int):
 
     return render(request, "accounts/user_confirm_delete.html", {"obj": obj})
 
-@user_passes_test(_is_admin)
+@admin_required
 @login_required
 def user_list(request):
     """
@@ -309,6 +321,214 @@ def user_list(request):
         "rol": rol,
         "roles": UsuarioPerfil.Rol.choices,
     })
+
+
+# -------------------- CRUD Sucursal / Bodega --------------------
+class AdminOnlyMixin(UserPassesTestMixin):
+    """Mixin para CBV que deja pasar sólo a ADMIN."""
+    def test_func(self):
+        return _is_admin(self.request.user)
+    
+    def handle_no_permission(self):
+        # Redirige a dashboard con mensaje en lugar de mostrar 403
+        messages.error(self.request, "No tienes permisos para realizar esa acción.")
+        return redirect('dashboard')
+
+
+class BodegaPermissionMixin(UserPassesTestMixin):
+    """Permite acceso si es ADMIN o BODEGUERO (validación por objeto aparte)."""
+    def test_func(self):
+        try:
+            perfil = getattr(self.request.user, 'perfil', None)
+            if not self.request.user.is_authenticated:
+                return False
+            if perfil and perfil.rol == UsuarioPerfil.Rol.ADMIN:
+                return True
+            if perfil and perfil.rol == UsuarioPerfil.Rol.BODEGUERO:
+                return True
+            return False
+        except Exception:
+            return False
+
+    def handle_no_permission(self):
+        messages.error(self.request, "No tienes permisos para realizar esa acción.")
+        return redirect('dashboard')
+
+
+def admin_required(view_func):
+    """Decorador para views basadas en funciones que redirige con mensaje si no es admin."""
+    def _wrapped(request, *args, **kwargs):
+        if not _is_admin(request.user):
+            messages.error(request, "No tienes permisos para realizar esa acción.")
+            return redirect('dashboard')
+        return view_func(request, *args, **kwargs)
+    return _wrapped
+
+
+class SucursalListView(LoginRequiredMixin, ListView):
+    model = Sucursal
+    template_name = "core/sucursal_list.html"
+    context_object_name = "sucursales"
+    paginate_by = 20
+
+    def get_queryset(self):
+        qs = Sucursal.objects.order_by("codigo")
+        q = self.request.GET.get("q", "").strip()
+        if q:
+            qs = qs.filter(Q(codigo__icontains=q) | Q(nombre__icontains=q) | Q(ciudad__icontains=q))
+        return qs
+
+
+class SucursalCreateView(LoginRequiredMixin, AdminOnlyMixin, SuccessMessageMixin, CreateView):
+    model = Sucursal
+    fields = ["codigo", "nombre", "direccion", "ciudad", "region", "pais", "activo"]
+    template_name = "core/sucursal_form.html"
+    success_message = "Sucursal creada correctamente."
+
+    def get_success_url(self):
+        return reverse_lazy("sucursal-list")
+
+
+class SucursalUpdateView(LoginRequiredMixin, AdminOnlyMixin, SuccessMessageMixin, UpdateView):
+    model = Sucursal
+    fields = ["codigo", "nombre", "direccion", "ciudad", "region", "pais", "activo"]
+    template_name = "core/sucursal_form.html"
+    success_message = "Sucursal actualizada correctamente."
+
+    def get_success_url(self):
+        return reverse_lazy("sucursal-list")
+
+
+class SucursalDeleteView(LoginRequiredMixin, AdminOnlyMixin, SuccessMessageMixin, DeleteView):
+    model = Sucursal
+    template_name = "core/sucursal_confirm_delete.html"
+    success_url = reverse_lazy("sucursal-list")
+
+    def delete(self, request, *args, **kwargs):
+        messages.success(request, "Sucursal eliminada correctamente.")
+        return super().delete(request, *args, **kwargs)
+
+
+class SucursalDetailView(LoginRequiredMixin, DetailView):
+    model = Sucursal
+    template_name = "core/sucursal_detail.html"
+    context_object_name = "sucursal"
+
+
+
+
+class BodegaListView(LoginRequiredMixin, ListView):
+    model = Bodega
+    template_name = "core/bodega_list.html"
+    context_object_name = "bodegas"
+    paginate_by = 20
+
+    def get_queryset(self):
+        qs = Bodega.objects.select_related("sucursal").order_by("sucursal__codigo", "codigo")
+        q = self.request.GET.get("q", "").strip()
+        if q:
+            qs = qs.filter(Q(codigo__icontains=q) | Q(nombre__icontains=q) | Q(descripcion__icontains=q) | Q(sucursal__nombre__icontains=q))
+        return qs
+
+
+class BodegaCreateView(LoginRequiredMixin, BodegaPermissionMixin, SuccessMessageMixin, CreateView):
+    model = Bodega
+    fields = ["sucursal", "codigo", "nombre", "descripcion", "activo"]
+    template_name = "core/bodega_form.html"
+    success_message = "Bodega creada correctamente."
+
+    def get_success_url(self):
+        return reverse_lazy("bodega-list")
+
+    def get_form(self, form_class=None):
+        form = super().get_form(form_class)
+        # Si el usuario es BODEGUERO, limitar el campo sucursal a su sucursal y hacerlo readonly
+        perfil = getattr(self.request.user, 'perfil', None)
+        # Si es superusuario o tiene rol ADMIN, no limitamos el queryset
+        if self.request.user.is_superuser or (perfil and perfil.rol == UsuarioPerfil.Rol.ADMIN):
+            return form
+
+        # Si el usuario es BODEGUERO, limitar el campo sucursal a su sucursal
+        if perfil and perfil.rol == UsuarioPerfil.Rol.BODEGUERO:
+            if perfil.sucursal:
+                form.fields['sucursal'].queryset = Sucursal.objects.filter(pk=perfil.sucursal.pk)
+            else:
+                form.fields['sucursal'].queryset = Sucursal.objects.none()
+        return form
+
+    def form_valid(self, form):
+        perfil = getattr(self.request.user, 'perfil', None)
+        # Si es bodeguero, forzar la sucursal a la del perfil (evita manipulación)
+        # No forzar para superusuarios aunque su perfil diga BODEGUERO
+        if not self.request.user.is_superuser and perfil and perfil.rol == UsuarioPerfil.Rol.BODEGUERO:
+            if perfil.sucursal:
+                form.instance.sucursal = perfil.sucursal
+            else:
+                messages.error(self.request, "No tienes una sucursal asignada.")
+                return super().form_invalid(form)
+        return super().form_valid(form)
+
+
+class BodegaUpdateView(LoginRequiredMixin, BodegaPermissionMixin, SuccessMessageMixin, UpdateView):
+    model = Bodega
+    fields = ["sucursal", "codigo", "nombre", "descripcion", "activo"]
+    template_name = "core/bodega_form.html"
+    success_message = "Bodega actualizada correctamente."
+
+    def get_success_url(self):
+        return reverse_lazy("bodega-list")
+
+    def dispatch(self, request, *args, **kwargs):
+        # Permitir solo si admin o (bodeguero y la bodega pertenece a su sucursal)
+        perfil = getattr(request.user, 'perfil', None)
+        # Si es superusuario, saltamos las restricciones de bodeguero
+        if not request.user.is_superuser and perfil and perfil.rol == UsuarioPerfil.Rol.BODEGUERO:
+            obj = self.get_object()
+            if not obj or obj.sucursal_id != (perfil.sucursal.id if perfil.sucursal else None):
+                messages.error(request, "No tienes permisos para editar esta bodega.")
+                return redirect('bodega-list')
+        return super().dispatch(request, *args, **kwargs)
+
+    def get_form(self, form_class=None):
+        form = super().get_form(form_class)
+        perfil = getattr(self.request.user, 'perfil', None)
+        # Permitir a superusuarios ver/editar la sucursal completa
+        if self.request.user.is_superuser or (perfil and perfil.rol == UsuarioPerfil.Rol.ADMIN):
+            return form
+
+        if perfil and perfil.rol == UsuarioPerfil.Rol.BODEGUERO:
+            # limitar la sucursal a la del perfil
+            if perfil.sucursal:
+                form.fields['sucursal'].queryset = Sucursal.objects.filter(pk=perfil.sucursal.pk)
+            else:
+                form.fields['sucursal'].queryset = Sucursal.objects.none()
+        return form
+
+
+class BodegaDeleteView(LoginRequiredMixin, BodegaPermissionMixin, SuccessMessageMixin, DeleteView):
+    model = Bodega
+    template_name = "core/bodega_confirm_delete.html"
+    success_url = reverse_lazy("bodega-list")
+
+    def delete(self, request, *args, **kwargs):
+        messages.success(request, "Bodega eliminada correctamente.")
+        return super().delete(request, *args, **kwargs)
+
+    def dispatch(self, request, *args, **kwargs):
+        perfil = getattr(request.user, 'perfil', None)
+        # Si no es superusuario y es bodeguero, aplicar restricción por sucursal
+        if not request.user.is_superuser and perfil and perfil.rol == UsuarioPerfil.Rol.BODEGUERO:
+            obj = self.get_object()
+            if not obj or obj.sucursal_id != (perfil.sucursal.id if perfil.sucursal else None):
+                messages.error(request, "No tienes permisos para eliminar esta bodega.")
+                return redirect('bodega-list')
+        return super().dispatch(request, *args, **kwargs)
+
+
+class BodegaDetailView(LoginRequiredMixin, DetailView):
+    model = Bodega
+    template_name = "core/bodega_detail.html"
+    context_object_name = "bodega"
 
 
 #Area de productos
@@ -354,10 +574,120 @@ class ProductsListView(LoginRequiredMixin, ListView):
             )
         return qs
 
+
+class CategoriaListView(LoginRequiredMixin, ListView):
+    """Listado de categorías"""
+    model = CategoriaProducto
+    template_name = "core/categoria_list.html"
+    context_object_name = "categorias"
+    paginate_by = 40
+
+    def get_queryset(self):
+        return CategoriaProducto.objects.order_by("nombre")
+
+
+class CategoriaCreateView(LoginRequiredMixin, AdminOnlyMixin, SuccessMessageMixin, CreateView):
+    model = CategoriaProducto
+    fields = ["padre", "nombre", "codigo"]
+    template_name = "core/categoria_form.html"
+    success_message = "Categoría creada correctamente."
+
+    def get_success_url(self):
+        return reverse_lazy('categoria-list')
+
+
+class CategoriaUpdateView(LoginRequiredMixin, AdminOnlyMixin, SuccessMessageMixin, UpdateView):
+    model = CategoriaProducto
+    fields = ["padre", "nombre", "codigo"]
+    template_name = "core/categoria_form.html"
+    success_message = "Categoría actualizada correctamente."
+
+    def get_success_url(self):
+        return reverse_lazy('categoria-list')
+
+
+class CategoriaDeleteView(LoginRequiredMixin, AdminOnlyMixin, SuccessMessageMixin, DeleteView):
+    model = CategoriaProducto
+    template_name = "core/categoria_confirm_delete.html"
+    success_url = reverse_lazy('categoria-list')
+
+    def delete(self, request, *args, **kwargs):
+        messages.success(request, "Categoría eliminada correctamente.")
+        return super().delete(request, *args, **kwargs)
+
+
+class ProductsByCategoryView(LoginRequiredMixin, ListView):
+    """Muestra productos filtrados por categoría (slug/slugified name)."""
+    model = Producto
+    template_name = "core/products_by_category.html"
+    context_object_name = "productos"
+    paginate_by = 40
+
+    def get_queryset(self):
+        slug = self.kwargs.get('slug') or ''
+        # Permitimos recibir slug como 'mi-categoria' o nombre en title case
+        q = slug.replace('-', ' ').strip()
+
+        # Anotamos stock disponible por producto (suma disponible - reservada)
+        qs = (
+            Producto.objects
+            .select_related('categoria')
+            .prefetch_related('stocks__ubicacion__bodega__sucursal')
+            .annotate(total_disp=Coalesce(Sum('stocks__cantidad_disponible'), Value(0, output_field=DecimalField())))
+            .annotate(total_res=Coalesce(Sum('stocks__cantidad_reservada'), Value(0, output_field=DecimalField())))
+            .annotate(stock_available=F('total_disp') - F('total_res'))
+            .order_by('categoria__nombre', 'nombre')
+        )
+
+        # Filtrado por nombre de categoría
+        if q:
+            qs = qs.filter(Q(categoria__nombre__iexact=q) | Q(categoria__nombre__icontains=q))
+
+        # Filtros por stock (querystring)
+        sf = (self.request.GET.get('stock_filter') or '').lower()
+        # ejemplos: stock_filter=available|low|out  (low = <=10)
+        if sf == 'available':
+            qs = qs.filter(stock_available__gt=0)
+        elif sf == 'out':
+            qs = qs.filter(stock_available__lte=0)
+        elif sf == 'low':
+            qs = qs.filter(stock_available__lte=10, stock_available__gt=0)
+
+        # Filtro por umbral numérico opcional: ?stock_lt=5
+        stock_lt = self.request.GET.get('stock_lt')
+        if stock_lt:
+            try:
+                n = float(stock_lt)
+                qs = qs.filter(stock_available__lt=n)
+            except Exception:
+                pass
+
+        return qs
+
     def get_context_data(self, **kwargs):
         ctx = super().get_context_data(**kwargs)
+        ctx['categoria_nombre'] = (self.kwargs.get('slug') or '').replace('-', ' ').title()
+        # Construir un mapa product_id -> breakdown string para tooltips
+        breakdowns = {}
+        productos = ctx.get('productos')
+        if productos:
+            for p in productos:
+                parts = []
+                # Accedemos a p.stocks (prefetched) y agregamos detalle por ubicación
+                for s in getattr(p, 'stocks').all():
+                    ub = s.ubicacion
+                    # nombre sucursal y bodega si están disponibles
+                    suc = getattr(ub.bodega.sucursal, 'nombre', None) if ub and getattr(ub, 'bodega', None) else None
+                    bdn = getattr(ub.bodega, 'nombre', None) if ub and getattr(ub, 'bodega', None) else None
+                    ub_code = getattr(ub, 'codigo', None) if ub else None
+                    parts.append(f"{s.cantidad_disponible} disp / {s.cantidad_reservada} res @ {suc or ''}/{bdn or ''}/{ub_code or ''}")
+                breakdowns[p.pk] = "; ".join(parts) if parts else ""
+                # Adjuntar directamente al objeto producto para acceso sencillo en plantilla
+                setattr(p, 'stock_breakdown', breakdowns[p.pk])
+
+        ctx['stock_breakdowns'] = breakdowns
         # Inyecta un form por producto para el modal de edición
-        for p in ctx["productos"]:
+        for p in ctx.get("productos") or []:
             p.form = ProductoForm(instance=p, prefix=f"p{p.id}")
         ctx["q"] = self.request.GET.get("q", "").strip()
         return ctx

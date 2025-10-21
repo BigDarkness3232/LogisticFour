@@ -1,0 +1,11 @@
+<header class="topbar">
+  <input class="search" placeholder="Search…" />
+  {% if user.is_authenticated %}
+    <div class="icons" aria-label="User actions">
+      <span class="dot" aria-hidden="true"></span>
+      <span class="dot" aria-hidden="true"></span>
+      <span class="avatar" aria-hidden="true"></span>
+      <a href="{% url 'usuario-list' %}" class="btn btn-ghost" aria-label="Usuarios">Usuarios</a>
+    </div>
+  {% endif %}
+</header>
