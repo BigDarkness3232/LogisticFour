@@ -1,0 +1,68 @@
+{% extends "core/base.html" %}
+{% block title %}Editar usuario{% endblock %}
+
+{% block content %}
+<div class="card">
+  <div class="card-title">Editar usuario: {{ obj.username }}</div>
+
+  {% if messages %}
+    {% for message in messages %}
+      <div class="alert alert-{{ message.tags }}">{{ message }}</div>
+    {% endfor %}
+  {% endif %}
+
+  <form method="post" class="form" novalidate>
+    {% csrf_token %}
+
+    <h6>Datos de acceso</h6>
+    <div class="grid-2">
+      <div class="field">
+        <label for="{{ user_form.username.id_for_label }}">Usuario</label>
+        {{ user_form.username }}
+        {{ user_form.username.errors }}
+      </div>
+      <div class="field">
+        <label for="{{ user_form.email.id_for_label }}">Email</label>
+        {{ user_form.email }}
+        {{ user_form.email.errors }}
+      </div>
+      <div class="field">
+        <label for="{{ user_form.first_name.id_for_label }}">Nombre</label>
+        {{ user_form.first_name }}
+        {{ user_form.first_name.errors }}
+      </div>
+      <div class="field">
+        <label for="{{ user_form.last_name.id_for_label }}">Apellido</label>
+        {{ user_form.last_name }}
+        {{ user_form.last_name.errors }}
+      </div>
+      <div class="field">
+        <label for="{{ user_form.is_active.id_for_label }}">Activo</label>
+        {{ user_form.is_active }}
+        {{ user_form.is_active.errors }}
+      </div>
+    </div>
+
+    <hr>
+
+    <h6>Perfil</h6>
+    <div class="grid-2">
+      <div class="field">
+        <label for="{{ perfil_form.telefono.id_for_label }}">Teléfono</label>
+        {{ perfil_form.telefono }}
+        {{ perfil_form.telefono.errors }}
+      </div>
+      <div class="field">
+        <label for="{{ perfil_form.rol.id_for_label }}">Rol</label>
+        {{ perfil_form.rol }}
+        {{ perfil_form.rol.errors }}
+      </div>
+    </div>
+
+    <div class="toolbar">
+      <button type="submit" class="btn">Guardar cambios</button>
+      <a href="{% url 'usuario-list' %}" class="btn ghost">Cancelar</a>
+    </div>
+  </form>
+</div>
+{% endblock %}

@@ -5,7 +5,10 @@
 <h1 class="h1">Productos</h1>
 
 <div class="toolbar">
-  <button class="btn ghost" onclick="alert('Demo: filtro visual')">⛛ Filtrar</button>
+  <form method="get" style="display:flex; gap:10px; align-items:center">
+    <input class="search" type="search" name="q" value="{{ q }}" placeholder="Buscar por SKU, nombre, marca, categoría…">
+    <button class="btn ghost" type="submit">🔎 Buscar</button>
+  </form>
   <a href="{% url 'product_add' %}" class="btn">+ Agregar producto</a>
 </div>
 
@@ -18,23 +21,67 @@
     <div>Ubicación</div>
   </div>
 
-  {% for i in "123456"|make_list %}
+  {% for p in productos %}
+  {% with st=p.stock_total|default:0 %}
   <div class="tr">
-    <div>Camiseta unisex {{ forloop.counter }}</div>
-    <div><span class="badge ok">Activo</span></div>
-    <div>20 en stock</div>
-    <div>Poleras</div>
-    <div>{{ forloop.counter }} sucursales</div>
+    <div>{{ p.nombre }}</div>
+
+    <div>
+      {% if st|floatformat:2 == "0.00" %}
+        <span class="badge warn">Sin stock</span>
+      {% else %}
+        {% if p.activo %}
+          <span class="badge ok">Activo</span>
+        {% else %}
+          <span class="badge">Inactivo</span>
+        {% endif %}
+      {% endif %}
+    </div>
+
+    <div>
+      {% if st %}
+        {{ st|floatformat:0 }} en stock
+      {% else %}
+        0 en stock
+      {% endif %}
+    </div>
+
+    <div>{{ p.categoria|default:"—" }}</div>
+
+    <div>
+      {% if p.bodegas_con_stock %}
+        {{ p.bodegas_con_stock }} bodegas
+      {% else %}
+        0 bodegas
+      {% endif %}
+    </div>
+  </div>
+  {% endwith %}
+  {% empty %}
+  <div class="tr">
+    <div class="col-span-2" style="grid-column:1 / -1; padding:12px; color:var(--muted)">
+      No hay productos.
+    </div>
   </div>
   {% endfor %}
-
-  <div class="tr">
-    <div>Polerón básico</div>
-    <div><span class="badge warn">Sin stock</span></div>
-    <div>0 en stock</div>
-    <div>Poleras</div>
-    <div>2 sucursales</div>
-  </div>
 </div>
+
+{% if is_paginated %}
+  <div style="display:flex; gap:8px; align-items:center; margin-top:10px">
+    {% if page_obj.has_previous %}
+      <a class="btn ghost" href="?q={{ q }}&page={{ page_obj.previous_page_number }}">« Anterior</a>
+    {% else %}
+      <span class="btn ghost" style="opacity:.5;pointer-events:none">« Anterior</span>
+    {% endif %}
+
+    <span>Página {{ page_obj.number }} de {{ page_obj.paginator.num_pages }}</span>
+
+    {% if page_obj.has_next %}
+      <a class="btn ghost" href="?q={{ q }}&page={{ page_obj.next_page_number }}">Siguiente »</a>
+    {% else %}
+      <span class="btn ghost" style="opacity:.5;pointer-events:none">Siguiente »</span>
+    {% endif %}
+  </div>
+{% endif %}
 
 {% endblock %}

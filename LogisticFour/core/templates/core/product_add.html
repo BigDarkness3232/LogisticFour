@@ -1,53 +1,70 @@
 {% extends "core/base.html" %}
 {% block title %}Agregar producto — Logistic{% endblock %}
-{% block content %}
 
+{% block content %}
 <h1 class="h1">Agregar producto</h1>
 
-<form class="form grid-2">
-  <div class="field">
-    <label>Nombre</label>
-    <input type="text" placeholder="Nombre del producto">
-  </div>
-  <div class="field">
-    <label>Código / SKU</label>
-    <input type="text" placeholder="SKU o código interno">
-  </div>
+<form method="post" class="form grid-2" novalidate>
+  {% csrf_token %}
 
-  <div class="field col-span-1">
-    <label>Descripción</label>
-    <textarea rows="4" placeholder="Descripción breve"></textarea>
-  </div>
+  {{ form.non_field_errors }}
+
   <div class="field">
-    <label>Cantidad inicial</label>
-    <input type="number" placeholder="0">
+    <label for="{{ form.nombre.id_for_label }}">Nombre</label>
+    {{ form.nombre }}
+    {% for e in form.nombre.errors %}<small style="color:#c2410c">{{ e }}</small>{% endfor %}
   </div>
 
   <div class="field">
-    <label>Categoría</label>
-    <select>
-      <option>Seleccionar</option>
-      <option>Poleras</option>
-      <option>Deportes</option>
-      <option>Pantalones</option>
-    </select>
-  </div>
-  <div class="field">
-    <label>Disponibilidad (sucursales)</label>
-    <input type="text" placeholder="Ej: 3 sucursales">
+    <label for="{{ form.sku.id_for_label }}">Código / SKU</label>
+    {{ form.sku }}
+    {% for e in form.sku.errors %}<small style="color:#c2410c">{{ e }}</small>{% endfor %}
   </div>
 
   <div class="field">
-    <label>Precio</label>
-    <input type="number" placeholder="0,00" step="0.01">
-  </div>
-  <div class="field">
-    <label>Fotos / Notas</label>
-    <textarea rows="4" placeholder="(demo) pega URLs o notas"></textarea>
+    <label for="{{ form.marca.id_for_label }}">Marca</label>
+    {{ form.marca }}
+    {% for e in form.marca.errors %}<small style="color:#c2410c">{{ e }}</small>{% endfor %}
   </div>
 
-  <div class="col-span-2">
-    <button type="button" class="btn big">Guardar producto</button>
+  <div class="field">
+    <label for="{{ form.categoria.id_for_label }}">Categoría</label>
+    {{ form.categoria }}
+    {% for e in form.categoria.errors %}<small style="color:#c2410c">{{ e }}</small>{% endfor %}
+  </div>
+
+  <div class="field">
+    <label for="{{ form.unidad_base.id_for_label }}">Unidad base</label>
+    {{ form.unidad_base }}
+    {% for e in form.unidad_base.errors %}<small style="color:#c2410c">{{ e }}</small>{% endfor %}
+  </div>
+
+  <div class="field">
+    <label for="{{ form.tasa_impuesto.id_for_label }}">Tasa de impuesto</label>
+    {{ form.tasa_impuesto }}
+    {% for e in form.tasa_impuesto.errors %}<small style="color:#c2410c">{{ e }}</small>{% endfor %}
+  </div>
+
+  <!-- Checkboxes en una fila completa -->
+  <div class="field col-span-2" style="display:flex; gap:18px; align-items:center; flex-wrap:wrap; padding-top:6px">
+    <label style="color:#6b7280">Opciones</label>
+    <label style="display:flex; gap:8px; align-items:center">
+      {{ form.activo }} <span>Activo</span>
+    </label>
+    <label style="display:flex; gap:8px; align-items:center">
+      {{ form.es_serializado }} <span>Serializado</span>
+    </label>
+    <label style="display:flex; gap:8px; align-items:center">
+      {{ form.tiene_vencimiento }} <span>Con vencimiento</span>
+    </label>
+    {% for e in form.activo.errors %}<small style="color:#c2410c">{{ e }}</small>{% endfor %}
+    {% for e in form.es_serializado.errors %}<small style="color:#c2410c">{{ e }}</small>{% endfor %}
+    {% for e in form.tiene_vencimiento.errors %}<small style="color:#c2410c">{{ e }}</small>{% endfor %}
+  </div>
+
+  <div class="col-span-2" style="display:flex; gap:10px">
+    <button type="submit" class="btn big">Guardar producto</button>
+    <a href="{% url 'products' %}" class="btn ghost">Cancelar</a>
   </div>
 </form>
 

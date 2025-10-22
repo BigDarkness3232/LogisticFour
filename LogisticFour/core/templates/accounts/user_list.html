@@ -1,0 +1,103 @@
+{% extends "core/base.html" %}
+{% block title %}Usuarios{% endblock %}
+
+{% block content %}
+<div class="card">
+  <div class="d-flex justify-content-between align-items-center" style="gap:12px;">
+    <h2 class="h1">Usuarios</h2>
+
+    <div class="d-flex" style="gap:8px;">
+      <form method="get" class="d-flex" style="gap:8px;">
+        <input type="text" name="q" value="{{ q }}" placeholder="Buscar usuario..." class="search">
+        <select name="rol" class="search">
+          <option value="">Todos los roles</option>
+          {% for code,label in roles %}
+            <option value="{{ code }}" {% if rol == code %}selected{% endif %}>{{ label }}</option>
+          {% endfor %}
+        </select>
+        <button class="btn ghost" type="submit">Filtrar</button>
+      </form>
+
+      <div class="dropdown" style="position:relative;">
+        <button class="btn">+ Nuevo usuario</button>
+        <div class="dropdown-menu" style="display:none;position:absolute;background:#fff;border:1px solid var(--line);border-radius:8px;padding:6px;right:0;z-index:10;min-width:220px;">
+          <a class="item" style="display:block;padding:8px 10px;text-decoration:none;color:inherit;" href="{% url 'usuario-create' %}">Usuario (rol por defecto)</a>
+          <a class="item" style="display:block;padding:8px 10px;text-decoration:none;color:inherit;" href="{% url 'usuario-create' %}?role=ADMIN">Administrador</a>
+          <a class="item" style="display:block;padding:8px 10px;text-decoration:none;color:inherit;" href="{% url 'usuario-create' %}?role=BODEGUERO">Bodeguero</a>
+          <a class="item" style="display:block;padding:8px 10px;text-decoration:none;color:inherit;" href="{% url 'usuario-create' %}?role=AUDITOR">Auditor</a>
+          <a class="item" style="display:block;padding:8px 10px;text-decoration:none;color:inherit;" href="{% url 'usuario-create' %}?role=PROVEEDOR">Proveedor</a>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  {% if messages %}
+    <div style="margin-top:12px;">
+      {% for message in messages %}
+        <div class="alert alert-{{ message.tags }}">{{ message }}</div>
+      {% endfor %}
+    </div>
+  {% endif %}
+
+  <div class="table" style="margin-top:12px;">
+    <div class="tr th">
+      <div>Usuario</div>
+      <div>Nombre</div>
+      <div>Email</div>
+      <div>Rol</div>
+      <div>Acciones</div>
+    </div>
+    {% for u in users %}
+      <div class="tr">
+        <div>{{ u.username }}</div>
+        <div>{{ u.get_full_name|default:"—" }}</div>
+        <div>{{ u.email|default:"—" }}</div>
+        <div>
+          {% if u.perfil %}
+            <span class="badge">{{ u.perfil.rol }}</span>
+          {% else %}
+            <span class="badge warn">Sin perfil</span>
+          {% endif %}
+        </div>
+        <div class="d-flex" style="gap:8px; align-items:center;">
+          <a class="btn ghost" href="{% url 'usuario-edit' u.id %}">Editar</a>
+          {% if not u.is_superuser and u.id != request.user.id %}
+            <a class="btn ghost" href="{% url 'usuario-delete' u.id %}">Eliminar</a>
+          {% else %}
+            <span class="text-muted">—</span>
+          {% endif %}
+        </div>
+      </div>
+    {% empty %}
+      <div class="tr"><div class="col-span-2" style="padding:12px;">Sin usuarios.</div></div>
+    {% endfor %}
+  </div>
+
+  {% if users.paginator.num_pages > 1 %}
+    <div class="toolbar" style="margin-top:12px;">
+      {% if users.has_previous %}
+        <a class="btn ghost" href="?page={{ users.previous_page_number }}&q={{ q }}&rol={{ rol }}">« Anterior</a>
+      {% endif %}
+      <span class="btn ghost">Página {{ users.number }} / {{ users.paginator.num_pages }}</span>
+      {% if users.has_next %}
+        <a class="btn ghost" href="?page={{ users.next_page_number }}&q={{ q }}&rol={{ rol }}">Siguiente »</a>
+      {% endif %}
+    </div>
+  {% endif %}
+</div>
+
+<script>
+  // Dropdown simple sin frameworks
+  const dropdown = document.querySelector('.dropdown');
+  if (dropdown) {
+    const btn = dropdown.querySelector('button');
+    const menu = dropdown.querySelector('.dropdown-menu');
+    btn.addEventListener('click', () => {
+      menu.style.display = (menu.style.display === 'none' || !menu.style.display) ? 'block' : 'none';
+    });
+    document.addEventListener('click', (e) => {
+      if (!dropdown.contains(e.target)) menu.style.display = 'none';
+    });
+  }
+</script>
+{% endblock %}
