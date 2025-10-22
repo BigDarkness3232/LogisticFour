@@ -109,6 +109,8 @@
           <svg aria-hidden="true"><use href="#icon-plus"/></svg>
           <span>Crear Bodega</span>
         </a>
+        <a class="lx-btn icon" href="{% url 'area-create' %}?next={{ request.get_full_path|urlencode }}" onclick="return openModal(this.href)">Nueva Área</a>
+        <a class="lx-btn icon" href="{% url 'tipo-create' %}?next={{ request.get_full_path|urlencode }}" onclick="return openModal(this.href)">Nuevo Tipo</a>
       {% endif %}
     {% endif %}
   </div>
@@ -241,6 +243,19 @@
     {% endif %}
   </nav>
 {% endif %}
+<script>
+  /*Funcion de los modales de tipoubicacion y area bodega*/
+async function openModal(url){
+  const res = await fetch(url, {headers:{'X-Requested-With':'fetch'}});
+  const html = await res.text();
+  const wrap = document.createElement('div');
+  wrap.innerHTML = html;
+  document.body.appendChild(wrap);
+  const dialog = wrap.querySelector('dialog');
+  if(dialog){ dialog.addEventListener('close', ()=> wrap.remove()); }
+  return false;
+}
+</script>
 
 <script>
 /* Acordeón + animación de aparición */
