@@ -170,6 +170,10 @@ class AreaBodega(models.Model):
         constraints = [
             models.UniqueConstraint(fields=["bodega", "codigo"], name="uq_area_bodega_codigo")
         ]
+    def __str__(self):
+        suc = self.bodega.sucursal.codigo if self.bodega and self.bodega.sucursal else "—"
+        bod = self.bodega.codigo if self.bodega else "—"
+        return f"{suc}/{bod} · {self.codigo} — {self.nombre}"
 
 
 class TipoUbicacion(models.Model):
@@ -178,6 +182,9 @@ class TipoUbicacion(models.Model):
 
     class Meta:
         db_table = "tipos_ubicacion"
+    
+    def __str__(self):
+        return f"{self.codigo} — {self.descripcion or ''}".strip(" —")
 
 
 class Ubicacion(MarcaTiempo):

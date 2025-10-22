@@ -158,17 +158,19 @@
         <a href="#" class="item">🏷️ Categorías</a>
 
         <!-- ===== Grupo: Sucursales / Bodegas (colapsable) ===== -->
-        <div class="nav-group {% if request.resolver_match and request.resolver_match.url_name in 'sucursal-list bodega-list' %}expanded{% endif %}" data-group>
+        <div class="nav-group {% if request.resolver_match and request.resolver_match.url_name in 'sucursal-list bodega-list ubicacion-list' %}expanded{% endif %}" data-group>
           <button class="group-head" type="button" aria-expanded="{% if request.resolver_match and request.resolver_match.url_name in 'sucursal-list bodega-list' %}true{% else %}false{% endif %}">
             <span class="label">
               <svg width="16" height="16" aria-hidden="true"><use xlink:href="#icon-warehouse"></use></svg>
-              Sucursales / Bodegas
+              Sucursales / Bodegas / Ubicaciones
             </span>
             <span class="caret">▶</span>
           </button>
           <div class="subnav" role="group" aria-label="Submenú Sucursales y Bodegas">
             <a href="{% url 'sucursal-list' %}" class="subitem {% if request.resolver_match and request.resolver_match.url_name == 'sucursal-list' %}active{% endif %}">Sucursales</a>
             <a href="{% url 'bodega-list' %}" class="subitem {% if request.resolver_match and request.resolver_match.url_name == 'bodega-list' %}active{% endif %}">Bodegas</a>
+            <a href="{% url 'ubicacion-list' %}" class="subitem {% if request.resolver_match and request.resolver_match.url_name == 'ubicacion-list' %}active{% endif %}">Ubicaciones</a>
+
           </div>
         </div>
         <!-- ===== Fin Grupo ===== -->

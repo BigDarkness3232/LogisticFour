@@ -791,16 +791,126 @@ class ProductDetailView(LoginRequiredMixin, DetailView):
     template_name = "core/product_detail.html"
     context_object_name = "producto"
 
+class UbicacionListView(LoginRequiredMixin, ListView):
+    model = Ubicacion
+    template_name = "core/ubicacion_list.html"
+    context_object_name = "ubicaciones"
+    paginate_by = 25
+
+    def get_queryset(self):
+        qs = (Ubicacion.objects
+              .select_related("bodega__sucursal", "area", "tipo")
+              .order_by("bodega__sucursal__codigo", "bodega__codigo", "codigo"))
+        q = (self.request.GET.get("q") or "").strip()
+        if q:
+            qs = qs.filter(codigo__icontains=q) | qs.filter(nombre__icontains=q)
+        bodega_id = self.request.GET.get("bodega")
+        if bodega_id:
+            qs = qs.filter(bodega_id=bodega_id)
+        return qs
+
+    def get_context_data(self, **kwargs):
+        ctx = super().get_context_data(**kwargs)
+        ctx["bodegas"] = Bodega.objects.select_related("sucursal").order_by("sucursal__codigo", "codigo")
+        ctx["q"] = (self.request.GET.get("q") or "").strip()
+        ctx["bodega_sel"] = self.request.GET.get("bodega") or ""
+        return ctx
 
 
+# ----------------------
+# CRUD Ubicacion (páginas)
+# ----------------------
+class UbicacionCreateView(LoginRequiredMixin, SuccessMessageMixin, CreateView):
+    model = Ubicacion
+    form_class = UbicacionForm
+    template_name = "core/ubicacion_form.html"
+    success_message = "Ubicación creada."
+    success_url = reverse_lazy("ubicacion-list")
 
 
+class UbicacionUpdateView(LoginRequiredMixin, SuccessMessageMixin, UpdateView):
+    model = Ubicacion
+    form_class = UbicacionForm
+    template_name = "core/ubicacion_form.html"
+    success_message = "Ubicación actualizada."
+    success_url = reverse_lazy("ubicacion-list")
 
 
+class UbicacionDeleteView(LoginRequiredMixin, DeleteView):
+    model = Ubicacion
+    template_name = "core/confirm_delete.html"
+    success_url = reverse_lazy("ubicacion-list")
+
+    def delete(self, request, *args, **kwargs):
+        messages.success(request, "Ubicación eliminada.")
+        return super().delete(request, *args, **kwargs)
 
 
+# ------------------------------------
+# AreaBodega + TipoUbicacion con modal
+# ------------------------------------
+# Los modales usan <dialog> y cargan estas vistas que devuelven la página completa,
+# pero con templates chicos pensados para presentarse en un modal.
+
+class AreaBodegaCreateModal(LoginRequiredMixin, SuccessMessageMixin, CreateView):
+    model = AreaBodega
+    form_class = AreaBodegaForm
+    template_name = "core/partials/area_form_modal.html"
+    success_message = "Área creada."
+
+    def get_success_url(self):
+        # tras guardar, vuelve a la página previa (bodegas) o a listado de ubicaciones
+        return self.request.GET.get("next") or reverse_lazy("bodega-list")
 
 
+class AreaBodegaUpdateModal(LoginRequiredMixin, SuccessMessageMixin, UpdateView):
+    model = AreaBodega
+    form_class = AreaBodegaForm
+    template_name = "core/partials/area_form_modal.html"
+    success_message = "Área actualizada."
+
+    def get_success_url(self):
+        return self.request.GET.get("next") or reverse_lazy("bodega-list")
+
+
+class AreaBodegaDeleteModal(LoginRequiredMixin, DeleteView):
+    model = AreaBodega
+    template_name = "core/partials/confirm_modal.html"
+    success_url = reverse_lazy("bodega-list")
+
+    def delete(self, request, *args, **kwargs):
+        messages.success(request, "Área eliminada.")
+        return super().delete(request, *args, **kwargs)
+
+
+class TipoUbicacionCreateModal(LoginRequiredMixin, SuccessMessageMixin, CreateView):
+    model = TipoUbicacion
+    form_class = TipoUbicacionForm
+    template_name = "core/partials/tipo_form_modal.html"
+    success_message = "Tipo de ubicación creado."
+
+    def get_success_url(self):
+        return self.request.GET.get("next") or reverse_lazy("bodega-list")
+
+
+class TipoUbicacionUpdateModal(LoginRequiredMixin, SuccessMessageMixin, UpdateView):
+    model = TipoUbicacion
+    form_class = TipoUbicacionForm
+    template_name = "core/partials/tipo_form_modal.html"
+    success_message = "Tipo de ubicación actualizado."
+
+    def get_success_url(self):
+        return self.request.GET.get("next") or reverse_lazy("bodega-list")
+
+
+class TipoUbicacionDeleteModal(LoginRequiredMixin, DeleteView):
+    model = TipoUbicacion
+    template_name = "core/partials/confirm_modal.html"
+    success_url = reverse_lazy("bodega-list")
+
+    def delete(self, request, *args, **kwargs):
+        messages.success(request, "Tipo de ubicación eliminado.")
+        return super().delete(request, *args, **kwargs)
 
 
 

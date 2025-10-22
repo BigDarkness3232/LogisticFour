@@ -69,10 +69,21 @@ urlpatterns = [
      path("bodegas/<int:pk>/eliminar/", views.BodegaDeleteView.as_view(), name="bodega-delete"),
      path("bodegas/<int:pk>/", views.BodegaDetailView.as_view(), name="bodega-detail"),
 
+         # Ubicaciones (páginas)
+     path("ubicaciones/", views.UbicacionListView.as_view(), name="ubicacion-list"),
+     path("ubicaciones/agregar/", views.UbicacionCreateView.as_view(), name="ubicacion-create"),
+     path("ubicaciones/<int:pk>/editar/", views.UbicacionUpdateView.as_view(), name="ubicacion-edit"),
+     path("ubicaciones/<int:pk>/eliminar/", views.UbicacionDeleteView.as_view(), name="ubicacion-delete"),
 
+     # AreaBodega (modales)
+     path("areas/agregar/", views.AreaBodegaCreateModal.as_view(), name="area-create"),
+     path("areas/<int:pk>/editar/", views.AreaBodegaUpdateModal.as_view(), name="area-edit"),
+     path("areas/<int:pk>/eliminar/", views.AreaBodegaDeleteModal.as_view(), name="area-delete"),
 
+    # TipoUbicacion (modales)
+    path("tipos/agregar/", views.TipoUbicacionCreateModal.as_view(), name="tipo-create"),
+    path("tipos/<int:pk>/editar/", views.TipoUbicacionUpdateModal.as_view(), name="tipo-edit"),
+    path("tipos/<int:pk>/eliminar/", views.TipoUbicacionDeleteModal.as_view(), name="tipo-delete"),
 
-
-
-     path("dev/test-scanner/", views.test_scanner, name="test_scanner"),
+    path("dev/test-scanner/", views.test_scanner, name="test_scanner"),
 ]
