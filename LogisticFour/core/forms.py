@@ -21,6 +21,29 @@ class UsuarioPerfilForm(forms.ModelForm):
             "telefono": forms.TextInput(attrs={"placeholder": "+56 9 1234 5678"}),
         }
         
+class UserEditForm(forms.ModelForm):
+    # opcional: permitir activar/desactivar
+    is_active = forms.BooleanField(required=False, label="Activo")
+
+    class Meta:
+        model = User
+        fields = ("username", "first_name", "last_name", "email", "is_active")
+        widgets = {
+            "username":   forms.TextInput(attrs={"class": "form-control"}),
+            "first_name": forms.TextInput(attrs={"class": "form-control"}),
+            "last_name":  forms.TextInput(attrs={"class": "form-control"}),
+            "email":      forms.EmailInput(attrs={"class": "form-control"}),
+        }
+
+class UsuarioPerfilEditForm(forms.ModelForm):
+    class Meta:
+        model = UsuarioPerfil
+        fields = ("telefono", "rol")
+        widgets = {
+            "telefono": forms.TextInput(attrs={"placeholder": "+56 9 1234 5678", "class": "form-control"}),
+            "rol": forms.Select(attrs={"class": "form-select"}),
+        }
+
 class ProductoForm(forms.ModelForm):
     # Opcional: forzar empty_label más claro en los FKs opcionales
     marca = forms.ModelChoiceField(
@@ -219,3 +242,110 @@ class CategoriaProductoForm(BaseModelForm):
     def clean_codigo(self):
         return (self.cleaned_data.get("codigo") or "").strip()
 
+
+
+
+
+class SucursalForm(forms.ModelForm):
+    class Meta:
+        model = Sucursal
+        fields = ["codigo", "nombre", "direccion", "ciudad", "region", "pais", "activo"]
+        labels = {
+            "codigo": "Código",
+            "nombre": "Nombre de la sucursal",
+            "direccion": "Dirección",
+            "ciudad": "Ciudad",
+            "region": "Región / Estado",
+            "pais": "País",
+            "activo": "Activa",
+        }
+        help_texts = {
+            "codigo": "Máximo 20 caracteres. Usa un código corto y único (p. ej. SCL-01).",
+        }
+        widgets = {
+            "codigo": forms.TextInput(attrs={
+                "class": "form-control",
+                "maxlength": "20",
+                "placeholder": "Ej: SCL-01",
+                "autocomplete": "off",
+            }),
+            "nombre": forms.TextInput(attrs={
+                "class": "form-control",
+                "placeholder": "Nombre comercial de la sucursal",
+            }),
+            "direccion": forms.TextInput(attrs={
+                "class": "form-control",
+                "placeholder": "Calle, número, comuna/barrio",
+            }),
+            "ciudad": forms.TextInput(attrs={
+                "class": "form-control",
+                "placeholder": "Ej: Santiago",
+            }),
+            "region": forms.TextInput(attrs={
+                "class": "form-control",
+                "placeholder": "Ej: Metropolitana",
+            }),
+            "pais": forms.TextInput(attrs={
+                "class": "form-control",
+                "placeholder": "Ej: Chile",
+            }),
+            "activo": forms.CheckboxInput(attrs={
+                "class": "form-check-input",
+            }),
+        }
+
+    def clean_codigo(self):
+        codigo = (self.cleaned_data.get("codigo") or "").strip().upper()
+        if " " in codigo:
+            # si quieres permitir espacios, elimina esta validación
+            raise ValidationError("El código no debe contener espacios.")
+        return codigo
+
+    def clean_nombre(self):
+        nombre = (self.cleaned_data.get("nombre") or "").strip()
+        if len(nombre) < 3:
+            raise ValidationError("El nombre debe tener al menos 3 caracteres.")
+        return nombre
+    
+
+
+
+class BodegaForm(forms.ModelForm):
+    class Meta:
+        model = Bodega
+        fields = ["sucursal", "codigo", "nombre", "descripcion", "activo"]
+        labels = {
+            "sucursal": "Sucursal",
+            "codigo": "Código de bodega",
+            "nombre": "Nombre de la bodega",
+            "descripcion": "Descripción",
+            "activo": "Activa",
+        }
+        help_texts = {
+            "codigo": "Código corto y único dentro de la sucursal. Ej: BOD-01",
+        }
+        widgets = {
+            "sucursal": forms.Select(attrs={"class": "form-select"}),
+            "codigo": forms.TextInput(attrs={
+                "class": "form-control", "maxlength": "20", "placeholder": "Ej: BOD-01",
+            }),
+            "nombre": forms.TextInput(attrs={
+                "class": "form-control", "placeholder": "Nombre visible de la bodega",
+            }),
+            "descripcion": forms.Textarea(attrs={
+                "class": "form-control", "rows": 3, "placeholder": "Opcional",
+            }),
+            "activo": forms.CheckboxInput(attrs={"class": "form-check-input"}),
+        }
+
+    def clean_codigo(self):
+        codigo = (self.cleaned_data.get("codigo") or "").strip().upper()
+        if " " in codigo:
+            raise ValidationError("El código no debe contener espacios.")
+        return codigo
+
+    def clean_nombre(self):
+        nombre = (self.cleaned_data.get("nombre") or "").strip()
+        if len(nombre) < 3:
+            raise ValidationError("El nombre debe tener al menos 3 caracteres.")
+        return nombre

@@ -35,7 +35,9 @@ class UsuarioPerfil(MarcaTiempo):
 
     rut = models.CharField(max_length=20, blank=True)
     telefono = models.CharField(max_length=50, blank=True)
-    rol = models.CharField(max_length=20, choices=Rol.choices, default=Rol.BODEGUERO)
+    # Opcional: asociar un usuario a una sucursal concreta
+    sucursal = models.ForeignKey("Sucursal", on_delete=models.SET_NULL, null=True, blank=True, related_name="usuarios")
+    rol = models.CharField(max_length=20, choices=Rol.choices, default=Rol.ADMIN)
 
     class Meta:
         db_table = "usuarios_perfil"
@@ -239,6 +241,21 @@ class Producto(MarcaTiempo):
         payload = f"{base}{path}" if base else path
         qr = segno.make(payload)
         return qr.svg_inline(scale=4)  # ajusta scale si lo quieres más grande/pequeño
+
+    @property
+    def stock_total(self):
+        """Devuelve el stock disponible total del producto sumando los registros en `Stock`.
+        Resta la cantidad reservada para obtener la disponibilidad real.
+        """
+        try:
+            from decimal import Decimal
+            from django.db.models import Sum
+            agg = self.stocks.aggregate(total_disp=Sum('cantidad_disponible'), total_res=Sum('cantidad_reservada'))
+            total_disp = agg.get('total_disp') or Decimal('0')
+            total_res = agg.get('total_res') or Decimal('0')
+            return total_disp - total_res
+        except Exception:
+            return 0
 
     class Meta:
         db_table = "productos"

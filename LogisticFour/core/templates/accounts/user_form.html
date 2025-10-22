@@ -1,11 +1,9 @@
 {% extends "core/base.html" %}
-{% load static %}
-
-{% block title %}Crear usuario{% endblock %}
+{% block title %}Editar usuario{% endblock %}
 
 {% block content %}
 <div class="card">
-  <div class="card-title">Crear usuario</div>
+  <div class="card-title">Editar usuario: {{ obj.username }}</div>
 
   {% if messages %}
     {% for message in messages %}
@@ -21,40 +19,27 @@
       <div class="field">
         <label for="{{ user_form.username.id_for_label }}">Usuario</label>
         {{ user_form.username }}
-        {% for e in user_form.username.errors %}<div class="text-danger small">{{ e }}</div>{% endfor %}
+        {{ user_form.username.errors }}
       </div>
-
       <div class="field">
         <label for="{{ user_form.email.id_for_label }}">Email</label>
         {{ user_form.email }}
-        {% for e in user_form.email.errors %}<div class="text-danger small">{{ e }}</div>{% endfor %}
+        {{ user_form.email.errors }}
       </div>
-
       <div class="field">
         <label for="{{ user_form.first_name.id_for_label }}">Nombre</label>
         {{ user_form.first_name }}
-        {% for e in user_form.first_name.errors %}<div class="text-danger small">{{ e }}</div>{% endfor %}
+        {{ user_form.first_name.errors }}
       </div>
-
       <div class="field">
         <label for="{{ user_form.last_name.id_for_label }}">Apellido</label>
         {{ user_form.last_name }}
-        {% for e in user_form.last_name.errors %}<div class="text-danger small">{{ e }}</div>{% endfor %}
+        {{ user_form.last_name.errors }}
       </div>
-
       <div class="field">
-        <label for="{{ user_form.password1.id_for_label }}">Contraseña</label>
-        {{ user_form.password1 }}
-        {% for e in user_form.password1.errors %}<div class="text-danger small">{{ e }}</div>{% endfor %}
-        {% if user_form.password1.help_text %}
-          <div class="form-text">{{ user_form.password1.help_text|safe }}</div>
-        {% endif %}
-      </div>
-
-      <div class="field">
-        <label for="{{ user_form.password2.id_for_label }}">Confirmar contraseña</label>
-        {{ user_form.password2 }}
-        {% for e in user_form.password2.errors %}<div class="text-danger small">{{ e }}</div>{% endfor %}
+        <label for="{{ user_form.is_active.id_for_label }}">Activo</label>
+        {{ user_form.is_active }}
+        {{ user_form.is_active.errors }}
       </div>
     </div>
 
@@ -65,18 +50,17 @@
       <div class="field">
         <label for="{{ perfil_form.telefono.id_for_label }}">Teléfono</label>
         {{ perfil_form.telefono }}
-        {% for e in perfil_form.telefono.errors %}<div class="text-danger small">{{ e }}</div>{% endfor %}
+        {{ perfil_form.telefono.errors }}
       </div>
-
       <div class="field">
         <label for="{{ perfil_form.rol.id_for_label }}">Rol</label>
         {{ perfil_form.rol }}
-        {% for e in perfil_form.rol.errors %}<div class="text-danger small">{{ e }}</div>{% endfor %}
+        {{ perfil_form.rol.errors }}
       </div>
     </div>
 
     <div class="toolbar">
-      <button type="submit" class="btn">Guardar</button>
+      <button type="submit" class="btn">Guardar cambios</button>
       <a href="{% url 'usuario-list' %}" class="btn ghost">Cancelar</a>
     </div>
   </form>
