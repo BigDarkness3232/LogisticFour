@@ -60,7 +60,7 @@ urlpatterns = [
      path("sucursales/agregar/", views.SucursalCreateView.as_view(), name="sucursal-create"),
      path("sucursales/<int:pk>/editar/", views.SucursalUpdateView.as_view(), name="sucursal-edit"),
      path("sucursales/<int:pk>/eliminar/", views.SucursalDeleteView.as_view(), name="sucursal-delete"),
-     path("sucursales/<int:pk>/", views.SucursalDetailView.as_view(), name="sucursal-detail"),
+     #path("sucursales/<int:pk>/", views.SucursalDetailView.as_view(), name="sucursal-detail"),
 
      # Bodegas CRUD
      path("bodegas/", views.BodegaListView.as_view(), name="bodega-list"),
@@ -68,4 +68,11 @@ urlpatterns = [
      path("bodegas/<int:pk>/editar/", views.BodegaUpdateView.as_view(), name="bodega-edit"),
      path("bodegas/<int:pk>/eliminar/", views.BodegaDeleteView.as_view(), name="bodega-delete"),
      path("bodegas/<int:pk>/", views.BodegaDetailView.as_view(), name="bodega-detail"),
+
+
+
+
+
+
+     path("dev/test-scanner/", views.test_scanner, name="test_scanner"),
 ]

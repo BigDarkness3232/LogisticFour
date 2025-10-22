@@ -1,84 +1,301 @@
 {% extends "core/base.html" %}
-
 {% block title %}Bodegas{% endblock %}
 
 {% block content %}
-<h1>Bodegas</h1>
+<style>
+  :root{
+    --ink:#111827; --muted:#6b7280; --line:#e5e7eb; --bg:#f5f7fb; --head:#eef0f6;
+    --pri:#111; --pri-ink:#fff; --danger:#dc2626;
+  }
 
-<form method="get" class="mb-3">
-  <div class="input-group">
-    <input type="text" name="q" value="{{ request.GET.q }}" placeholder="Buscar..." class="form-control" />
-    <button class="btn btn-primary" type="submit">Buscar</button>
-  </div>
-</form>
+  .page-head{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:12px}
+  .page-head h1{margin:0;font-weight:800;letter-spacing:.3px}
+  .page-actions{display:flex;gap:8px;flex-wrap:wrap}
 
-{% if request.user.is_authenticated %}
-  {% if request.user.is_superuser %}
-    <p><a class="btn btn-success" href="{% url 'bodega-create' %}">Crear Bodega</a></p>
-  {% else %}
-    {% if request.user.perfil %}
-      {% if request.user.perfil.rol == 'ADMIN' %}
-        <p><a class="btn btn-success" href="{% url 'bodega-create' %}">Crear Bodega</a></p>
+  .filter-card{
+    background:#fff;border:1px solid var(--line);border-radius:12px;padding:12px;margin-bottom:12px;
+    display:flex;gap:8px;align-items:center;flex-wrap:wrap
+  }
+  .filter-card .input{flex:1 1 280px;min-width:220px;padding:10px 12px;border:1px solid var(--line);border-radius:10px;background:#fafafa}
+  .filter-card .btn{background:#111;color:#fff;border:0;border-radius:10px;padding:10px 14px;cursor:pointer}
+  .filter-card .btn.ghost{background:#fff;color:#111;border:1px solid var(--line)}
+  .filter-card .btn[aria-disabled="true"]{opacity:.6;pointer-events:none}
+
+  .lx-btn.icon{
+    display:inline-flex;align-items:center;gap:8px;height:40px;padding:0 14px;border-radius:12px;
+    background:#111;color:#fff;border:1px solid #111;text-decoration:none
+  }
+  .lx-btn.icon svg{width:16px;height:16px;display:block}
+
+  .table-wrap{background:#fff;border:1px solid var(--line);border-radius:12px;overflow:hidden}
+  .data-table{width:100%;border-collapse:separate;border-spacing:0;font-size:14px}
+  .data-table thead th{position:sticky;top:0;background:var(--head);z-index:1;text-align:left;padding:12px;font-weight:700;border-bottom:1px solid var(--line)}
+  .data-table tbody td{padding:12px;border-bottom:1px solid var(--line)}
+  .data-table tbody tr:hover{background:#fafafa}
+  .data-table .col-actions{min-width:300px;white-space:nowrap;text-align:right}
+
+  /* Badges */
+  .lx-badge{display:inline-block;padding:4px 8px;font-size:12px;border-radius:999px;border:1px solid var(--line);background:#f8fafc;color:#374151}
+  .lx-badge.ok{background:#e8f7ee;color:#065f46;border-color:#bfe7cb}
+  .lx-badge.no{background:#fff1f0;color:#7a1d1d;border-color:#f3c3bf}
+
+  /* Acciones */
+  .lx-acts{display:flex;align-items:center;gap:8px;flex-wrap:nowrap}
+  .lx-act{
+    display:inline-flex;align-items:center;gap:6px;height:36px;padding:0 12px;border-radius:10px;
+    border:1px solid var(--line);background:#fff;color:#111;text-decoration:none
+  }
+  .lx-act svg{width:14px;height:14px;display:block}
+  .lx-act.pri{background:var(--pri);color:var(--pri-ink);border-color:var(--pri)}
+  .lx-act.danger{color:var(--danger);border-color:#fecaca}
+  .lx-act.danger:hover{background:#fff5f5}
+  .lx-act[aria-expanded="true"]{background:var(--pri);color:#fff;border-color:var(--pri)}
+
+  /* Expandible */
+  .expand-row td{padding:0!important;background:#fbfbfd}
+  .expand{border-top:1px dashed var(--line)}
+  .expand__inner{
+    display:grid;gap:10px;grid-template-columns:repeat(2,minmax(0,1fr));
+    padding:12px;opacity:0;max-height:0;overflow:hidden;
+    transition:max-height .35s ease, opacity .25s ease;
+  }
+  .expand.open .expand__inner{opacity:1}
+
+  .expand-kv{display:grid;gap:2px}
+  .expand-kv small{color:var(--muted)}
+
+  /* Aparición progresiva (sin ocultar si no hay JS) */
+  .fade-in-up{opacity:1;transform:none}
+  .fade-in-up.animate{opacity:0;transform:translateY(6px);transition:opacity .35s ease,transform .35s ease}
+  .fade-in-up.animate.show{opacity:1;transform:none}
+
+  @media (max-width:760px){
+    .data-table thead{display:none}
+    .data-table{display:block}
+    .data-table tbody{display:grid;gap:10px}
+    .data-table tr{display:grid;gap:8px;padding:12px;background:#fff;border:1px solid var(--line);border-radius:12px}
+    .data-table td{border:0;padding:0}
+    .data-table td[data-label]::before{content:attr(data-label) ": ";font-weight:600;color:var(--muted);margin-right:6px}
+    .data-table .col-actions{min-width:0;text-align:left}
+    .lx-acts{flex-wrap:wrap}
+    .expand__inner{grid-template-columns:1fr}
+  }
+
+  .pager{display:flex;align-items:center;gap:8px;justify-content:center;margin-top:12px;flex-wrap:wrap}
+  .pager a,.pager span{padding:8px 12px;border:1px solid var(--line);border-radius:10px;background:#fff;text-decoration:none;color:inherit}
+  .pager .is-current{background:#111;color:#fff;border-color:#111}
+  .pager .muted{opacity:.6}
+</style>
+
+<!-- Sprite de íconos -->
+<svg aria-hidden="true" style="position:absolute;width:0;height:0;overflow:hidden">
+  <symbol id="icon-plus" viewBox="0 0 24 24"><path d="M11 5h2v6h6v2h-6v6h-2v-6H5v-2h6z"/></symbol>
+  <symbol id="icon-eye" viewBox="0 0 24 24"><path d="M12 5c5.5 0 9.7 4.6 10.7 6-.9 1.3-5 6-10.7 6S2.3 12.3 1.3 11c1-1.4 5.2-6 10.7-6Zm0 2c-4.1 0-7.6 3.2-8.9 4.99C4.4 13.8 7.9 17 12 17s7.6-3.2 8.9-5.01C19.6 10.2 16.1 7 12 7Zm0 2.5A2.5 2.5 0 1 1 9.5 12 2.5 2.5 0 0 1 12 9.5Z"/></symbol>
+  <symbol id="icon-edit" viewBox="0 0 24 24"><path d="M3 17.25V21h3.75L17.81 9.94l-3.75-3.75L3 17.25Zm2 2.5h-.5v-.5l9.56-9.56.5.5L5 19.75ZM20.71 7.04c.39-.39.39-1.02 0-1.41l-2.34-2.34a.9959.9959 0 1 0-1.41 1.41l2.34 2.34c.39.39 1.02.39 1.41 0Z"/></symbol>
+  <symbol id="icon-trash" viewBox="0 0 24 24"><path d="M6 7h12l-1 13a2 2 0 0 1-2 2H9a2 2 0 0 1-2-2L6 7Zm3-3h6l1 2H8l1-2Zm2 5v9h2V9h-2Z"/></symbol>
+</svg>
+
+<div class="page-head">
+  <h1>Bodegas</h1>
+  <div class="page-actions">
+    {% if request.user.is_authenticated %}
+      {% if request.user.is_superuser %}
+        <a class="lx-btn icon" href="{% url 'bodega-create' %}">
+          <svg aria-hidden="true"><use href="#icon-plus"/></svg>
+          <span>Crear Bodega</span>
+        </a>
+      {% elif request.user.perfil and request.user.perfil.rol == 'ADMIN' %}
+        <a class="lx-btn icon" href="{% url 'bodega-create' %}">
+          <svg aria-hidden="true"><use href="#icon-plus"/></svg>
+          <span>Crear Bodega</span>
+        </a>
       {% endif %}
     {% endif %}
-  {% endif %}
-{% endif %}
+  </div>
+</div>
 
-<table class="table table-striped">
-  <thead>
-    <tr>
-      <th>Sucursal</th>
-      <th>Código</th>
-      <th>Nombre</th>
-      <th>Activo</th>
-      <th></th>
-    </tr>
-  </thead>
-  <tbody>
-    {% for b in bodegas %}
-    <tr>
-      <td>{{ b.sucursal }}</td>
-      <td>{{ b.codigo }}</td>
-      <td>{{ b.nombre }}</td>
-      <td>{% if b.activo %}Sí{% else %}No{% endif %}</td>
-      <td>
-        {% url 'bodega-edit' b.pk as edit_url %}
-        {% url 'bodega-delete' b.pk as delete_url %}
-        {% with view_url=request.build_absolute_uri edit_url=edit_url delete_url=delete_url %}
-          {% if request.user.is_superuser %}
-            {% include 'core/_actions.html' with can_edit=True can_delete=True %}
+<form method="get" class="filter-card" role="search" aria-label="Buscar bodegas">
+  <input type="text" class="input" name="q" value="{{ request.GET.q }}" placeholder="Buscar por sucursal, código, nombre o descripción…" />
+  <button class="btn" type="submit">Buscar</button>
+  <a class="btn ghost" href="{% url 'bodega-list' %}" {% if not request.GET.q %}aria-disabled="true"{% endif %}>Limpiar</a>
+</form>
+
+<div class="table-wrap">
+  <table class="data-table">
+    <thead>
+      <tr>
+        <th>Sucursal</th>
+        <th>Código</th>
+        <th>Nombre</th>
+        <th>Descripción</th>
+        <th>Activo</th>
+        <th class="col-actions">Acciones</th>
+      </tr>
+    </thead>
+    <tbody id="rows">
+      {% for b in bodegas %}
+      <!-- Fila principal -->
+      <tr class="fade-in-up" data-row="b{{ b.pk }}">
+        <td data-label="Sucursal">
+          {% if b.sucursal %}
+            <strong>{{ b.sucursal.codigo }}</strong> — {{ b.sucursal.nombre }}
           {% else %}
-            {% if request.user.perfil %}
-              {% if request.user.perfil.rol == 'ADMIN' %}
-                {% include 'core/_actions.html' with can_edit=True can_delete=True %}
-              {% else %}
-                {% include 'core/_actions.html' with can_edit=False can_delete=False %}
-              {% endif %}
-            {% else %}
-              {% include 'core/_actions.html' with can_edit=False can_delete=False %}
-            {% endif %}
+            <em>Sin sucursal</em>
           {% endif %}
-        {% endwith %}
-      </td>
-    </tr>
-    {% empty %}
-    <tr><td colspan="5">No hay bodegas.</td></tr>
-    {% endfor %}
-  </tbody>
-</table>
+        </td>
+        <td data-label="Código"><span class="mono">{{ b.codigo }}</span></td>
+        <td data-label="Nombre"><strong>{{ b.nombre }}</strong></td>
+        <td data-label="Descripción">
+          {% if b.descripcion %}{{ b.descripcion|truncatechars:80 }}{% else %}<span class="text-muted">—</span>{% endif %}
+        </td>
+        <td data-label="Activo">
+          {% if b.activo %}<span class="lx-badge ok">Sí</span>{% else %}<span class="lx-badge no">No</span>{% endif %}
+        </td>
+        <td class="col-actions" data-label="Acciones">
+          <div class="lx-acts">
+            <!-- Ver (acordeón) -->
+            <button type="button" class="lx-act pri" data-target="b{{ b.pk }}" aria-controls="b{{ b.pk }}" aria-expanded="false" title="Ver detalle">
+              <svg aria-hidden="true"><use href="#icon-eye"/></svg>
+              <span>Ver</span>
+            </button>
+
+            {% url 'bodega-edit' b.pk as edit_url %}
+            {% url 'bodega-delete' b.pk as delete_url %}
+
+            {% if request.user.is_superuser %}
+              <a class="lx-act" href="{{ edit_url }}" title="Editar">
+                <svg aria-hidden="true"><use href="#icon-edit"/></svg>
+                <span>Editar</span>
+              </a>
+              <a class="lx-act danger" href="{{ delete_url }}" title="Eliminar">
+                <svg aria-hidden="true"><use href="#icon-trash"/></svg>
+                <span>Eliminar</span>
+              </a>
+            {% elif request.user.perfil and request.user.perfil.rol == 'ADMIN' %}
+              <a class="lx-act" href="{{ edit_url }}" title="Editar">
+                <svg aria-hidden="true"><use href="#icon-edit"/></svg>
+                <span>Editar</span>
+              </a>
+              <a class="lx-act danger" href="{{ delete_url }}" title="Eliminar">
+                <svg aria-hidden="true"><use href="#icon-trash"/></svg>
+                <span>Eliminar</span>
+              </a>
+            {% elif request.user.perfil and request.user.perfil.rol == 'BODEGUERO' %}
+              <a class="lx-act" href="{{ edit_url }}" title="Editar">
+                <svg aria-hidden="true"><use href="#icon-edit"/></svg>
+                <span>Editar</span>
+              </a>
+            {% endif %}
+          </div>
+        </td>
+      </tr>
+
+      <!-- Fila expandible -->
+      <tr id="b{{ b.pk }}" class="expand-row" hidden>
+        <td colspan="6">
+          <div class="expand" data-expand>
+            <div class="expand__inner">
+              <div class="expand-kv">
+                <small>Sucursal</small>
+                <div>{% if b.sucursal %}{{ b.sucursal.codigo }} — {{ b.sucursal.nombre }}{% else %}—{% endif %}</div>
+              </div>
+              <div class="expand-kv">
+                <small>Descripción completa</small>
+                <div>{{ b.descripcion|default:"—" }}</div>
+              </div>
+              <div class="expand-kv">
+                <small>Estado</small>
+                <div>{% if b.activo %}<span class="lx-badge ok">Activa</span>{% else %}<span class="lx-badge no">Inactiva</span>{% endif %}</div>
+              </div>
+              <div class="expand-kv">
+                <small>Creada</small>
+                <div>{{ b.creado_en|date:"d/m/Y H:i" }}</div>
+              </div>
+              <div class="expand-kv">
+                <small>Clave completa</small>
+                <div>{% if b.sucursal %}{{ b.sucursal.codigo }}{% else %}—{% endif %}:{% if b.codigo %}{{ b.codigo }}{% else %}—{% endif %}</div>
+              </div>
+            </div>
+          </div>
+        </td>
+      </tr>
+      {% empty %}
+      <tr><td colspan="6">No hay bodegas.</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
 
 {% if is_paginated %}
-  <nav aria-label="Page navigation">
-    <ul class="pagination">
-      {% if page_obj.has_previous %}
-        <li class="page-item"><a class="page-link" href="?page={{ page_obj.previous_page_number }}{% if request.GET.q %}&q={{ request.GET.q }}{% endif %}">Anterior</a></li>
-      {% endif %}
-      <li class="page-item disabled"><span class="page-link">Página {{ page_obj.number }} de {{ page_obj.paginator.num_pages }}</span></li>
-      {% if page_obj.has_next %}
-        <li class="page-item"><a class="page-link" href="?page={{ page_obj.next_page_number }}{% if request.GET.q %}&q={{ request.GET.q }}{% endif %}">Siguiente</a></li>
-      {% endif %}
-    </ul>
+  <nav class="pager" aria-label="Paginación">
+    {% if page_obj.has_previous %}
+      <a href="?page={{ page_obj.previous_page_number }}{% if request.GET.q %}&q={{ request.GET.q }}{% endif %}" rel="prev">← Anterior</a>
+    {% else %}
+      <span class="muted">← Anterior</span>
+    {% endif %}
+    <span class="is-current">Página {{ page_obj.number }} de {{ page_obj.paginator.num_pages }}</span>
+    {% if page_obj.has_next %}
+      <a href="?page={{ page_obj.next_page_number }}{% if request.GET.q %}&q={{ request.GET.q }}{% endif %}" rel="next">Siguiente →</a>
+    {% else %}
+      <span class="muted">Siguiente →</span>
+    {% endif %}
   </nav>
 {% endif %}
 
+<script>
+/* Acordeón + animación de aparición */
+(function(){
+  const rows = document.getElementById('rows');
+  if(!rows) return;
+
+  // Aparición progresiva sólo si hay JS
+  rows.querySelectorAll('tr.fade-in-up').forEach(tr=>{
+    tr.classList.add('animate');
+    requestAnimationFrame(()=> tr.classList.add('show'));
+  });
+
+  // Preparar expandibles
+  rows.querySelectorAll('.expand').forEach(w=>{
+    const inner = w.querySelector('.expand__inner');
+    if(inner){ inner.style.maxHeight = '0px'; inner.style.opacity = '0'; }
+  });
+
+  function closeAll(){
+    rows.querySelectorAll('.lx-act.pri[aria-expanded="true"]').forEach(b=> b.setAttribute('aria-expanded','false'));
+    rows.querySelectorAll('.expand').forEach(w=>{
+      const inner = w.querySelector('.expand__inner');
+      const row = w.closest('.expand-row');
+      if(inner){ inner.style.maxHeight = '0px'; inner.style.opacity = '0'; }
+      w.classList.remove('open');
+      if(row) row.hidden = true;
+    });
+  }
+
+  function openWrap(btn, row){
+    const wrap = row.querySelector('.expand');
+    const inner = wrap.querySelector('.expand__inner');
+    if(!inner) return;
+    row.hidden = false;
+    requestAnimationFrame(()=>{
+      inner.style.maxHeight = inner.scrollHeight + 'px';
+      inner.style.opacity = '1';
+      wrap.classList.add('open');
+      btn.setAttribute('aria-expanded','true');
+      setTimeout(()=>{ row.scrollIntoView({behavior:'smooth', block:'nearest'}); }, 20);
+    });
+  }
+
+  rows.addEventListener('click', (e)=>{
+    const btn = e.target.closest('.lx-act.pri'); // sólo botón Ver
+    if(!btn) return;
+    const id = btn.getAttribute('data-target');
+    const row = document.getElementById(id);
+    if(!row) return;
+
+    const isOpen = btn.getAttribute('aria-expanded') === 'true';
+    closeAll();
+    if(!isOpen) openWrap(btn, row);
+  });
+})();
+</script>
 {% endblock %}
