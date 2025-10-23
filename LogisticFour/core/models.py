@@ -236,33 +236,22 @@ class Producto(MarcaTiempo):
     es_serializado = models.BooleanField(default=False)
     tiene_vencimiento = models.BooleanField(default=False)
 
-
-    @property
-    def qr_svg(self):
-        """
-        Devuelve un SVG embebible con el QR del producto.
-        El payload apunta al detalle del producto.
-        """
-        path = reverse("core:producto-detail", kwargs={"pk": self.pk})
-        base = getattr(settings, "SITE_URL", "").rstrip("/")
-        payload = f"{base}{path}" if base else path
-        qr = segno.make(payload)
-        return qr.svg_inline(scale=4)  # ajusta scale si lo quieres más grande/pequeño
+    # NUEVO: precio directo en el producto
+    precio = models.DecimalField(max_digits=14, decimal_places=4, null=True, blank=True)
 
     @property
     def stock_total(self):
-        """Devuelve el stock disponible total del producto sumando los registros en `Stock`.
-        Resta la cantidad reservada para obtener la disponibilidad real.
         """
-        try:
-            from decimal import Decimal
-            from django.db.models import Sum
-            agg = self.stocks.aggregate(total_disp=Sum('cantidad_disponible'), total_res=Sum('cantidad_reservada'))
-            total_disp = agg.get('total_disp') or Decimal('0')
-            total_res = agg.get('total_res') or Decimal('0')
-            return total_disp - total_res
-        except Exception:
-            return 0
+        Suma disponible - reservada en todos los registros de Stock.
+        Devuelve Decimal o 0 si no hay stock.
+        """
+        agg = self.stocks.aggregate(
+            total_disp=sum('cantidad_disponible'),
+            total_res=sum('cantidad_reservada')
+        )
+        total_disp = agg.get('total_disp') or 0
+        total_res  = agg.get('total_res')  or 0
+        return total_disp - total_res
 
     class Meta:
         db_table = "productos"
@@ -291,50 +280,6 @@ class ProductoUsuarioProveedor(models.Model):
         perfil = getattr(self.proveedor, "perfil", None)
         if not perfil or perfil.rol != UsuarioPerfil.Rol.PROVEEDOR:
             raise ValidationError("El usuario seleccionado debe tener rol PROVEEDOR.")
-
-
-class ImagenProducto(models.Model):
-    producto = models.ForeignKey(Producto, on_delete=models.CASCADE, related_name="imagenes")
-    url = models.URLField()
-    texto_alternativo = models.CharField(max_length=200, blank=True)
-
-    class Meta:
-        db_table = "imagenes_producto"
-
-
-class PrecioProducto(models.Model):
-    producto = models.ForeignKey(Producto, on_delete=models.CASCADE, related_name="precios")
-    precio = models.DecimalField(max_digits=14, decimal_places=4)
-    vigente_desde = models.DateField(auto_now_add=True)
-    vigente_hasta = models.DateField(null=True, blank=True)
-    activo = models.BooleanField(default=True)
-
-    class Meta:
-        db_table = "precios_producto"
-
-
-class DefinicionAtributo(models.Model):
-    codigo = models.CharField(max_length=50, unique=True)    # COLOR, TALLA
-    nombre = models.CharField(max_length=100)
-    tipo_dato = models.CharField(max_length=20)              # TEXT, NUMBER, BOOLEAN, DATE
-
-    class Meta:
-        db_table = "definiciones_atributos"
-
-
-class AtributoProducto(models.Model):
-    producto = models.ForeignKey(Producto, on_delete=models.CASCADE, related_name="atributos")
-    atributo = models.ForeignKey(DefinicionAtributo, on_delete=models.CASCADE)
-    valor_texto = models.TextField(null=True, blank=True)
-    valor_numero = models.DecimalField(max_digits=20, decimal_places=6, null=True, blank=True)
-    valor_booleano = models.BooleanField(null=True, blank=True)
-    valor_fecha = models.DateField(null=True, blank=True)
-
-    class Meta:
-        db_table = "atributos_producto"
-        constraints = [
-            models.UniqueConstraint(fields=["producto", "atributo"], name="uq_producto_atributo")
-        ]
 
 
 class LoteProducto(models.Model):

@@ -85,6 +85,33 @@
   .pager a,.pager span{padding:8px 12px;border:1px solid var(--line);border-radius:10px;background:#fff;text-decoration:none;color:inherit}
   .pager .is-current{background:#111;color:#fff;border-color:#111}
   .pager .muted{opacity:.6}
+
+    :root{
+    --ink:#111827; --muted:#6b7280; --line:#e5e7eb; --bg:#f5f7fb; --head:#eef0f6;
+    --pri:#111; --pri-ink:#fff; --danger:#dc2626;
+  }
+  /* ===== Modal bonito (dialog) ===== */
+  dialog.lx-modal{ 
+    border:0; padding:0; border-radius:16px; box-shadow:0 20px 60px rgba(0,0,0,.2);
+    width:clamp(320px, 92vw, 640px); max-width:95vw;
+  }
+  dialog.lx-modal::backdrop{ background:rgba(17,24,39,.45); backdrop-filter: blur(2px); }
+  .lx-card{ background:#fff; border:1px solid var(--line); border-radius:16px; overflow:hidden }
+  .lx-card__head{ display:flex; align-items:center; justify-content:space-between; gap:12px;
+    padding:14px 16px; background:var(--head); border-bottom:1px solid var(--line) }
+  .lx-card__head h3{ margin:0; font-size:16px }
+  .lx-card__body{ padding:16px; display:grid; gap:10px }
+  .lx-card__foot{ display:flex; justify-content:flex-end; gap:8px; padding:12px 16px; border-top:1px solid var(--line) }
+
+  .lx-field{ display:grid; gap:6px }
+  .lx-field label{ font-weight:600; color:var(--muted); font-size:13px }
+  .lx-input, .lx-select{
+    width:100%; padding:10px 12px; border:1px solid var(--line); border-radius:10px; background:#fff
+  }
+  .lx-btn{ height:38px; padding:0 14px; border-radius:10px; border:1px solid var(--line); background:#fff; cursor:pointer }
+  .lx-btn.pri{ background:var(--pri); color:var(--pri-ink); border-color:var(--pri) }
+  .lx-btn.ghost{ background:#fff }
+  .lx-btn.danger{ color:var(--danger); border-color:#fecaca }
 </style>
 
 <!-- Sprite de íconos -->
@@ -101,16 +128,11 @@
     {% if request.user.is_authenticated %}
       {% if request.user.is_superuser %}
         <a class="lx-btn icon" href="{% url 'bodega-create' %}">
-          <svg aria-hidden="true"><use href="#icon-plus"/></svg>
-          <span>Crear Bodega</span>
+          <span>➕ Crear Bodega</span>
         </a>
-      {% elif request.user.perfil and request.user.perfil.rol == 'ADMIN' %}
-        <a class="lx-btn icon" href="{% url 'bodega-create' %}">
-          <svg aria-hidden="true"><use href="#icon-plus"/></svg>
-          <span>Crear Bodega</span>
-        </a>
-        <a class="lx-btn icon" href="{% url 'area-create' %}?next={{ request.get_full_path|urlencode }}" onclick="return openModal(this.href)">Nueva Área</a>
-        <a class="lx-btn icon" href="{% url 'tipo-create' %}?next={{ request.get_full_path|urlencode }}" onclick="return openModal(this.href)">Nuevo Tipo</a>
+        <a class="lx-btn icon" href="{% url 'area-create' %}?next={{ request.get_full_path|urlencode }}" onclick="return openModal(this.href)">➕ Nueva Área</a>
+        <a class="lx-btn icon" href="{% url 'tipo-create' %}?next={{ request.get_full_path|urlencode }}" onclick="return openModal(this.href)">➕ Nuevo Tipo</a>
+
       {% endif %}
     {% endif %}
   </div>

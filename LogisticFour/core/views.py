@@ -28,6 +28,8 @@ from core.models import UsuarioPerfil
 from django.contrib.auth.mixins import UserPassesTestMixin
 from django.views import View
 from django.db.models.functions import Lower
+from django.db.models import Count
+
 
 
 
@@ -589,26 +591,6 @@ class BodegaDetailView(LoginRequiredMixin, DetailView):
 
 #Area de productos
 
-@login_required
-def qr_producto_png(request, pk: int):
-    try:
-        p = Producto.objects.get(pk=pk)
-    except Producto.DoesNotExist:
-        raise Http404("Producto no encontrado")
-
-    path = reverse("producto-detail", kwargs={"pk": p.pk})
-    base = getattr(settings, "SITE_URL", "").rstrip("/")
-    payload = f"{base}{path}" if base else path
-
-    # Genera PNG en memoria
-    qr = segno.make(payload)
-    buf = io.BytesIO()
-    qr.save(buf, kind="png", scale=6, border=2)  # escala y borde imprimibles
-    buf.seek(0)
-
-    resp = HttpResponse(buf.read(), content_type="image/png")
-    resp["Content-Disposition"] = f'inline; filename="producto_{p.pk}_qr.png"'
-    return resp
 
 class ProductsListView(LoginRequiredMixin, ListView):
     model = Producto
@@ -616,137 +598,19 @@ class ProductsListView(LoginRequiredMixin, ListView):
     context_object_name = "productos"
     paginate_by = 20
 
-    def get_queryset(self):
-        qs = (Producto.objects
-              .select_related("marca", "categoria", "unidad_base", "tasa_impuesto")
-              .order_by("nombre"))
-        q = self.request.GET.get("q", "").strip()
-        if q:
-            qs = qs.filter(
-                Q(nombre__icontains=q) |
-                Q(sku__icontains=q) |
-                Q(marca__nombre__icontains=q) |
-                Q(categoria__nombre__icontains=q)
-            )
-        return qs
-
-
-class CategoriaListView(LoginRequiredMixin, ListView):
-    """Listado de categorías"""
-    model = CategoriaProducto
-    template_name = "core/categoria_list.html"
-    context_object_name = "categorias"
-    paginate_by = 40
-
-    def get_queryset(self):
-        return CategoriaProducto.objects.order_by("nombre")
-
-
-class CategoriaCreateView(LoginRequiredMixin, AdminOnlyMixin, SuccessMessageMixin, CreateView):
-    model = CategoriaProducto
-    fields = ["padre", "nombre", "codigo"]
-    template_name = "core/categoria_form.html"
-    success_message = "Categoría creada correctamente."
-
-    def get_success_url(self):
-        return reverse_lazy('categoria-list')
-
-
-class CategoriaUpdateView(LoginRequiredMixin, AdminOnlyMixin, SuccessMessageMixin, UpdateView):
-    model = CategoriaProducto
-    fields = ["padre", "nombre", "codigo"]
-    template_name = "core/categoria_form.html"
-    success_message = "Categoría actualizada correctamente."
-
-    def get_success_url(self):
-        return reverse_lazy('categoria-list')
-
-
-class CategoriaDeleteView(LoginRequiredMixin, AdminOnlyMixin, SuccessMessageMixin, DeleteView):
-    model = CategoriaProducto
-    template_name = "core/categoria_confirm_delete.html"
-    success_url = reverse_lazy('categoria-list')
-
-    def delete(self, request, *args, **kwargs):
-        messages.success(request, "Categoría eliminada correctamente.")
-        return super().delete(request, *args, **kwargs)
-
-
-class ProductsByCategoryView(LoginRequiredMixin, ListView):
-    """Muestra productos filtrados por categoría (slug/slugified name)."""
-    model = Producto
-    template_name = "core/products_by_category.html"
-    context_object_name = "productos"
-    paginate_by = 40
-
-    def get_queryset(self):
-        slug = self.kwargs.get('slug') or ''
-        # Permitimos recibir slug como 'mi-categoria' o nombre en title case
-        q = slug.replace('-', ' ').strip()
-
-        # Anotamos stock disponible por producto (suma disponible - reservada)
-        qs = (
-            Producto.objects
-            .select_related('categoria')
-            .prefetch_related('stocks__ubicacion__bodega__sucursal')
-            .annotate(total_disp=Coalesce(Sum('stocks__cantidad_disponible'), Value(0, output_field=DecimalField())))
-            .annotate(total_res=Coalesce(Sum('stocks__cantidad_reservada'), Value(0, output_field=DecimalField())))
-            .annotate(stock_available=F('total_disp') - F('total_res'))
-            .order_by('categoria__nombre', 'nombre')
+def get_queryset(self):
+    return (
+        Producto.objects
+        .select_related("marca", "categoria", "unidad_base", "tasa_impuesto")
+        .annotate(
+            lotes_count=Count("lotes", distinct=True),
+            series_count=Count("series", distinct=True),
+            proveedores_count=Count("productousuarioproveedor", distinct=True),  # si corresponde
         )
+        .order_by("nombre")
+    )
 
-        # Filtrado por nombre de categoría
-        if q:
-            qs = qs.filter(Q(categoria__nombre__iexact=q) | Q(categoria__nombre__icontains=q))
 
-        # Filtros por stock (querystring)
-        sf = (self.request.GET.get('stock_filter') or '').lower()
-        # ejemplos: stock_filter=available|low|out  (low = <=10)
-        if sf == 'available':
-            qs = qs.filter(stock_available__gt=0)
-        elif sf == 'out':
-            qs = qs.filter(stock_available__lte=0)
-        elif sf == 'low':
-            qs = qs.filter(stock_available__lte=10, stock_available__gt=0)
-
-        # Filtro por umbral numérico opcional: ?stock_lt=5
-        stock_lt = self.request.GET.get('stock_lt')
-        if stock_lt:
-            try:
-                n = float(stock_lt)
-                qs = qs.filter(stock_available__lt=n)
-            except Exception:
-                pass
-
-        return qs
-
-    def get_context_data(self, **kwargs):
-        ctx = super().get_context_data(**kwargs)
-        ctx['categoria_nombre'] = (self.kwargs.get('slug') or '').replace('-', ' ').title()
-        # Construir un mapa product_id -> breakdown string para tooltips
-        breakdowns = {}
-        productos = ctx.get('productos')
-        if productos:
-            for p in productos:
-                parts = []
-                # Accedemos a p.stocks (prefetched) y agregamos detalle por ubicación
-                for s in getattr(p, 'stocks').all():
-                    ub = s.ubicacion
-                    # nombre sucursal y bodega si están disponibles
-                    suc = getattr(ub.bodega.sucursal, 'nombre', None) if ub and getattr(ub, 'bodega', None) else None
-                    bdn = getattr(ub.bodega, 'nombre', None) if ub and getattr(ub, 'bodega', None) else None
-                    ub_code = getattr(ub, 'codigo', None) if ub else None
-                    parts.append(f"{s.cantidad_disponible} disp / {s.cantidad_reservada} res @ {suc or ''}/{bdn or ''}/{ub_code or ''}")
-                breakdowns[p.pk] = "; ".join(parts) if parts else ""
-                # Adjuntar directamente al objeto producto para acceso sencillo en plantilla
-                setattr(p, 'stock_breakdown', breakdowns[p.pk])
-
-        ctx['stock_breakdowns'] = breakdowns
-        # Inyecta un form por producto para el modal de edición
-        for p in ctx.get("productos") or []:
-            p.form = ProductoForm(instance=p, prefix=f"p{p.id}")
-        ctx["q"] = self.request.GET.get("q", "").strip()
-        return ctx
 
 
 class ProductCreateView(LoginRequiredMixin, SuccessMessageMixin, CreateView):
@@ -912,7 +776,188 @@ class TipoUbicacionDeleteModal(LoginRequiredMixin, DeleteView):
         messages.success(request, "Tipo de ubicación eliminado.")
         return super().delete(request, *args, **kwargs)
 
+# ======================
+# Marca
+# ======================
+class MarcaCreateModal(LoginRequiredMixin, SuccessMessageMixin, CreateView):
+    model = Marca
+    form_class = MarcaForm
+    template_name = "core/partials/marca_form_modal.html"
+    success_message = "Marca creada."
 
+    def get_success_url(self):
+        return self.request.GET.get("next") or reverse_lazy("products")
+
+
+class MarcaUpdateModal(LoginRequiredMixin, SuccessMessageMixin, UpdateView):
+    model = Marca
+    form_class = MarcaForm
+    template_name = "core/partials/marca_form_modal.html"
+    success_message = "Marca actualizada."
+
+    def get_success_url(self):
+        return self.request.GET.get("next") or reverse_lazy("products")
+
+
+class MarcaDeleteModal(LoginRequiredMixin, DeleteView):
+    model = Marca
+    template_name = "core/partials/confirm_modal.html"
+    success_url = reverse_lazy("products")
+
+    def delete(self, request, *args, **kwargs):
+        messages.success(request, "Marca eliminada.")
+        return super().delete(request, *args, **kwargs)
+
+
+# ======================
+# Unidad de Medida
+# ======================
+class UnidadMedidaCreateModal(LoginRequiredMixin, SuccessMessageMixin, CreateView):
+    model = UnidadMedida
+    form_class = UnidadMedidaForm
+    template_name = "core/partials/unidad_form_modal.html"
+    success_message = "Unidad de medida creada."
+
+    def get_success_url(self):
+        return self.request.GET.get("next") or reverse_lazy("products")
+
+
+class UnidadMedidaUpdateModal(LoginRequiredMixin, SuccessMessageMixin, UpdateView):
+    model = UnidadMedida
+    form_class = UnidadMedidaForm
+    template_name = "core/partials/unidad_form_modal.html"
+    success_message = "Unidad de medida actualizada."
+
+    def get_success_url(self):
+        return self.request.GET.get("next") or reverse_lazy("products")
+
+
+class UnidadMedidaDeleteModal(LoginRequiredMixin, DeleteView):
+    model = UnidadMedida
+    template_name = "core/partials/confirm_modal.html"
+    success_url = reverse_lazy("products")
+
+    def delete(self, request, *args, **kwargs):
+        messages.success(request, "Unidad de medida eliminada.")
+        return super().delete(request, *args, **kwargs)
+
+
+# ======================
+# Tasa de Impuesto
+# ======================
+class TasaImpuestoCreateModal(LoginRequiredMixin, SuccessMessageMixin, CreateView):
+    model = TasaImpuesto
+    form_class = TasaImpuestoForm
+    template_name = "core/partials/tasa_form_modal.html"
+    success_message = "Tasa de impuesto creada."
+
+    def get_success_url(self):
+        return self.request.GET.get("next") or reverse_lazy("products")
+
+
+class TasaImpuestoUpdateModal(LoginRequiredMixin, SuccessMessageMixin, UpdateView):
+    model = TasaImpuesto
+    form_class = TasaImpuestoForm
+    template_name = "core/partials/tasa_form_modal.html"
+    success_message = "Tasa de impuesto actualizada."
+
+    def get_success_url(self):
+        return self.request.GET.get("next") or reverse_lazy("products")
+
+
+class TasaImpuestoDeleteModal(LoginRequiredMixin, DeleteView):
+    model = TasaImpuesto
+    template_name = "core/partials/confirm_modal.html"
+    success_url = reverse_lazy("products")
+
+    def delete(self, request, *args, **kwargs):
+        messages.success(request, "Tasa de impuesto eliminada.")
+        return super().delete(request, *args, **kwargs)
+
+
+# ======================
+# Categoría de Producto
+# ======================
+class CategoriaProductoCreateModal(LoginRequiredMixin, SuccessMessageMixin, CreateView):
+    model = CategoriaProducto
+    form_class = CategoriaProductoForm
+    template_name = "core/partials/categoria_form_modal.html"
+    success_message = "Categoría creada."
+
+    def get_success_url(self):
+        return self.request.GET.get("next") or reverse_lazy("products")
+
+
+class CategoriaProductoUpdateModal(LoginRequiredMixin, SuccessMessageMixin, UpdateView):
+    model = CategoriaProducto
+    form_class = CategoriaProductoForm
+    template_name = "core/partials/categoria_form_modal.html"
+    success_message = "Categoría actualizada."
+
+    def get_success_url(self):
+        return self.request.GET.get("next") or reverse_lazy("products")
+
+
+class CategoriaProductoDeleteModal(LoginRequiredMixin, DeleteView):
+    model = CategoriaProducto
+    template_name = "core/partials/confirm_modal.html"
+    success_url = reverse_lazy("products")
+
+    def delete(self, request, *args, **kwargs):
+        messages.success(request, "Categoría eliminada.")
+        return super().delete(request, *args, **kwargs)
+    
+
+
+# ===== LoteProducto (modales) =====
+class LoteCreateModal(LoginRequiredMixin, SuccessMessageMixin, CreateView):
+    model = LoteProducto
+    form_class = LoteProductoForm
+    template_name = "core/partials/lote_form_modal.html"
+    success_message = "Lote creado."
+
+    def get_success_url(self):
+        return self.request.GET.get("next") or reverse_lazy("products")
+
+class LoteUpdateModal(LoginRequiredMixin, SuccessMessageMixin, UpdateView):
+    model = LoteProducto
+    form_class = LoteProductoForm
+    template_name = "core/partials/lote_form_modal.html"
+    success_message = "Lote actualizado."
+
+    def get_success_url(self):
+        return self.request.GET.get("next") or reverse_lazy("products")
+
+class LoteDeleteModal(LoginRequiredMixin, SuccessMessageMixin, DeleteView):
+    model = LoteProducto
+    template_name = "core/partials/confirm_delete_modal.html"
+    success_message = "Lote eliminado."
+    # messages en DeleteView requieren manejo en form_valid o post_delete signal; si usas messages en template, puedes mostrar el texto allí.
+
+
+# ===== SerieProducto (modales) =====
+class SerieCreateModal(LoginRequiredMixin, SuccessMessageMixin, CreateView):
+    model = SerieProducto
+    form_class = SerieProductoForm
+    template_name = "core/partials/serie_form_modal.html"
+    success_message = "Serie creada."
+
+    def get_success_url(self):
+        return self.request.GET.get("next") or reverse_lazy("products")
+
+class SerieUpdateModal(LoginRequiredMixin, SuccessMessageMixin, UpdateView):
+    model = SerieProducto
+    form_class = SerieProductoForm
+    template_name = "core/partials/serie_form_modal.html"
+    success_message = "Serie actualizada."
+
+    def get_success_url(self):
+        return self.request.GET.get("next") or reverse_lazy("products")
+
+class SerieDeleteModal(LoginRequiredMixin, SuccessMessageMixin, DeleteView):
+    model = SerieProducto
+    template_name = "core/partials/confirm_delete_modal.html"
+    success_message = "Serie eliminada."
 
 
 
