@@ -47,7 +47,6 @@ urlpatterns = [
     path("productos/<int:pk>/editar/",views.ProductUpdateView.as_view(), name="producto-update"),
     path("productos/<int:pk>/eliminar/", views.ProductDeleteView.as_view(), name="producto-delete"),
     path("productos/<int:pk>/", views.ProductDetailView.as_view(), name="producto-detail"),
-    path("productos/<int:pk>/qr.png", views.qr_producto_png, name="producto-qr-png"),
 
      # Sucursales CRUD
      path("sucursales/", views.SucursalListView.as_view(), name="sucursal-list"),
@@ -98,6 +97,16 @@ urlpatterns = [
     path("categorias/agregar/", views.CategoriaProductoCreateModal.as_view(), name="categoria-create"),
     path("categorias/<int:pk>/editar/", views.CategoriaProductoUpdateModal.as_view(), name="categoria-edit"),
     path("categorias/<int:pk>/eliminar/", views.CategoriaProductoDeleteModal.as_view(), name="categoria-delete"),
+
+        # Lotes (modales)
+    path("lotes/agregar/", views.LoteCreateModal.as_view(), name="lote-create"),
+    path("lotes/<int:pk>/editar/", views.LoteUpdateModal.as_view(), name="lote-edit"),
+    path("lotes/<int:pk>/eliminar/", views.LoteDeleteModal.as_view(), name="lote-delete"),
+
+    # Series (modales)
+    path("series/agregar/", views.SerieCreateModal.as_view(), name="serie-create"),
+    path("series/<int:pk>/editar/", views.SerieUpdateModal.as_view(), name="serie-edit"),
+    path("series/<int:pk>/eliminar/", views.SerieDeleteModal.as_view(), name="serie-delete"),
     
 
     path("dev/test-scanner/", views.test_scanner, name="test_scanner"),

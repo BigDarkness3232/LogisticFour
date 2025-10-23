@@ -51,6 +51,8 @@
     <a class="lx-btn icon" href="{% url 'unidad-create' %}?next={{ request.get_full_path|urlencode }}" onclick="return openModal(this.href)">➕ Nueva Unidad</a>
     <a class="lx-btn icon" href="{% url 'tasa-create' %}?next={{ request.get_full_path|urlencode }}" onclick="return openModal(this.href)">➕ Nueva Tasa</a>
     <a class="lx-btn icon" href="{% url 'categoria-create' %}?next={{ request.get_full_path|urlencode }}" onclick="return openModal(this.href)">➕ Nueva Categoría</a>
+    <a class="lx-btn icon" href="{% url 'lote-create' %}?next={{ request.get_full_path|urlencode }}" onclick="return openModal(this.href)">➕ Nueva lote</a>
+    <a class="lx-btn icon" href="{% url 'serie-create' %}?next={{ request.get_full_path|urlencode }}" onclick="return openModal(this.href)">➕ Nueva serie</a>
   </div>
 </div>
 
@@ -99,9 +101,11 @@
 
         <td data-label="Stock">{% if st %}{{ st|floatformat:0 }}{% else %}0{% endif %}</td>
         <td data-label="Precio">{% if p.precio %}${{ p.precio }}{% else %}—{% endif %}</td>
-        <td data-label="Resumen">
-          {{ p.n_proveedores|default:0 }} / {{ p.n_lotes|default:0 }} / {{ p.n_series|default:0 }}
-        </td>
+        <td class="text-muted">
+  {{ obj.proveedores_count|default:0 }} /
+  {{ obj.lotes_count|default:0 }} /
+  {{ obj.series_count|default:0 }}
+</td>
 
         <td class="col-actions" data-label="Acciones">
           <div class="lx-acts">
@@ -119,6 +123,7 @@
     </tbody>
   </table>
 </div>
+
 
 {% if is_paginated %}
   <nav class="pager" aria-label="Paginación" style="display:flex;gap:8px;justify-content:center;margin-top:12px">

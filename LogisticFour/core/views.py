@@ -28,6 +28,8 @@ from core.models import UsuarioPerfil
 from django.contrib.auth.mixins import UserPassesTestMixin
 from django.views import View
 from django.db.models.functions import Lower
+from django.db.models import Count
+
 
 
 
@@ -589,26 +591,6 @@ class BodegaDetailView(LoginRequiredMixin, DetailView):
 
 #Area de productos
 
-@login_required
-def qr_producto_png(request, pk: int):
-    try:
-        p = Producto.objects.get(pk=pk)
-    except Producto.DoesNotExist:
-        raise Http404("Producto no encontrado")
-
-    path = reverse("producto-detail", kwargs={"pk": p.pk})
-    base = getattr(settings, "SITE_URL", "").rstrip("/")
-    payload = f"{base}{path}" if base else path
-
-    # Genera PNG en memoria
-    qr = segno.make(payload)
-    buf = io.BytesIO()
-    qr.save(buf, kind="png", scale=6, border=2)  # escala y borde imprimibles
-    buf.seek(0)
-
-    resp = HttpResponse(buf.read(), content_type="image/png")
-    resp["Content-Disposition"] = f'inline; filename="producto_{p.pk}_qr.png"'
-    return resp
 
 class ProductsListView(LoginRequiredMixin, ListView):
     model = Producto
@@ -616,19 +598,18 @@ class ProductsListView(LoginRequiredMixin, ListView):
     context_object_name = "productos"
     paginate_by = 20
 
-    def get_queryset(self):
-        qs = (Producto.objects
-              .select_related("marca", "categoria", "unidad_base", "tasa_impuesto")
-              .order_by("nombre"))
-        q = self.request.GET.get("q", "").strip()
-        if q:
-            qs = qs.filter(
-                Q(nombre__icontains=q) |
-                Q(sku__icontains=q) |
-                Q(marca__nombre__icontains=q) |
-                Q(categoria__nombre__icontains=q)
-            )
-        return qs
+def get_queryset(self):
+    return (
+        Producto.objects
+        .select_related("marca", "categoria", "unidad_base", "tasa_impuesto")
+        .annotate(
+            lotes_count=Count("lotes", distinct=True),
+            series_count=Count("series", distinct=True),
+            proveedores_count=Count("productousuarioproveedor", distinct=True),  # si corresponde
+        )
+        .order_by("nombre")
+    )
+
 
 
 
@@ -925,6 +906,58 @@ class CategoriaProductoDeleteModal(LoginRequiredMixin, DeleteView):
     def delete(self, request, *args, **kwargs):
         messages.success(request, "Categoría eliminada.")
         return super().delete(request, *args, **kwargs)
+    
+
+
+# ===== LoteProducto (modales) =====
+class LoteCreateModal(LoginRequiredMixin, SuccessMessageMixin, CreateView):
+    model = LoteProducto
+    form_class = LoteProductoForm
+    template_name = "core/partials/lote_form_modal.html"
+    success_message = "Lote creado."
+
+    def get_success_url(self):
+        return self.request.GET.get("next") or reverse_lazy("products")
+
+class LoteUpdateModal(LoginRequiredMixin, SuccessMessageMixin, UpdateView):
+    model = LoteProducto
+    form_class = LoteProductoForm
+    template_name = "core/partials/lote_form_modal.html"
+    success_message = "Lote actualizado."
+
+    def get_success_url(self):
+        return self.request.GET.get("next") or reverse_lazy("products")
+
+class LoteDeleteModal(LoginRequiredMixin, SuccessMessageMixin, DeleteView):
+    model = LoteProducto
+    template_name = "core/partials/confirm_delete_modal.html"
+    success_message = "Lote eliminado."
+    # messages en DeleteView requieren manejo en form_valid o post_delete signal; si usas messages en template, puedes mostrar el texto allí.
+
+
+# ===== SerieProducto (modales) =====
+class SerieCreateModal(LoginRequiredMixin, SuccessMessageMixin, CreateView):
+    model = SerieProducto
+    form_class = SerieProductoForm
+    template_name = "core/partials/serie_form_modal.html"
+    success_message = "Serie creada."
+
+    def get_success_url(self):
+        return self.request.GET.get("next") or reverse_lazy("products")
+
+class SerieUpdateModal(LoginRequiredMixin, SuccessMessageMixin, UpdateView):
+    model = SerieProducto
+    form_class = SerieProductoForm
+    template_name = "core/partials/serie_form_modal.html"
+    success_message = "Serie actualizada."
+
+    def get_success_url(self):
+        return self.request.GET.get("next") or reverse_lazy("products")
+
+class SerieDeleteModal(LoginRequiredMixin, SuccessMessageMixin, DeleteView):
+    model = SerieProducto
+    template_name = "core/partials/confirm_delete_modal.html"
+    success_message = "Serie eliminada."
 
 
 

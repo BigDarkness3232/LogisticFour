@@ -435,3 +435,85 @@ class UbicacionForm(forms.ModelForm):
         self.fields["tipo"].label_from_instance = lambda obj: (
             f"{obj.codigo} — {obj.descripcion}"
         )
+
+class LoteProductoForm(forms.ModelForm):
+    class Meta:
+        model = LoteProducto
+        fields = ["producto", "codigo_lote", "fecha_fabricacion", "fecha_vencimiento"]
+        widgets = {
+            "codigo_lote": forms.TextInput(attrs={"placeholder": "Código de lote"}),
+            "fecha_fabricacion": forms.DateInput(attrs={"type": "date"}),
+            "fecha_vencimiento": forms.DateInput(attrs={"type": "date"}),
+        }
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        for name, field in self.fields.items():
+            field.widget.attrs.setdefault(
+                "class", "form-control" if not isinstance(field.widget, forms.CheckboxInput) else "form-check-input"
+            )
+
+    def clean(self):
+        cd = super().clean()
+        # Validación de unicidad amigable al usuario (refleja uq_producto_lote)
+        prod = cd.get("producto")
+        codigo = (cd.get("codigo_lote") or "").strip()
+        if prod and codigo:
+            qs = LoteProducto.objects.filter(producto=prod, codigo_lote=codigo)
+            if self.instance.pk:
+                qs = qs.exclude(pk=self.instance.pk)
+            if qs.exists():
+                self.add_error("codigo_lote", "Ya existe un lote con ese código para el producto seleccionado.")
+        return cd
+
+
+class SerieProductoForm(forms.ModelForm):
+    class Meta:
+        model = SerieProducto
+        fields = ["producto", "numero_serie", "lote"]
+        widgets = {
+            "numero_serie": forms.TextInput(attrs={"placeholder": "Número de serie"}),
+        }
+
+    def __init__(self, *args, **kwargs):
+        # Filtra el campo 'lote' según el producto elegido (instance o POST)
+        super().__init__(*args, **kwargs)
+
+        producto = None
+        if self.instance and self.instance.pk:
+            producto = self.instance.producto
+        else:
+            # Si viene en POST/GET (útil en modales dependientes)
+            pid = self.data.get("producto") or self.initial.get("producto")
+            if pid:
+                try:
+                    producto = Producto.objects.get(pk=pid)
+                except Producto.DoesNotExist:
+                    producto = None
+
+        if producto:
+            self.fields["lote"].queryset = LoteProducto.objects.filter(producto=producto).order_by("codigo_lote")
+        else:
+            self.fields["lote"].queryset = LoteProducto.objects.none()
+
+        for name, field in self.fields.items():
+            field.widget.attrs.setdefault(
+                "class", "form-control" if not isinstance(field.widget, forms.CheckboxInput) else "form-check-input"
+            )
+
+    def clean(self):
+        cd = super().clean()
+        # Validación de unicidad amigable (refleja uq_producto_numero_serie)
+        prod = cd.get("producto")
+        ns = (cd.get("numero_serie") or "").strip()
+        if prod and ns:
+            qs = SerieProducto.objects.filter(producto=prod, numero_serie=ns)
+            if self.instance.pk:
+                qs = qs.exclude(pk=self.instance.pk)
+            if qs.exists():
+                self.add_error("numero_serie", "Ya existe una serie con ese número para el producto seleccionado.")
+        # Si se selecciona lote, debe pertenecer al mismo producto
+        lote = cd.get("lote")
+        if lote and prod and LoteProducto.producto_id != prod.id:
+            self.add_error("lote", "El lote seleccionado no pertenece a este producto.")
+        return cd
