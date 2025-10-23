@@ -1,87 +1,152 @@
 {% extends "core/base.html" %}
-{% block title %}Productos — Logistic{% endblock %}
+{% block title %}Productos{% endblock %}
+
 {% block content %}
+<style>
+  :root{ --ink:#111827; --muted:#6b7280; --line:#e5e7eb; --bg:#f5f7fb; --head:#eef0f6;
+         --pri:#111; --pri-ink:#fff; --danger:#dc2626; }
+  .page-head{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:12px}
+  .page-head h1{margin:0;font-weight:800;letter-spacing:.3px}
+  .page-actions{display:flex;gap:8px;flex-wrap:wrap}
+  .lx-btn.icon{display:inline-flex;align-items:center;gap:8px;height:40px;padding:0 14px;border-radius:12px;
+               background:#111;color:#fff;border:1px solid #111;text-decoration:none}
+  .filter-card{background:#fff;border:1px solid var(--line);border-radius:12px;padding:12px;margin-bottom:12px;
+               display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+  .filter-card .input{flex:1 1 280px;min-width:220px;padding:10px 12px;border:1px solid var(--line);border-radius:10px;background:#fafafa}
+  .filter-card .btn{background:#111;color:#fff;border:0;border-radius:10px;padding:10px 14px;cursor:pointer}
+  .filter-card .btn.ghost{background:#fff;color:#111;border:1px solid var(--line)}
+  .table-wrap{background:#fff;border:1px solid var(--line);border-radius:12px;overflow:hidden}
+  .data-table{width:100%;border-collapse:separate;border-spacing:0;font-size:14px}
+  .data-table thead th{position:sticky;top:0;background:var(--head);z-index:1;text-align:left;padding:12px;font-weight:700;border-bottom:1px solid var(--line)}
+  .data-table tbody td{padding:12px;border-bottom:1px solid var(--line)}
+  .data-table tbody tr:hover{background:#fafafa}
+  .col-actions{text-align:right;min-width:280px;white-space:nowrap}
+  .lx-badge{display:inline-block;padding:4px 8px;font-size:12px;border-radius:999px;border:1px solid var(--line);background:#f8fafc;color:#374151}
+  .lx-badge.ok{background:#e8f7ee;color:#065f46;border-color:#bfe7cb}
+  .lx-badge.no{background:#fff1f0;color:#7a1d1d;border-color:#f3c3bf}
+  @media (max-width:760px){
+    .data-table thead{display:none}
+    .data-table{display:block}
+    .data-table tbody{display:grid;gap:10px}
+    .data-table tr{display:grid;gap:8px;padding:12px;background:#fff;border:1px solid var(--line);border-radius:12px}
+    .data-table td{border:0;padding:0}
+    .data-table td[data-label]::before{content:attr(data-label) ": ";font-weight:600;color:var(--muted);margin-right:6px}
+    .col-actions{text-align:left;min-width:0}
+  }
+  /* ===== Modal (mismo set que bodegas) ===== */
+  dialog.lx-modal{ border:0; padding:0; border-radius:16px; box-shadow:0 20px 60px rgba(0,0,0,.2);
+                   width:clamp(320px,92vw,640px); max-width:95vw; }
+  dialog.lx-modal::backdrop{ background:rgba(17,24,39,.45); backdrop-filter: blur(2px); }
+</style>
 
-<h1 class="h1">Productos</h1>
+<div class="page-head">
+  <h1>Productos</h1>
+  <div class="page-actions">
+    <a class="lx-btn icon" href="{% url 'product_add' %}">➕ Agregar producto</a>
 
-<div class="toolbar">
-  <form method="get" style="display:flex; gap:10px; align-items:center">
-    <input class="search" type="search" name="q" value="{{ q }}" placeholder="Buscar por SKU, nombre, marca, categoría…">
-    <button class="btn ghost" type="submit">🔎 Buscar</button>
-  </form>
-  <a href="{% url 'product_add' %}" class="btn">+ Agregar producto</a>
+    <!-- Botones de creación rápida (modales) -->
+    <a class="lx-btn icon"
+   href="{% url 'marca-create' %}?next={{ request.get_full_path|urlencode }}"
+   onclick="return openModal(this.href)">➕ Nueva marca</a>
+    <a class="lx-btn icon" href="{% url 'unidad-create' %}?next={{ request.get_full_path|urlencode }}" onclick="return openModal(this.href)">➕ Nueva Unidad</a>
+    <a class="lx-btn icon" href="{% url 'tasa-create' %}?next={{ request.get_full_path|urlencode }}" onclick="return openModal(this.href)">➕ Nueva Tasa</a>
+    <a class="lx-btn icon" href="{% url 'categoria-create' %}?next={{ request.get_full_path|urlencode }}" onclick="return openModal(this.href)">➕ Nueva Categoría</a>
+  </div>
 </div>
 
-<div class="table scroll">
-  <div class="tr th">
-    <div>Nombre del producto</div>
-    <div>Estado</div>
-    <div>Stock</div>
-    <div>Categoría</div>
-    <div>Ubicación</div>
-  </div>
+<form method="get" class="filter-card" role="search">
+  <input type="search" class="input" name="q" value="{{ q }}" placeholder="Buscar SKU, nombre, marca o categoría…" />
+  <button class="btn" type="submit">Buscar</button>
+  <a class="btn ghost" href="{% url 'products' %}">Limpiar</a>
+</form>
 
-  {% for p in productos %}
-  {% with st=p.stock_total|default:0 %}
-  <div class="tr">
-    <div>{{ p.nombre }}</div>
+<div class="table-wrap">
+  <table class="data-table">
+    <thead>
+      <tr>
+        <th>SKU / Nombre</th>
+        <th>marca</th>
+        <th>categoria</th>
+        <th>Estado</th>
+        <th>Stock</th>
+        <th>Precio</th>
+        <th>Provs / Lotes / Series</th>
+        <th class="col-actions">Acciones</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for p in productos %}
+      <tr>
+        <td data-label="SKU / Nombre">
+          <div><code>{{ p.sku }}</code></div>
+          <div><strong>{{ p.nombre }}</strong></div>
+        </td>
 
-    <div>
-      {% if st|floatformat:2 == "0.00" %}
-        <span class="badge warn">Sin stock</span>
-      {% else %}
-        {% if p.activo %}
-          <span class="badge ok">Activo</span>
-        {% else %}
-          <span class="badge">Inactivo</span>
-        {% endif %}
-      {% endif %}
-    </div>
+        <td>
+          <div style="color:var(--muted);font-size:12px">{{ p.marca|default:"—" }}</div>
+        </td>
+        <td>
+          <div style="color:var(--muted);font-size:12px">{{ p.categoria|default:"—" }}</div>
+        </td>
 
-    <div>
-      {% if st %}
-        {{ st|floatformat:0 }} en stock
-      {% else %}
-        0 en stock
-      {% endif %}
-    </div>
+        <td data-label="Estado">
+          {% if st|floatformat:2 == "0.00" %}
+            <span class="lx-badge no">Sin stock</span>
+          {% else %}
+            {% if p.activo %}<span class="lx-badge ok">Activo</span>{% else %}<span class="lx-badge no">Inactivo</span>{% endif %}
+          {% endif %}
+        </td>
 
-    <div>{{ p.categoria|default:"—" }}</div>
+        <td data-label="Stock">{% if st %}{{ st|floatformat:0 }}{% else %}0{% endif %}</td>
+        <td data-label="Precio">{% if p.precio %}${{ p.precio }}{% else %}—{% endif %}</td>
+        <td data-label="Resumen">
+          {{ p.n_proveedores|default:0 }} / {{ p.n_lotes|default:0 }} / {{ p.n_series|default:0 }}
+        </td>
 
-    <div>
-      {% if p.bodegas_con_stock %}
-        {{ p.bodegas_con_stock }} bodegas
-      {% else %}
-        0 bodegas
-      {% endif %}
-    </div>
-  </div>
-  {% endwith %}
-  {% empty %}
-  <div class="tr">
-    <div class="col-span-2" style="grid-column:1 / -1; padding:12px; color:var(--muted)">
-      No hay productos.
-    </div>
-  </div>
-  {% endfor %}
+        <td class="col-actions" data-label="Acciones">
+          <div class="lx-acts">
+            <a class="lx-act" href="{% url 'producto-update' p.pk %}">Editar</a>
+            <form method="post" action="{% url 'producto-delete' p.pk %}" onsubmit="return confirm('¿Eliminar este producto?')">
+              {% csrf_token %}
+              <button type="submit" class="lx-act danger">Eliminar</button>
+            </form>
+          </div>
+        </td>
+      </tr>
+      {% empty %}
+      <tr><td colspan="6">No hay productos.</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
 </div>
 
 {% if is_paginated %}
-  <div style="display:flex; gap:8px; align-items:center; margin-top:10px">
+  <nav class="pager" aria-label="Paginación" style="display:flex;gap:8px;justify-content:center;margin-top:12px">
     {% if page_obj.has_previous %}
-      <a class="btn ghost" href="?q={{ q }}&page={{ page_obj.previous_page_number }}">« Anterior</a>
+      <a href="?q={{ q }}&page={{ page_obj.previous_page_number }}">← Anterior</a>
     {% else %}
-      <span class="btn ghost" style="opacity:.5;pointer-events:none">« Anterior</span>
+      <span class="muted">← Anterior</span>
     {% endif %}
-
-    <span>Página {{ page_obj.number }} de {{ page_obj.paginator.num_pages }}</span>
-
+    <span class="is-current">Página {{ page_obj.number }} de {{ page_obj.paginator.num_pages }}</span>
     {% if page_obj.has_next %}
-      <a class="btn ghost" href="?q={{ q }}&page={{ page_obj.next_page_number }}">Siguiente »</a>
+      <a href="?q={{ q }}&page={{ page_obj.next_page_number }}">Siguiente →</a>
     {% else %}
-      <span class="btn ghost" style="opacity:.5;pointer-events:none">Siguiente »</span>
+      <span class="muted">Siguiente →</span>
     {% endif %}
-  </div>
+  </nav>
 {% endif %}
 
+<script>
+/* Mismo helper que usas en bodegas */
+async function openModal(url){
+  const res = await fetch(url, {headers:{'X-Requested-With':'fetch'}});
+  const html = await res.text();
+  const wrap = document.createElement('div');
+  wrap.innerHTML = html;
+  document.body.appendChild(wrap);
+  const dialog = wrap.querySelector('dialog');
+  if(dialog){ dialog.addEventListener('close', ()=> wrap.remove()); dialog.showModal?.(); }
+  return false;
+}
+</script>
 {% endblock %}

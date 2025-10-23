@@ -72,7 +72,7 @@ class ProductoForm(forms.ModelForm):
         fields = [
             "sku", "nombre", "marca", "categoria",
             "unidad_base", "tasa_impuesto", "activo",
-            "es_serializado", "tiene_vencimiento",
+            "es_serializado", "tiene_vencimiento","precio",
         ]
         widgets = {
             "sku": forms.TextInput(attrs={"placeholder": "SKU o código interno"}),

@@ -22,6 +22,12 @@
   </div>
 
   <div class="field">
+    <label for="{{ form.precio.id_for_label }}">Precio</label>
+    {{ form.precio }}
+    {% for e in form.precio.errors %}<small style="color:#c2410c">{{ e }}</small>{% endfor %}
+  </div>
+
+  <div class="field">
     <label for="{{ form.marca.id_for_label }}">Marca</label>
     {{ form.marca }}
     {% for e in form.marca.errors %}<small style="color:#c2410c">{{ e }}</small>{% endfor %}

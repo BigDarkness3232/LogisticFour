@@ -7,12 +7,6 @@ urlpatterns = [
     path("", views.dashboard, name="dashboard"),
     path("products/", views.products, name="products"),
      path("category/<slug:slug>/", views.category, name="category"),
-     # Nuevo: categorías
-     path("categorias/", views.CategoriaListView.as_view(), name="categoria-list"),
-     path("categorias/<slug:slug>/", views.ProductsByCategoryView.as_view(), name="categoria-products"),
-          path("categorias/agregar/", views.CategoriaCreateView.as_view(), name="categoria-create"),
-          path("categorias/<int:pk>/editar/", views.CategoriaUpdateView.as_view(), name="categoria-edit"),
-          path("categorias/<int:pk>/eliminar/", views.CategoriaDeleteView.as_view(), name="categoria-delete"),
     path("products/add/", views.product_add, name="product_add"),
 
     # Auth propias
@@ -76,14 +70,35 @@ urlpatterns = [
      path("ubicaciones/<int:pk>/eliminar/", views.UbicacionDeleteView.as_view(), name="ubicacion-delete"),
 
      # AreaBodega (modales)
-     path("areas/agregar/", views.AreaBodegaCreateModal.as_view(), name="area-create"),
-     path("areas/<int:pk>/editar/", views.AreaBodegaUpdateModal.as_view(), name="area-edit"),
-     path("areas/<int:pk>/eliminar/", views.AreaBodegaDeleteModal.as_view(), name="area-delete"),
+    path("areas/agregar/", views.AreaBodegaCreateModal.as_view(), name="area-create"),
+    path("areas/<int:pk>/editar/", views.AreaBodegaUpdateModal.as_view(), name="area-edit"),
+    path("areas/<int:pk>/eliminar/", views.AreaBodegaDeleteModal.as_view(), name="area-delete"),
 
     # TipoUbicacion (modales)
     path("tipos/agregar/", views.TipoUbicacionCreateModal.as_view(), name="tipo-create"),
     path("tipos/<int:pk>/editar/", views.TipoUbicacionUpdateModal.as_view(), name="tipo-edit"),
     path("tipos/<int:pk>/eliminar/", views.TipoUbicacionDeleteModal.as_view(), name="tipo-delete"),
+
+    # Marca (modales)
+    path("marcas/agregar/", views.MarcaCreateModal.as_view(), name="marca-create"),
+    path("marcas/<int:pk>/editar/", views.MarcaUpdateModal.as_view(), name="marca-edit"),
+    path("marcas/<int:pk>/eliminar/", views.MarcaDeleteModal.as_view(), name="marca-delete"),
+
+    # Unidad de Medida (modales)
+    path("unidades/agregar/", views.UnidadMedidaCreateModal.as_view(), name="unidad-create"),
+    path("unidades/<int:pk>/editar/", views.UnidadMedidaUpdateModal.as_view(), name="unidad-edit"),
+    path("unidades/<int:pk>/eliminar/", views.UnidadMedidaDeleteModal.as_view(), name="unidad-delete"),
+
+    # Tasa de Impuesto (modales)
+    path("tasas/agregar/", views.TasaImpuestoCreateModal.as_view(), name="tasa-create"),
+    path("tasas/<int:pk>/editar/", views.TasaImpuestoUpdateModal.as_view(), name="tasa-edit"),
+    path("tasas/<int:pk>/eliminar/", views.TasaImpuestoDeleteModal.as_view(), name="tasa-delete"),
+
+    # Categoría de Producto (modales)
+    path("categorias/agregar/", views.CategoriaProductoCreateModal.as_view(), name="categoria-create"),
+    path("categorias/<int:pk>/editar/", views.CategoriaProductoUpdateModal.as_view(), name="categoria-edit"),
+    path("categorias/<int:pk>/eliminar/", views.CategoriaProductoDeleteModal.as_view(), name="categoria-delete"),
+    
 
     path("dev/test-scanner/", views.test_scanner, name="test_scanner"),
 ]
