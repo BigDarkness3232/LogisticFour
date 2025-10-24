@@ -967,3 +967,21 @@ class SerieDeleteModal(LoginRequiredMixin, SuccessMessageMixin, DeleteView):
 
 def test_scanner(request):
     return render(request, "core/test_scanner.html")
+
+
+@login_required
+def products(request):
+    productos = (
+        Producto.objects
+        .select_related("marca", "categoria", "unidad_base", "tasa_impuesto")
+        .annotate(
+            lotes_count=Count("lotes", distinct=True),
+            series_count=Count("series", distinct=True),
+            proveedores_count=Count("productousuarioproveedor", distinct=True),
+        )
+        .order_by("nombre")
+    )
+    return render(request, "core/products.html", {
+        "productos": productos,
+        "q": (request.GET.get("q") or "").strip(),
+    })
