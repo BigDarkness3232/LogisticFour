@@ -985,3 +985,208 @@ def products(request):
         "productos": productos,
         "q": (request.GET.get("q") or "").strip(),
     })
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+from django.db.models import Sum, Value, DecimalField, ExpressionWrapper
+
+
+
+
+
+
+
+@login_required
+def stock_por_producto(request):
+    """
+    Busca un producto por SKU y muestra su stock global, por sucursal y por bodega.
+    """
+    sku = (request.GET.get("sku") or "").strip().upper()
+    producto = None
+    resultados_bodegas = []
+    resumen_sucursales = []
+    totales = None
+
+    if sku:
+        try:
+            producto = Producto.objects.get(sku=sku)
+            dec0 = Value(0, output_field=DecimalField(max_digits=20, decimal_places=6))
+
+            # --- 1) Totales globales (todas las sucursales y bodegas)
+            totales = (
+                Stock.objects
+                .filter(producto=producto)
+                .aggregate(
+                    total_disponible=Coalesce(Sum("cantidad_disponible"), dec0),
+                    total_reservado=Coalesce(Sum("cantidad_reservada"), dec0),
+                )
+            )
+            totales["total_neto"] = (totales["total_disponible"] or 0) - (totales["total_reservado"] or 0)
+
+            # --- 2) Resumen por Sucursal
+            resumen_sucursales = (
+                Stock.objects
+                .filter(producto=producto)
+                .select_related("ubicacion__bodega__sucursal")
+                .values(
+                    "ubicacion__bodega__sucursal__codigo",
+                    "ubicacion__bodega__sucursal__nombre",
+                )
+                .annotate(
+                    total_disponible=Coalesce(Sum("cantidad_disponible"), dec0),
+                    total_reservado=Coalesce(Sum("cantidad_reservada"), dec0),
+                )
+                .annotate(
+                    total_neto=ExpressionWrapper(
+                        F("total_disponible") - F("total_reservado"),
+                        output_field=DecimalField(max_digits=20, decimal_places=6),
+                    )
+                )
+                .order_by("ubicacion__bodega__sucursal__codigo")
+            )
+
+            # --- 3) Detalle por Bodega (dentro de cada sucursal)
+            resultados_bodegas = (
+                Stock.objects
+                .filter(producto=producto)
+                .select_related("ubicacion__bodega__sucursal")
+                .values(
+                    "ubicacion__bodega__sucursal__codigo",
+                    "ubicacion__bodega__sucursal__nombre",
+                    "ubicacion__bodega__codigo",
+                    "ubicacion__bodega__nombre",
+                )
+                .annotate(
+                    total_disponible=Coalesce(Sum("cantidad_disponible"), dec0),
+                    total_reservado=Coalesce(Sum("cantidad_reservada"), dec0),
+                )
+                .annotate(
+                    total_neto=ExpressionWrapper(
+                        F("total_disponible") - F("total_reservado"),
+                        output_field=DecimalField(max_digits=20, decimal_places=6),
+                    )
+                )
+                .order_by(
+                    "ubicacion__bodega__sucursal__codigo",
+                    "ubicacion__bodega__codigo",
+                )
+            )
+
+        except Producto.DoesNotExist:
+            messages.error(request, f"No se encontró ningún producto con SKU '{sku}'.")
+
+    return render(request, "core/stock_producto.html", {
+        "sku": sku,
+        "producto": producto,
+        "totales": totales,
+        "resumen_sucursales": resumen_sucursales,
+        "resultados_bodegas": resultados_bodegas,
+    })
+
+
+def stock_por_sucursal(producto):
+    dec0 = Value(0, output_field=DecimalField(max_digits=20, decimal_places=6))
+    return (
+        Stock.objects
+        .filter(producto=producto)
+        .select_related("ubicacion__bodega__sucursal")
+        .values(
+            "ubicacion__bodega__sucursal__codigo",
+            "ubicacion__bodega__sucursal__nombre",
+        )
+        .annotate(
+            total_disponible=Coalesce(Sum("cantidad_disponible"), dec0),
+            total_reservado=Coalesce(Sum("cantidad_reservada"), dec0),
+        )
+        .annotate(
+            total_neto=ExpressionWrapper(
+                F("total_disponible") - F("total_reservado"),
+                output_field=DecimalField(max_digits=20, decimal_places=6),
+            )
+        )
+        .order_by("ubicacion__bodega__sucursal__codigo")
+    )
+
+
+
+def stock_por_bodega(producto):
+    dec0 = Value(0, output_field=DecimalField(max_digits=20, decimal_places=6))
+    return (
+        Stock.objects
+        .filter(producto=producto)
+        .select_related("ubicacion__bodega__sucursal")
+        .values(
+            "ubicacion__bodega__sucursal__codigo",
+            "ubicacion__bodega__sucursal__nombre",
+            "ubicacion__bodega__codigo",
+            "ubicacion__bodega__nombre",
+        )
+        .annotate(
+            total_disponible=Coalesce(Sum("cantidad_disponible"), dec0),
+            total_reservado=Coalesce(Sum("cantidad_reservada"), dec0),
+        )
+        .annotate(
+            total_neto=ExpressionWrapper(
+                F("total_disponible") - F("total_reservado"),
+                output_field=DecimalField(max_digits=20, decimal_places=6),
+            )
+        )
+        .order_by("ubicacion__bodega__sucursal__codigo", "ubicacion__bodega__codigo")
+    )

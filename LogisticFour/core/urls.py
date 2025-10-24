@@ -110,4 +110,54 @@ urlpatterns = [
     
 
     path("dev/test-scanner/", views.test_scanner, name="test_scanner"),
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+    path("productos/stock/", views.stock_por_producto, name="stock-por-producto"),
 ]
