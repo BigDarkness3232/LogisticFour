@@ -237,7 +237,9 @@ class Producto(MarcaTiempo):
     tiene_vencimiento = models.BooleanField(default=False)
 
     # NUEVO: precio directo en el producto
-    precio = models.DecimalField(max_digits=14, decimal_places=4, null=True, blank=True)
+    precio = models.PositiveIntegerField(default=0)
+
+    stock = models.PositiveIntegerField(default=0)
 
     @property
     def stock_total(self):

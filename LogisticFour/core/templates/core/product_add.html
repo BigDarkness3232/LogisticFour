@@ -28,6 +28,12 @@
   </div>
 
   <div class="field">
+    <label for="{{ form.stock.id_for_label }}">Cantidad de stock</label>
+    {{ form.stock }}
+    {% for e in form.stock.errors %}<small style="color:#c2410c">{{ e }}</small>{% endfor %}
+  </div>
+
+  <div class="field">
     <label for="{{ form.marca.id_for_label }}">Marca</label>
     {{ form.marca }}
     {% for e in form.marca.errors %}<small style="color:#c2410c">{{ e }}</small>{% endfor %}

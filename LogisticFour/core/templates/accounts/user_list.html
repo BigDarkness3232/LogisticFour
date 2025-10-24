@@ -18,10 +18,9 @@
         <button class="btn ghost" type="submit">Filtrar</button>
       </form>
 
-      <div class="dropdown" style="position:relative;">
+      <div class="dropdown" style="position:relative; text-align: right;">
         <button class="btn">+ Nuevo usuario</button>
         <div class="dropdown-menu" style="display:none;position:absolute;background:#fff;border:1px solid var(--line);border-radius:8px;padding:6px;right:0;z-index:10;min-width:220px;">
-          <a class="item" style="display:block;padding:8px 10px;text-decoration:none;color:inherit;" href="{% url 'usuario-create' %}">Usuario (rol por defecto)</a>
           <a class="item" style="display:block;padding:8px 10px;text-decoration:none;color:inherit;" href="{% url 'usuario-create' %}?role=ADMIN">Administrador</a>
           <a class="item" style="display:block;padding:8px 10px;text-decoration:none;color:inherit;" href="{% url 'usuario-create' %}?role=BODEGUERO">Bodeguero</a>
           <a class="item" style="display:block;padding:8px 10px;text-decoration:none;color:inherit;" href="{% url 'usuario-create' %}?role=AUDITOR">Auditor</a>

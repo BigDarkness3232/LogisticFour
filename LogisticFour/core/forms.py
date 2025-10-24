@@ -66,6 +66,12 @@ class ProductoForm(forms.ModelForm):
         required=False,
         empty_label="— Sin impuesto —"
     )
+    stock = forms.IntegerField(
+        min_value=0,
+        required=True,
+        label="Cantidad de stock",
+        help_text="No puede ser negativa"
+    )
 
     class Meta:
         model = Producto
@@ -73,10 +79,12 @@ class ProductoForm(forms.ModelForm):
             "sku", "nombre", "marca", "categoria",
             "unidad_base", "tasa_impuesto", "activo",
             "es_serializado", "tiene_vencimiento","precio",
+            "stock",
         ]
         widgets = {
             "sku": forms.TextInput(attrs={"placeholder": "SKU o código interno"}),
             "nombre": forms.TextInput(attrs={"placeholder": "Nombre del producto"}),
+            "stock": forms.NumberInput(attrs={"min": 0, "step": 1}),
         }
         help_texts = {
             "es_serializado": "Actívalo si cada unidad tiene número de serie.",
@@ -117,11 +125,17 @@ class ProductoForm(forms.ModelForm):
 
     def save(self, commit=True):
         obj = super().save(commit=False)
-        # Asegura SKU normalizado
+        # normalización SKU (opcional si ya lo tienes)
         obj.sku = (obj.sku or "").strip().upper()
+
+        # asegura entero ≥ 0
+        if "stock" in self.cleaned_data and self.cleaned_data["stock"] is not None:
+            obj.stock = max(0, int(self.cleaned_data["stock"]))
+
         if commit:
             obj.save()
         return obj
+
 
 class BaseModelForm(forms.ModelForm):
     """Pequeña utilidad para recortar espacios en CharFields."""

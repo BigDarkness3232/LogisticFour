@@ -99,7 +99,7 @@
           {% endif %}
         </td>
 
-        <td data-label="Stock">{% if st %}{{ st|floatformat:0 }}{% else %}0{% endif %}</td>
+        <td data-label="Stock"><strong>{{ p.stock }}</strong></td>
         <td data-label="Precio">{% if p.precio %}${{ p.precio }}{% else %}—{% endif %}</td>
         <td class="text-muted">
   {{ obj.proveedores_count|default:0 }} /
