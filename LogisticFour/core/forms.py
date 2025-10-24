@@ -66,6 +66,11 @@ class ProductoForm(forms.ModelForm):
         required=False,
         empty_label="— Sin impuesto —"
     )
+    ubicacion = forms.ModelChoiceField(
+        queryset=Ubicacion.objects.all(),
+        required=False,
+        empty_label="— Selecciona una ubicación —"
+    )
     stock = forms.IntegerField(
         min_value=0,
         required=True,
@@ -78,8 +83,8 @@ class ProductoForm(forms.ModelForm):
         fields = [
             "sku", "nombre", "marca", "categoria",
             "unidad_base", "tasa_impuesto", "activo",
-            "es_serializado", "tiene_vencimiento","precio",
-            "stock",
+            "es_serializado", "tiene_vencimiento", "precio",
+            "stock", "ubicacion",  # Incluir el campo de ubicación aquí
         ]
         widgets = {
             "sku": forms.TextInput(attrs={"placeholder": "SKU o código interno"}),
@@ -100,6 +105,7 @@ class ProductoForm(forms.ModelForm):
         self.fields["unidad_base"].queryset = UnidadMedida.objects.all().order_by("codigo")
         # Solo tasas activas (si usas el campo 'activo')
         self.fields["tasa_impuesto"].queryset = TasaImpuesto.objects.filter(activo=True).order_by("nombre")
+        self.fields["ubicacion"].queryset = Ubicacion.objects.all().order_by("codigo")  # Ordenar las ubicaciones
 
         # Pequeños estilos genéricos (si usas tu CSS, serán inputs normales)
         for name, field in self.fields.items():
@@ -135,7 +141,6 @@ class ProductoForm(forms.ModelForm):
         if commit:
             obj.save()
         return obj
-
 
 class BaseModelForm(forms.ModelForm):
     """Pequeña utilidad para recortar espacios en CharFields."""

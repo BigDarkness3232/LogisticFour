@@ -13,8 +13,8 @@ from .models import (
     TasaImpuesto, UnidadMedida, ConversionUM, Marca, CategoriaProducto,
     Sucursal, Bodega, AreaBodega, TipoUbicacion, Ubicacion,
     BitacoraAuditoria,
-    Producto, ProductoUsuarioProveedor, LoteProducto, SerieProducto,
-    Stock, TipoMovimiento, MovimientoStock,
+    Producto, ProductoUsuarioProveedor, LoteProducto, SerieProducto
+    , TipoMovimiento, MovimientoStock,
     AjusteInventario, LineaAjusteInventario,
     RecuentoInventario, LineaRecuentoInventario,
     Reserva, PoliticaReabastecimiento,
@@ -194,14 +194,6 @@ class SerieProductoAdmin(admin.ModelAdmin):
     autocomplete_fields = ("producto", "lote")
 
 # ===== Inventario =====
-@admin.register(Stock)
-class StockAdmin(admin.ModelAdmin):
-    list_display = ("producto", "ubicacion", "lote", "serie", "cantidad_disponible", "cantidad_reservada", "actualizado_en")
-    list_filter = ("ubicacion__bodega", "ubicacion", "lote")
-    search_fields = ("producto__sku", "producto__nombre", "ubicacion__codigo", "lote__codigo_lote", "serie__numero_serie")
-    autocomplete_fields = ("producto", "ubicacion", "lote", "serie")
-    readonly_fields = ("actualizado_en",)
-    list_select_related = ("producto", "ubicacion", "lote", "serie")
 
 @admin.register(TipoMovimiento)
 class TipoMovimientoAdmin(admin.ModelAdmin):

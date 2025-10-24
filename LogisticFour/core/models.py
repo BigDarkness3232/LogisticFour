@@ -241,19 +241,7 @@ class Producto(MarcaTiempo):
 
     stock = models.PositiveIntegerField(default=0)
 
-    @property
-    def stock_total(self):
-        """
-        Suma disponible - reservada en todos los registros de Stock.
-        Devuelve Decimal o 0 si no hay stock.
-        """
-        agg = self.stocks.aggregate(
-            total_disp=sum('cantidad_disponible'),
-            total_res=sum('cantidad_reservada')
-        )
-        total_disp = agg.get('total_disp') or 0
-        total_res  = agg.get('total_res')  or 0
-        return total_disp - total_res
+    ubicacion = models.ForeignKey(Ubicacion, on_delete=models.SET_NULL, null=True, blank=True, related_name="productos")
 
     class Meta:
         db_table = "productos"
@@ -313,24 +301,6 @@ class SerieProducto(models.Model):
 # 4) Inventario (Stock, Movimientos, Recuentos)
 # =============================================
 
-class Stock(models.Model):
-    producto = models.ForeignKey(Producto, on_delete=models.CASCADE, related_name="stocks")
-    ubicacion = models.ForeignKey(Ubicacion, on_delete=models.CASCADE, related_name="stocks")
-    lote = models.ForeignKey(LoteProducto, on_delete=models.SET_NULL, null=True, blank=True)
-    serie = models.ForeignKey(SerieProducto, on_delete=models.SET_NULL, null=True, blank=True)
-    cantidad_disponible = models.DecimalField(max_digits=20, decimal_places=6, default=0)
-    cantidad_reservada = models.DecimalField(max_digits=20, decimal_places=6, default=0)
-    actualizado_en = models.DateTimeField(auto_now=True)
-
-    class Meta:
-        db_table = "stock"
-        constraints = [
-            models.UniqueConstraint(fields=["producto", "ubicacion", "lote", "serie"], name="uq_stock_prod_ubi_lote_serie")
-        ]
-        indexes = [
-            models.Index(fields=["producto"], name="idx_stock_producto"),
-            models.Index(fields=["ubicacion"], name="idx_stock_ubicacion"),
-        ]
 
 
 class TipoMovimiento(models.Model):

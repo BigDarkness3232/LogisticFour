@@ -45,6 +45,12 @@
     {% for e in form.categoria.errors %}<small style="color:#c2410c">{{ e }}</small>{% endfor %}
   </div>
 
+   <div class="field">
+    <label for="{{ form.ubicacion.id_for_label }}">ubicacion</label>
+    {{ form.ubicacion }}
+    {% for e in form.ubicacion.errors %}<small style="color:#c2410c">{{ e }}</small>{% endfor %}
+  </div>
+
   <div class="field">
     <label for="{{ form.unidad_base.id_for_label }}">Unidad base</label>
     {{ form.unidad_base }}

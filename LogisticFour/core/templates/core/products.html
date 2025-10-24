@@ -69,6 +69,7 @@
         <th>SKU / Nombre</th>
         <th>marca</th>
         <th>categoria</th>
+        <th>Ubicacion</th>
         <th>Estado</th>
         <th>Stock</th>
         <th>Precio</th>
@@ -89,6 +90,9 @@
         </td>
         <td>
           <div style="color:var(--muted);font-size:12px">{{ p.categoria|default:"—" }}</div>
+        </td>
+          <td>
+          <div style="color:var(--muted);font-size:12px">{{ p.ubicacion|default:"—" }}</div>
         </td>
 
         <td data-label="Estado">
