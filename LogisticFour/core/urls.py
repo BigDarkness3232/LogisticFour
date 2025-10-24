@@ -44,7 +44,7 @@ urlpatterns = [
     #codigo QR producto
     path("productos/", views.ProductsListView.as_view(), name="products"),
     path("productos/agregar/", views.ProductCreateView.as_view(), name="product_add"),
-    path("productos/<int:pk>/editar/",views.ProductUpdateView.as_view(), name="producto-edit"),
+    path("productos/<int:pk>/editar/",views.ProductUpdateView.as_view(), name="producto-update"),
     path("productos/<int:pk>/eliminar/", views.ProductDeleteView.as_view(), name="producto-delete"),
     path("productos/<int:pk>/", views.ProductDetailView.as_view(), name="producto-detail"),
 
