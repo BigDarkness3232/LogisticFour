@@ -44,7 +44,7 @@ urlpatterns = [
     #codigo QR producto
     path("productos/", views.ProductsListView.as_view(), name="products"),
     path("productos/agregar/", views.ProductCreateView.as_view(), name="product_add"),
-    path("productos/<int:pk>/editar/",views.ProductUpdateView.as_view(), name="producto-update"),
+    path("productos/<int:pk>/editar/",views.ProductUpdateView.as_view(), name="producto-edit"),
     path("productos/<int:pk>/eliminar/", views.ProductDeleteView.as_view(), name="producto-delete"),
     path("productos/<int:pk>/", views.ProductDetailView.as_view(), name="producto-detail"),
 
@@ -61,6 +61,9 @@ urlpatterns = [
      path("bodegas/<int:pk>/editar/", views.BodegaUpdateView.as_view(), name="bodega-edit"),
      path("bodegas/<int:pk>/eliminar/", views.BodegaDeleteView.as_view(), name="bodega-delete"),
      path("bodegas/<int:pk>/", views.BodegaDetailView.as_view(), name="bodega-detail"),
+
+
+     path('productos/bodega/<int:bodega_id>/', views.productos_por_bodega, name='productos_por_bodega'),
 
          # Ubicaciones (páginas)
      path("ubicaciones/", views.UbicacionListView.as_view(), name="ubicacion-list"),

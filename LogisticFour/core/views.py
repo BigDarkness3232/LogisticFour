@@ -988,6 +988,43 @@ def products(request):
 
 
 
+def productos_por_bodega(request, bodega_id):
+    # Obtener la bodega especificada
+    bodega = Bodega.objects.get(id=bodega_id)
+    
+    # Obtener todas las ubicaciones asociadas a la bodega
+    ubicaciones_en_bodega = Ubicacion.objects.filter(bodega=bodega)
+    
+    # Obtener los productos asociados a las ubicaciones de esa bodega
+    productos_en_bodega = Producto.objects.filter(ubicacion__in=ubicaciones_en_bodega)
+    
+    # Parámetro para búsqueda
+    q = request.GET.get('q', '')
+
+    # Si hay un término de búsqueda, filtrar los productos
+    if q:
+        productos_en_bodega = productos_en_bodega.filter(
+            sku__icontains=q ,
+            nombre__icontains=q ,
+            marca__nombre__icontains=q ,
+            categoria__nombre__icontains=q
+        )
+    
+    # Paginación
+    paginator = Paginator(productos_en_bodega, 10)  # 10 productos por página
+    page_number = request.GET.get('page')
+    page_obj = paginator.get_page(page_number)
+    
+    # Pasar los datos al template
+    return render(request, 'core/productos_por_bodega.html', {
+        'bodega': bodega,
+        'productos': page_obj,
+        'q': q,
+        'page_obj': page_obj
+    })
+
+
+
 
 
 
@@ -1190,3 +1227,4 @@ def stock_por_bodega(producto):
         )
         .order_by("ubicacion__bodega__sucursal__codigo", "ubicacion__bodega__codigo")
     )
+
