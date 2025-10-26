@@ -8,7 +8,6 @@
     --ink:#0f172a; --muted:#6b7280; --line:#e5e7eb; --bg:#f6f8fb; --head:#eef2f7;
     --pri:#111; --pri-ink:#fff; --chip:#f8fafc;
   }
-<<<<<<< HEAD
   .page{ display:grid; gap:14px; animation: fadeIn .28s ease both; }
 
   /* ===== Head + acciones ===== */
@@ -119,58 +118,6 @@
 <div class="page">
   <div class="page-head">
     <h1>Productos</h1>
-=======
-  /* ===== Modal (mismo set que bodegas) ===== */
-  dialog.lx-modal{ border:0; padding:0; border-radius:16px; box-shadow:0 20px 60px rgba(0,0,0,.2);
-                   width:clamp(320px,92vw,640px); max-width:95vw; }
-  dialog.lx-modal::backdrop{ background:rgba(17,24,39,.45); backdrop-filter: blur(2px); }
-
-
-
-  /* Acciones */
-  .lx-acts{display:flex;gap:8px;flex-wrap:wrap}
-  .lx-act{
-    display:inline-flex;align-items:center;gap:6px;
-    padding:7px 10px;border-radius:10px;font-size:13px;line-height:1;border:1px solid var(--line);
-    background:var(--sec-bg);color:var(--sec-ink);text-decoration:none;cursor:pointer
-  }
-  .lx-act svg{width:14px;height:14px;display:block}
-  .lx-act.pri{background:var(--pri);color:var(--pri-ink);border-color:var(--pri)}
-  .lx-act.danger{background:#fff;color:var(--danger);border-color:#fecaca}
-  .lx-act.danger:hover{background:#fff5f5}
-  .lx-act[aria-expanded="true"]{background:var(--pri);color:#fff;border-color:var(--pri)}
-
-  /* Expandible */
-  .lx-expand-row td{padding:0!important;background:#fbfbfd}
-  .lx-expand{border-top:1px dashed var(--line)}
-  .lx-expand__inner{
-    display:grid;gap:10px;grid-template-columns:repeat(2,minmax(0,1fr));
-    padding:12px; opacity:0; max-height:0; overflow:hidden;
-    transition:max-height .35s ease, opacity .25s ease;
-  }
-  .lx-expand.open .lx-expand__inner{opacity:1}
-
-  .lx-kv{display:grid;gap:2px}
-  .lx-kv small{color:var(--muted)}
-
-  /* Responsive: tabla → cards */
-  @media (max-width:760px){
-    .lx-table thead{display:none}
-    .lx-table{display:block}
-    .lx-table tbody{display:grid;gap:10px}
-    .lx-table tr{display:grid;gap:8px;padding:12px;background:#fff;border:1px solid var(--line);border-radius:12px}
-    .lx-table td{border:0;padding:0}
-    .lx-table td[data-label]::before{content:attr(data-label) ": ";font-weight:600;color:var(--muted);margin-right:6px}
-    .lx-expand__inner{grid-template-columns:1fr}
-  }
-</style>
-
-
-<div class="page-head">
-  <h1>Productos</h1>
-  <div class="page-actions">
-    <a class="lx-btn icon" href="{% url 'product_add' %}">➕ Agregar producto</a>
->>>>>>> 8999de2e151a7fa0b67eb9443e05557287c85fcb
 
     <!-- Acciones ordenadas -->
     <div class="actions-grid">
@@ -204,7 +151,6 @@
     </div>
   </form>
 
-<<<<<<< HEAD
   <!-- Tabla / tarjetas -->
   <div class="table-wrap">
     <table class="tbl">
@@ -268,40 +214,6 @@
                 {% endif %}
               </div>
               <div class="name">{{ p.nombre }}</div>
-=======
-<div class="table-wrap">
-  <table class="data-table">
-    <thead>
-      <tr>
-        <th>SKU / Nombre</th>
-        <th>marca</th>
-        <th>categoria</th>
-        <th>Ubicacion</th>
-        <th>Estado</th>
-        <th>Stock</th>
-        <th>Precio</th>
-        <th>Provs / Lotes / Series</th>
-        <th class="col-actions">Acciones</th>
-      </tr>
-    </thead>
-    <tbody>
-      {% for p in productos %}
-      <tr>
-        <td data-label="SKU / Nombre">
-          <div><code>{{ p.sku }}</code></div>
-          <div><strong>{{ p.nombre }}</strong></div>
-        </td>
-
-        <td>
-          <div style="color:var(--muted);font-size:12px">{{ p.marca|default:"—" }}</div>
-        </td>
-        <td>
-          <div style="color:var(--muted);font-size:12px">{{ p.categoria|default:"—" }}</div>
-        </td>
-          <td>
-          <div style="color:var(--muted);font-size:12px">{{ p.ubicacion|default:"—" }}</div>
-        </td>
->>>>>>> 8999de2e151a7fa0b67eb9443e05557287c85fcb
 
               <div class="line-grid">
                 <div><span class="muted">Marca:</span> {{ p.marca|default:"—" }}</div>
@@ -333,38 +245,8 @@
     </table>
   </div>
 
-<<<<<<< HEAD
   {% if is_paginated %}
   <nav aria-label="Paginación" style="display:flex;gap:10px;justify-content:center;align-items:center;margin-top:12px">
-=======
-         <td class="lx-actions" data-label="Acciones">
-              <div class="lx-acts">
-
-                {% url 'product-edit' p.pk as edit_url %}
-                {% url 'product-delete' p.pk as delete_url %}
-
-                <a class="lx-act" href="{{ edit_url }}" title="Editar">
-                  <svg aria-hidden="true"><use href="#icon-edit"/></svg>
-                  Editar
-                </a>
-                <a class="lx-act danger" href="{{ delete_url }}" title="Eliminar" onclick="return confirm('¿Eliminar la ubicación {{ p.codigo }}?')">
-                  <svg aria-hidden="true"><use href="#icon-trash"/></svg>
-                  Eliminar
-                </a>
-              </div>
-            </td>
-      </tr>
-      {% empty %}
-      <tr><td colspan="6">No hay productos.</td></tr>
-      {% endfor %}
-    </tbody>
-  </table>
-</div>
-
-
-{% if is_paginated %}
-  <nav class="pager" aria-label="Paginación" style="display:flex;gap:8px;justify-content:center;margin-top:12px">
->>>>>>> 8999de2e151a7fa0b67eb9443e05557287c85fcb
     {% if page_obj.has_previous %}
       <a class="btnx" href="?q={{ q }}&page={{ page_obj.previous_page_number }}">← Anterior</a>
     {% else %}
