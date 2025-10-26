@@ -1153,6 +1153,7 @@ def product_list(request):
 
 
 
+from core.models import Producto            # o el app donde tengas Producto
 
 
 
@@ -1160,7 +1161,17 @@ def product_list(request):
 
 
 
+from django.contrib import messages
+from django.contrib.auth.decorators import login_required
+from django.db import transaction
+from django.db.models import Sum, Value, DecimalField, F
+from django.db.models.functions import Coalesce
+from django.http import JsonResponse, HttpResponseBadRequest, HttpResponseRedirect
+from django.shortcuts import get_object_or_404, redirect, render
+from django.urls import reverse
 
+# Ajusta estos imports a tus modelos reales
+from .models import Producto
 
 
 
@@ -1170,83 +1181,206 @@ from django.db.models import Sum, Value, DecimalField, ExpressionWrapper
 
 
 
+# ---------- Utilidades comunes ----------
 
+def _is_fetch(request):
+    # Tu helper JS manda 'X-Requested-With: fetch'
+    return request.headers.get("X-Requested-With") == "fetch"
+
+def _json_or_redirect(request, ok: bool, msg: str, redirect_to: str = None, extra: dict | None = None):
+    payload = {"ok": ok, "message": msg}
+    if extra:
+        payload.update(extra)
+    if _is_fetch(request):
+        status = 200 if ok else 400
+        return JsonResponse(payload, status=status)
+    if ok:
+        messages.success(request, msg)
+    else:
+        messages.error(request, msg)
+    return redirect(redirect_to or request.META.get("HTTP_REFERER", "/"))
+from decimal import Decimal
+
+# === Config: pon aquí el nombre real del campo de reserva en Producto (si existe)
+RESERVA_FIELD = "reserva"   # ej. "reservado" si tu modelo lo llama así
+
+
+def _get_reserva(producto):
+    """Obtiene la reserva desde Producto (0 si no existe el campo)."""
+    return Decimal(getattr(producto, RESERVA_FIELD, 0) or 0)
+
+
+def _set_reserva(producto, value):
+    """Setea la reserva en Producto (si el campo existe). Ignora si no existe."""
+    if hasattr(producto, RESERVA_FIELD):
+        setattr(producto, RESERVA_FIELD, Decimal(value or 0))
+
+
+def _recalcular_total_producto(producto):
+    """
+    Versión sin tabla Stock.
+    Asegura que 'stock' y 'reserva' existan y sean decimales >= 0.
+    Útil como 'normalizador' tras operaciones.
+    """
+    disponible = Decimal(getattr(producto, "stock", 0) or 0)
+    reservado  = _get_reserva(producto)
+
+    if disponible < 0:
+        disponible = Decimal(0)
+    if reservado < 0:
+        reservado = Decimal(0)
+
+    producto.stock = disponible
+    _set_reserva(producto, reservado)
+
+    # Guardar solo los campos que existan
+    update_fields = ["stock"]
+    if hasattr(producto, RESERVA_FIELD):
+        update_fields.append(RESERVA_FIELD)
+    producto.save(update_fields=update_fields)
+
+
+class _ProductoStockProxy:
+    """
+    Proxy de compatibilidad para código legacy que esperaba un objeto Stock.
+    Lee/escribe directamente en Producto.stock y Producto.<RESERVA_FIELD>.
+    Tiene un método .save(update_fields=...) para imitar la API.
+    """
+    def __init__(self, producto):
+        self._p = producto
+
+    @property
+    def producto(self):
+        return self._p
+
+    @property
+    def cantidad_disponible(self):
+        return Decimal(self._p.stock or 0)
+
+    @cantidad_disponible.setter
+    def cantidad_disponible(self, value):
+        self._p.stock = Decimal(value or 0)
+
+    @property
+    def cantidad_reservada(self):
+        return _get_reserva(self._p)
+
+    @cantidad_reservada.setter
+    def cantidad_reservada(self, value):
+        _set_reserva(self._p, value)
+
+    def save(self, update_fields=None):
+        # Mapea update_fields del "Stock" a campos reales de Producto
+        fields = set(update_fields or [])
+        mapped = set()
+        if not fields:
+            # Guardar ambos si existen
+            mapped.add("stock")
+            if hasattr(self._p, RESERVA_FIELD):
+                mapped.add(RESERVA_FIELD)
+        else:
+            if "cantidad_disponible" in fields or "stock" in fields:
+                mapped.add("stock")
+            if "cantidad_reservada" in fields or RESERVA_FIELD in fields:
+                if hasattr(self._p, RESERVA_FIELD):
+                    mapped.add(RESERVA_FIELD)
+
+        if not mapped:
+            # fallback por seguridad
+            mapped.add("stock")
+            if hasattr(self._p, RESERVA_FIELD):
+                mapped.add(RESERVA_FIELD)
+
+        self._p.save(update_fields=list(mapped))
+
+
+def _get_or_create_stock(producto, ubicacion_id: int | None = None):
+    """
+    Compatibilidad sin tabla Stock:
+    Ignora la ubicación y devuelve un proxy ligado al Producto.
+    Así tu código legacy (que hacía .cantidad_disponible += x; .save()) sigue funcionando.
+    """
+    return _ProductoStockProxy(producto)
+
+
+# ====== Helpers “nuevos” para operar stock directamente en Producto ======
+
+def ajustar_stock(producto, delta_disponible=0, delta_reservado=0, guardar=True):
+    """
+    Suma/resta cantidades directamente en Producto.
+    Uso:
+      ajustar_stock(prod, delta_disponible=+5)       # entrada de stock
+      ajustar_stock(prod, delta_disponible=-2)       # salida de stock
+      ajustar_stock(prod, delta_reservado=+3)        # reservar 3
+      ajustar_stock(prod, delta_reservado=-1)        # liberar 1 de reserva
+    """
+    disponible = Decimal(getattr(producto, "stock", 0) or 0) + Decimal(delta_disponible or 0)
+    reservado  = _get_reserva(producto) + Decimal(delta_reservado or 0)
+
+    if disponible < 0:
+        disponible = Decimal(0)
+    if reservado < 0:
+        reservado = Decimal(0)
+
+    producto.stock = disponible
+    _set_reserva(producto, reservado)
+
+    if guardar:
+        update_fields = ["stock"]
+        if hasattr(producto, RESERVA_FIELD):
+            update_fields.append(RESERVA_FIELD)
+        producto.save(update_fields=update_fields)
+    return producto
+
+
+def set_stock(producto, disponible=None, reservado=None, guardar=True):
+    """
+    Seteo directo (absoluto) de stock/reserva en Producto.
+    """
+    if disponible is not None:
+        d = Decimal(disponible or 0)
+        producto.stock = d if d > 0 else Decimal(0)
+
+    if reservado is not None and hasattr(producto, RESERVA_FIELD):
+        r = Decimal(reservado or 0)
+        _set_reserva(producto, r if r > 0 else Decimal(0))
+
+    if guardar:
+        update_fields = ["stock"]
+        if hasattr(producto, RESERVA_FIELD):
+            update_fields.append(RESERVA_FIELD)
+        producto.save(update_fields=update_fields)
+    return producto
+
+# ---------- Consulta: ver stock por producto (tu lógica, con pequeños ajustes) ----------
 
 @login_required
 def stock_por_producto(request):
     """
-    Busca un producto por SKU y muestra su stock global, por sucursal y por bodega.
+    Busca un producto por SKU y muestra su stock global.
+    Ahora la fuente es la tabla Producto (campos: stock y reserva),
+    no se consulta la tabla Stock ni se desglosa por sucursal/bodega.
     """
     sku = (request.GET.get("sku") or "").strip().upper()
     producto = None
-    resultados_bodegas = []
-    resumen_sucursales = []
     totales = None
+    resumen_sucursales = []   # no se usan con la nueva lógica
+    resultados_bodegas = []   # no se usan con la nueva lógica
 
     if sku:
         try:
-            producto = Producto.objects.get(sku=sku)
-            dec0 = Value(0, output_field=DecimalField(max_digits=20, decimal_places=6))
+            producto = Producto.objects.select_related("marca", "categoria").get(sku=sku)
 
-            # --- 1) Totales globales (todas las sucursales y bodegas)
-            totales = (
-                Stock.objects
-                .filter(producto=producto)
-                .aggregate(
-                    total_disponible=Coalesce(Sum("cantidad_disponible"), dec0),
-                    total_reservado=Coalesce(Sum("cantidad_reservada"), dec0),
-                )
-            )
-            totales["total_neto"] = (totales["total_disponible"] or 0) - (totales["total_reservado"] or 0)
-
-            # --- 2) Resumen por Sucursal
-            resumen_sucursales = (
-                Stock.objects
-                .filter(producto=producto)
-                .select_related("ubicacion__bodega__sucursal")
-                .values(
-                    "ubicacion__bodega__sucursal__codigo",
-                    "ubicacion__bodega__sucursal__nombre",
-                )
-                .annotate(
-                    total_disponible=Coalesce(Sum("cantidad_disponible"), dec0),
-                    total_reservado=Coalesce(Sum("cantidad_reservada"), dec0),
-                )
-                .annotate(
-                    total_neto=ExpressionWrapper(
-                        F("total_disponible") - F("total_reservado"),
-                        output_field=DecimalField(max_digits=20, decimal_places=6),
-                    )
-                )
-                .order_by("ubicacion__bodega__sucursal__codigo")
-            )
-
-            # --- 3) Detalle por Bodega (dentro de cada sucursal)
-            resultados_bodegas = (
-                Stock.objects
-                .filter(producto=producto)
-                .select_related("ubicacion__bodega__sucursal")
-                .values(
-                    "ubicacion__bodega__sucursal__codigo",
-                    "ubicacion__bodega__sucursal__nombre",
-                    "ubicacion__bodega__codigo",
-                    "ubicacion__bodega__nombre",
-                )
-                .annotate(
-                    total_disponible=Coalesce(Sum("cantidad_disponible"), dec0),
-                    total_reservado=Coalesce(Sum("cantidad_reservada"), dec0),
-                )
-                .annotate(
-                    total_neto=ExpressionWrapper(
-                        F("total_disponible") - F("total_reservado"),
-                        output_field=DecimalField(max_digits=20, decimal_places=6),
-                    )
-                )
-                .order_by(
-                    "ubicacion__bodega__sucursal__codigo",
-                    "ubicacion__bodega__codigo",
-                )
-            )
+            # Campos esperados en Producto:
+            # - stock: disponible total
+            # - reserva: reservado total (si tu campo se llama distinto, ajusta abajo)
+            disponible = getattr(producto, "stock", 0) or 0
+            reservado  = getattr(producto, "reserva", 0) or 0  # si tu campo es 'reservado', cámbialo aquí
+            totales = {
+                "total_disponible": disponible,
+                "total_reservado":  reservado,
+                "total_neto":       (disponible - reservado),
+            }
 
         except Producto.DoesNotExist:
             messages.error(request, f"No se encontró ningún producto con SKU '{sku}'.")
@@ -1260,53 +1394,198 @@ def stock_por_producto(request):
     })
 
 
-def stock_por_sucursal(producto):
-    dec0 = Value(0, output_field=DecimalField(max_digits=20, decimal_places=6))
-    return (
-        Stock.objects
-        .filter(producto=producto)
-        .select_related("ubicacion__bodega__sucursal")
-        .values(
-            "ubicacion__bodega__sucursal__codigo",
-            "ubicacion__bodega__sucursal__nombre",
-        )
-        .annotate(
-            total_disponible=Coalesce(Sum("cantidad_disponible"), dec0),
-            total_reservado=Coalesce(Sum("cantidad_reservada"), dec0),
-        )
-        .annotate(
-            total_neto=ExpressionWrapper(
-                F("total_disponible") - F("total_reservado"),
-                output_field=DecimalField(max_digits=20, decimal_places=6),
-            )
-        )
-        .order_by("ubicacion__bodega__sucursal__codigo")
+# ---------- Endpoints de gestión desde productos ----------
+
+@login_required
+@transaction.atomic
+def stock_ajuste(request):
+    """
+    Suma/resta stock del producto. Si se envía ubicacion (opcional), ajusta ese registro.
+    POST: producto_id, cantidad (+/-), motivo, nota, [ubicacion]
+    """
+    if request.method != "POST":
+        return HttpResponseBadRequest("Método no permitido")
+
+    try:
+        pid = int(request.POST.get("producto_id"))
+    except (TypeError, ValueError):
+        return _json_or_redirect(request, False, "Producto inválido.")
+
+    cantidad = request.POST.get("cantidad")
+    motivo = (request.POST.get("motivo") or "").strip()
+    nota = (request.POST.get("nota") or "").strip()
+    ubicacion_id = request.POST.get("ubicacion")  # opcional
+
+    try:
+        cantidad = float(cantidad)
+    except (TypeError, ValueError):
+        return _json_or_redirect(request, False, "Cantidad inválida.")
+
+    if cantidad == 0:
+        return _json_or_redirect(request, False, "La cantidad no puede ser 0.")
+
+    producto = get_object_or_404(Producto, pk=pid)
+    stock = _get_or_create_stock(producto, ubicacion_id if ubicacion_id else None)
+
+    # Aplica ajuste sobre cantidad_disponible (permite negativos)
+    stock.cantidad_disponible = F("cantidad_disponible") + cantidad
+    stock.save(update_fields=["cantidad_disponible"])
+    stock.refresh_from_db(fields=["cantidad_disponible"])
+
+    # (Opcional) registrar movimiento en bitácora si tienes un modelo de Movimientos
+
+    # Recalcular total del Producto
+    _recalcular_total_producto(producto)
+
+    return _json_or_redirect(
+        request,
+        True,
+        f"Ajuste aplicado: {cantidad:+g} {producto.sku}",
+        redirect_to=reverse("products"),
+        extra={"stock_disponible": float(stock.cantidad_disponible), "producto_stock": float(producto.stock)}
     )
 
 
+@login_required
+@transaction.atomic
+def stock_entrada(request):
+    """
+    Entrada (recepción) de stock. Si se envía ubicacion (opcional), suma allí.
+    POST: producto_id, cantidad (>0), doc_ref, nota, [ubicacion]
+    """
+    if request.method != "POST":
+        return HttpResponseBadRequest("Método no permitido")
 
-def stock_por_bodega(producto):
-    dec0 = Value(0, output_field=DecimalField(max_digits=20, decimal_places=6))
-    return (
-        Stock.objects
-        .filter(producto=producto)
-        .select_related("ubicacion__bodega__sucursal")
-        .values(
-            "ubicacion__bodega__sucursal__codigo",
-            "ubicacion__bodega__sucursal__nombre",
-            "ubicacion__bodega__codigo",
-            "ubicacion__bodega__nombre",
-        )
-        .annotate(
-            total_disponible=Coalesce(Sum("cantidad_disponible"), dec0),
-            total_reservado=Coalesce(Sum("cantidad_reservada"), dec0),
-        )
-        .annotate(
-            total_neto=ExpressionWrapper(
-                F("total_disponible") - F("total_reservado"),
-                output_field=DecimalField(max_digits=20, decimal_places=6),
-            )
-        )
-        .order_by("ubicacion__bodega__sucursal__codigo", "ubicacion__bodega__codigo")
+    try:
+        pid = int(request.POST.get("producto_id"))
+    except (TypeError, ValueError):
+        return _json_or_redirect(request, False, "Producto inválido.")
+
+    cantidad = request.POST.get("cantidad")
+    doc_ref = (request.POST.get("doc_ref") or "").strip()
+    nota = (request.POST.get("nota") or "").strip()
+    ubicacion_id = request.POST.get("ubicacion")  # opcional
+
+    try:
+        cantidad = float(cantidad)
+    except (TypeError, ValueError):
+        return _json_or_redirect(request, False, "Cantidad inválida.")
+
+    if cantidad <= 0:
+        return _json_or_redirect(request, False, "La cantidad debe ser mayor a 0.")
+
+    producto = get_object_or_404(Producto, pk=pid)
+    stock = _get_or_create_stock(producto, ubicacion_id if ubicacion_id else None)
+
+    stock.cantidad_disponible = F("cantidad_disponible") + cantidad
+    stock.save(update_fields=["cantidad_disponible"])
+    stock.refresh_from_db(fields=["cantidad_disponible"])
+
+    _recalcular_total_producto(producto)
+
+    return _json_or_redirect(
+        request, True,
+        f"Entrada registrada (+{cantidad:g}) para {producto.sku}",
+        redirect_to=reverse("products"),
+        extra={"stock_disponible": float(stock.cantidad_disponible), "producto_stock": float(producto.stock)}
     )
 
+
+@login_required
+@transaction.atomic
+def stock_transferir(request):
+    """
+    Transfiere stock entre ubicaciones del mismo producto.
+    POST: producto_id, origen, destino, cantidad, [nota]
+    """
+    if request.method != "POST":
+        return HttpResponseBadRequest("Método no permitido")
+
+    try:
+        pid = int(request.POST.get("producto_id"))
+        origen = int(request.POST.get("origen"))
+        destino = int(request.POST.get("destino"))
+    except (TypeError, ValueError):
+        return _json_or_redirect(request, False, "Parámetros de transferencia inválidos.")
+
+    if origen == destino:
+        return _json_or_redirect(request, False, "Origen y destino no pueden ser iguales.")
+
+    try:
+        cantidad = float(request.POST.get("cantidad"))
+    except (TypeError, ValueError):
+        return _json_or_redirect(request, False, "Cantidad inválida.")
+
+    if cantidad <= 0:
+        return _json_or_redirect(request, False, "La cantidad debe ser mayor a 0.")
+
+    nota = (request.POST.get("nota") or "").strip()
+
+    producto = get_object_or_404(Producto, pk=pid)
+
+    # Valida que existan ubicaciones si tu modelo lo requiere
+    # get_object_or_404(Ubicacion, pk=origen)
+    # get_object_or_404(Ubicacion, pk=destino)
+
+    stock_origen = _get_or_create_stock(producto, origen)
+    stock_destino = _get_or_create_stock(producto, destino)
+
+    # Verifica disponibilidad en origen
+    stock_origen.refresh_from_db()
+    if stock_origen.cantidad_disponible < cantidad:
+        return _json_or_redirect(request, False, "Stock insuficiente en origen.")
+
+    # Aplica movimientos
+    stock_origen.cantidad_disponible = F("cantidad_disponible") - cantidad
+    stock_origen.save(update_fields=["cantidad_disponible"])
+    stock_destino.cantidad_disponible = F("cantidad_disponible") + cantidad
+    stock_destino.save(update_fields=["cantidad_disponible"])
+
+    # No cambia el total del producto; aun así lo recalculamos por consistencia
+    _recalcular_total_producto(producto)
+
+    return _json_or_redirect(
+        request, True,
+        f"Transferidos {cantidad:g} de {producto.sku}",
+        redirect_to=reverse("products"),
+        extra={"producto_stock": float(producto.stock)}
+    )
+
+
+@login_required
+@transaction.atomic
+def stock_recuento(request):
+    """
+    Recuento: fija la cantidad real (por ubicación opcional).
+    POST: producto_id, cantidad_real, [nota], [ubicacion]
+    """
+    if request.method != "POST":
+        return HttpResponseBadRequest("Método no permitido")
+
+    try:
+        pid = int(request.POST.get("producto_id"))
+    except (TypeError, ValueError):
+        return _json_or_redirect(request, False, "Producto inválido.")
+
+    try:
+        cantidad_real = float(request.POST.get("cantidad_real"))
+    except (TypeError, ValueError):
+        return _json_or_redirect(request, False, "Cantidad inválida.")
+
+    nota = (request.POST.get("nota") or "").strip()
+    ubicacion_id = request.POST.get("ubicacion")  # opcional
+
+    producto = get_object_or_404(Producto, pk=pid)
+    stock = _get_or_create_stock(producto, ubicacion_id if ubicacion_id else None)
+
+    stock.cantidad_disponible = cantidad_real
+    stock.save(update_fields=["cantidad_disponible"])
+
+    _recalcular_total_producto(producto)
+
+    return _json_or_redirect(
+        request, True,
+        f"Recuento guardado ({cantidad_real:g}) para {producto.sku}",
+        redirect_to=reverse("products"),
+        extra={"stock_disponible": float(stock.cantidad_disponible), "producto_stock": float(producto.stock)}
+    )
