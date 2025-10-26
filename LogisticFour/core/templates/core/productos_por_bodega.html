@@ -1,7 +1,8 @@
 {% extends "core/base.html" %}
-{% block title %}Bodegas{% endblock %}
+{% block title %}Productos en Bodega{% endblock %}
 
 {% block content %}
+
 
 <style>
   :root{ --ink:#111827; --muted:#6b7280; --line:#e5e7eb; --bg:#f5f7fb; --head:#eef0f6;
@@ -78,83 +79,62 @@
     .lx-expand__inner{grid-template-columns:1fr}
   }
 </style>
+
 <div class="page-head">
-  <h1>Bodegas</h1>
+  <h1>Productos en la Bodega: {{ bodega.nombre }}</h1>
   <div class="page-actions">
-    {% if request.user.is_authenticated %}
-      {% if request.user.is_superuser %}
-        <a class="lx-btn icon" href="{% url 'bodega-create' %}">
-          <span>➕ Crear Bodega</span>
-        </a>
-      {% endif %}
-    {% endif %}
   </div>
 </div>
 
-<form method="get" class="filter-card" role="search" aria-label="Buscar bodegas">
-  <input type="text" class="input" name="q" value="{{ request.GET.q }}" placeholder="Buscar por sucursal, código, nombre o descripción…" />
+<form method="get" class="filter-card" role="search">
+  <input type="search" class="input" name="q" value="{{ q }}" placeholder="Buscar SKU, nombre, marca o categoría…" />
   <button class="btn" type="submit">Buscar</button>
-  <a class="btn ghost" href="{% url 'bodega-list' %}" {% if not request.GET.q %}aria-disabled="true"{% endif %}>Limpiar</a>
+  <a class="btn ghost" href="{% url 'productos_por_bodega' bodega.id %}">Limpiar</a>
 </form>
 
 <div class="table-wrap">
   <table class="data-table">
     <thead>
       <tr>
-        <th>Sucursal</th>
-        <th>Código</th>
-        <th>Nombre</th>
-        <th>Descripción</th>
-        <th>Activo</th>
-        <th class="col-actions">Acciones</th>
+        <th>SKU / Nombre</th>
+        <th>Marca</th>
+        <th>Categoría</th>
+        <th>Ubicación</th>
+        <th>Estado</th>
+        <th>Stock</th>
+        <th>Precio</th>
+        <th>Acciones</th>
       </tr>
     </thead>
-    <tbody id="rows">
-      {% for b in bodegas %}
+    <tbody>
+      {% for p in productos %}
       <tr>
-        <td data-label="Sucursal">
-          {% if b.sucursal %}
-            <strong>{{ b.sucursal.codigo }}</strong> — {{ b.sucursal.nombre }}
+        <td data-label="SKU / Nombre">
+          <div><code>{{ p.sku }}</code></div>
+          <div><strong>{{ p.nombre }}</strong></div>
+        </td>
+        <td>{{ p.marca|default:"—" }}</td>
+        <td>{{ p.categoria|default:"—" }}</td>
+        <td>{{ p.ubicacion|default:"—" }}</td>
+        <td>
+          {% if p.activo %}
+            <span class="lx-badge ok">Activo</span>
           {% else %}
-            <em>Sin sucursal</em>
+            <span class="lx-badge no">Inactivo</span>
           {% endif %}
         </td>
-        <td data-label="Código">{{ b.codigo }}</td>
-        <td data-label="Nombre">{{ b.nombre }}</td>
-        <td data-label="Descripción">{{ b.descripcion|truncatechars:80 }}</td>
-        <td data-label="Activo">
-          {% if b.activo %}<span class="lx-badge ok">Sí</span>{% else %}<span class="lx-badge no">No</span>{% endif %}
-        </td>
-        <td class="col-actions" data-label="Acciones">
-          <div class="lx-acts">
-            <!-- Ver Productos -->
-            <a href="{% url 'productos_por_bodega' b.id %}" class="lx-act">
-              <svg aria-hidden="true"><use href="#icon-eye"/></svg>
-              <span>Ver Productos</span>
-            </a>
-
-            <!-- Ver detalle (expansión de información) -->
-                <button type="button" class="lx-act pri" data-target="s{{ b.pk }}" aria-controls="s{{ b.pk }}" aria-expanded="false" title="Ver detalle">
-                  <svg aria-hidden="true"><use href="#icon-eye"/></svg>
-                  Ver
-                </button>
-
-            <!-- Editar -->
-            <a href="{% url 'bodega-edit' b.pk %}" class="lx-act">
-              <svg aria-hidden="true"><use href="#icon-edit"/></svg>
-              <span>Editar</span>
-            </a>
-
-            <!-- Eliminar -->
-            <a href="{% url 'bodega-delete' b.pk %}" class="lx-act danger" onclick="return confirm('¿Eliminar esta bodega?')">
-              <svg aria-hidden="true"><use href="#icon-trash"/></svg>
-              <span>Eliminar</span>
-            </a>
-          </div>
+        <td><strong>{{ p.stock }}</strong></td>
+        <td>${{ p.precio }}</td>
+        <td class="col-actions">
+          <a href="{% url 'producto-update' p.pk %}">Editar</a>
+          <form method="post" action="{% url 'producto-delete' p.pk %}" onsubmit="return confirm('¿Eliminar este producto?')">
+            {% csrf_token %}
+            <button type="submit" class="lx-act danger">Eliminar</button>
+          </form>
         </td>
       </tr>
       {% empty %}
-      <tr><td colspan="6">No hay bodegas.</td></tr>
+      <tr><td colspan="8">No hay productos en esta bodega.</td></tr>
       {% endfor %}
     </tbody>
   </table>
@@ -163,77 +143,16 @@
 {% if is_paginated %}
   <nav class="pager" aria-label="Paginación">
     {% if page_obj.has_previous %}
-      <a href="?page={{ page_obj.previous_page_number }}{% if request.GET.q %}&q={{ request.GET.q }}{% endif %}" rel="prev">← Anterior</a>
+      <a href="?q={{ q }}&page={{ page_obj.previous_page_number }}">← Anterior</a>
     {% else %}
       <span class="muted">← Anterior</span>
     {% endif %}
-    <span class="is-current">Página {{ page_obj.number }} de {{ page_obj.paginator.num_pages }}</span>
+    <span>Página {{ page_obj.number }} de {{ page_obj.paginator.num_pages }}</span>
     {% if page_obj.has_next %}
-      <a href="?page={{ page_obj.next_page_number }}{% if request.GET.q %}&q={{ request.GET.q }}{% endif %}" rel="next">Siguiente →</a>
+      <a href="?q={{ q }}&page={{ page_obj.next_page_number }}">Siguiente →</a>
     {% else %}
       <span class="muted">Siguiente →</span>
     {% endif %}
   </nav>
 {% endif %}
-
-<script>
-/* Acordeón con animación (max-height + fade) y cierre automático) */
-(function(){
-  const tbody = document.getElementById('rows-suc');
-  if(!tbody) return;
-
-  // Ocultar expandibles al cargar (solo si hay JS)
-  tbody.querySelectorAll('.lx-expand').forEach(w => {
-    const inner = w.querySelector('.lx-expand__inner');
-    if(inner){
-      inner.style.maxHeight = '0px';
-      inner.style.opacity = '0';
-    }
-  });
-
-  function closeAll(){
-    tbody.querySelectorAll('.lx-act.pri[aria-expanded="true"]').forEach(b=>{
-      b.setAttribute('aria-expanded','false');
-    });
-    tbody.querySelectorAll('.lx-expand').forEach(w=>{
-      const inner = w.querySelector('.lx-expand__inner');
-      const row = w.closest('.lx-expand-row');
-      if(inner){
-        inner.style.maxHeight = '0px';
-        inner.style.opacity = '0';
-      }
-      w.classList.remove('open');
-      if(row) row.setAttribute('aria-hidden','true');
-    });
-  }
-
-  function openWrap(btn, wrap){
-    const inner = wrap.querySelector('.lx-expand__inner');
-    const row = wrap.closest('.lx-expand-row');
-    if(!inner) return;
-    inner.style.maxHeight = inner.scrollHeight + 'px';
-    inner.style.opacity = '1';
-    wrap.classList.add('open');
-    if(row) row.setAttribute('aria-hidden','false');
-    btn.setAttribute('aria-expanded','true');
-    setTimeout(()=>{ wrap.scrollIntoView({behavior:'smooth', block:'nearest'}); }, 20);
-  }
-
-  tbody.addEventListener('click', (e)=>{
-    const btn = e.target.closest('.lx-act.pri'); // solo el botón "Ver"
-    if(!btn) return;
-
-    const id = btn.getAttribute('data-target');
-    const row = document.getElementById(id);
-    if(!row) return;
-
-    const wrap = row.querySelector('[data-expand]');
-    const isOpen = btn.getAttribute('aria-expanded') === 'true';
-
-    closeAll();
-    if(!isOpen) openWrap(btn, wrap);
-  });
-
-})();
-</script>
 {% endblock %}

@@ -63,6 +63,9 @@ urlpatterns = [
      path("bodegas/<int:pk>/eliminar/", views.BodegaDeleteView.as_view(), name="bodega-delete"),
      path("bodegas/<int:pk>/", views.BodegaDetailView.as_view(), name="bodega-detail"),
 
+
+     path('productos/bodega/<int:bodega_id>/', views.productos_por_bodega, name='productos_por_bodega'),
+
          # Ubicaciones (páginas)
      path("ubicaciones/", views.UbicacionListView.as_view(), name="ubicacion-list"),
      path("ubicaciones/agregar/", views.UbicacionCreateView.as_view(), name="ubicacion-create"),
