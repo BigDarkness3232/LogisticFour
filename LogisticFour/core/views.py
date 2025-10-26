@@ -38,9 +38,55 @@ from django.db.models import Count
 def dashboard(request):
     return render(request, "core/dashboard.html")
 
-@login_required
+
 def products(request):
-    return render(request, "core/products.html")
+    q = (request.GET.get("q") or "").strip()
+
+    queryset = (
+        Producto.objects
+        .select_related("marca", "categoria")  # quita/ajusta si no tienes estas FKs
+    )
+
+    if q:
+        # puedes dividir por espacios y encadenar filtros para “contener todos los términos”
+        terms = [t for t in q.replace("-", " ").split() if t]
+        for t in terms:
+            queryset = queryset.filter(
+                Q(sku__icontains=t) |
+                Q(nombre__icontains=t) |
+                Q(marca__nombre__icontains=t) |
+                Q(categoria__nombre__icontains=t)
+            )
+
+    # Opcional: contadores (borra estas 3 líneas si no tienes esas relaciones)
+    queryset = queryset.annotate(
+        proveedores_count=Count("proveedores", distinct=True),
+        lotes_count=Count("lotes", distinct=True),
+        series_count=Count("series", distinct=True),
+    )
+
+    queryset = queryset.order_by("nombre", "sku")
+
+    # Paginación
+    paginator = Paginator(queryset, 20)  # 20 por página
+    page_number = request.GET.get("page")
+    page_obj = paginator.get_page(page_number)
+
+    return render(
+        request,
+        "core/products.html",  # tu template
+        {
+            "q": q,
+            "productos": page_obj.object_list,
+            "page_obj": page_obj,
+            "is_paginated": page_obj.has_other_pages(),
+        },
+    )
+
+
+
+
+
 
 @login_required
 def category(request, slug):
@@ -989,8 +1035,44 @@ def products(request):
 
 
 
+@login_required
+def product_list(request):
+    q = (request.GET.get("q") or "").strip()
 
+    qs = (
+        Producto.objects
+        .all()
+        .annotate(
+            # usa los nombres REALES que tienes en el modelo
+            proveedores_count=Count("usuarios_proveedor", distinct=True),
+            lotes_count=Count("lotes", distinct=True),
+            series_count=Count("series", distinct=True),
+        )
+        .order_by("sku")
+    )
 
+    if q:
+        qs = qs.filter(
+            Q(sku__icontains=q) |
+            Q(nombre__icontains=q) |
+            Q(marca__nombre__icontains=q) |
+            Q(categoria__nombre__icontains=q)
+        )
+
+    paginator = Paginator(qs, 20)
+    page_number = request.GET.get("page")
+    page_obj = paginator.get_page(page_number)
+
+    return render(
+        request,
+        "core/products.html",     # tu template
+        {
+            "q": q,
+            "productos": page_obj.object_list,
+            "page_obj": page_obj,
+            "is_paginated": page_obj.has_other_pages(),
+        },
+    )
 
 
 

@@ -5,8 +5,9 @@ from . import views
 urlpatterns = [
     # App principal
     path("", views.dashboard, name="dashboard"),
-    path("products/", views.products, name="products"),
-     path("category/<slug:slug>/", views.category, name="category"),
+    path("productos/", views.product_list, name="products"),
+    path("productos/", views.product_list, name="products"),
+    path("category/<slug:slug>/", views.category, name="category"),
     path("products/add/", views.product_add, name="product_add"),
 
     # Auth propias
@@ -109,7 +110,6 @@ urlpatterns = [
     path("series/<int:pk>/eliminar/", views.SerieDeleteModal.as_view(), name="serie-delete"),
     
 
-    path("dev/test-scanner/", views.test_scanner, name="test_scanner"),
 
 
 

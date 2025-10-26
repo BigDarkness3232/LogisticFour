@@ -159,9 +159,9 @@
         <a href="{% url 'dashboard' %}" class="item">🏠 Inicio</a>
         <a href="{% url 'products' %}" class="item">📦 Productos</a>
         <a href="#" class="item">🏷️ Categorías</a>
-        <a href="{% url 'test_scanner' %}" class="item">🧪 test scanner</a>
+       
         <!-- Mejor como item de menú (evita .btn en sidebar) -->
-        <a href="{% url 'stock-por-producto' %}" class="item">📊 Ver stock</a>
+        <a href="{% url 'stock-por-producto' %}" class="item">📊 Ver stock general</a>
 
         <!-- ===== Grupo: Sucursales / Bodegas (colapsable) ===== -->
         <div class="nav-group {% if request.resolver_match and request.resolver_match.url_name in 'sucursal-list bodega-list ubicacion-list' %}expanded{% endif %}" data-group>

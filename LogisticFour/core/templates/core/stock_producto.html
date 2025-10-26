@@ -22,12 +22,30 @@
   .bs-mask{position:absolute;inset:0;background:
     linear-gradient(to bottom,rgba(0,0,0,.5) calc((100% - 32%)/2),
     transparent calc((100% - 32%)/2), transparent calc((100% + 32%)/2),
-    rgba(0,0,0,.5) calc((100% + 32%)/2))}
+    rgba(0,0,0,.5) calc((100% + 32%)/2)) }
   .bs-frame{position:absolute;left:6%;right:6%;top:calc((100% - 32%)/2);height:32%;
     border:2px dashed rgba(255,255,255,.8);border-radius:12px}
   .bs-fab{position:absolute;top:8px;right:8px;display:flex;gap:6px;z-index:5}
   .bs-fab .btn{padding:.35rem .55rem;line-height:1}
   .bs-primary{display:block;width:100%;padding:.9rem 1rem;font-size:1.05rem}
+
+  .metric {
+    border: 1px solid var(--bs-border-color);
+    border-radius: 1rem;
+    padding: 1rem 1.25rem;
+    background: var(--bs-body-bg);
+    box-shadow: 0 1px 0 rgba(0,0,0,.02);
+    transition: transform .12s ease, box-shadow .12s ease, border-color .12s ease;
+  }
+  .metric:hover { transform: translateY(-1px); box-shadow: 0 6px 24px rgba(0,0,0,.06); }
+  .metric .label { font-size:.825rem; color: var(--bs-secondary-color); }
+  .metric .value { font-weight: 700; font-size: clamp(1.2rem, 1.1rem + .6vw, 1.8rem); }
+
+  .card-soft { border-radius: 1rem; border: 1px solid var(--bs-border-color); box-shadow: 0 1px 0 rgba(0,0,0,.02); }
+  .sku-chip { background: var(--bs-tertiary-bg); border: 1px solid var(--bs-border-color);
+    border-radius: 999px; padding: .25rem .6rem; font-size:.85rem; }
+  .table thead th { position: sticky; top: 0; background: var(--bs-body-bg); z-index: 1; }
+  .td-num { text-align: right; white-space: nowrap; }
 </style>
 
 <div class="container-fluid py-4">
@@ -59,8 +77,164 @@
       </form>
     </div>
 
+    {# MENSAJES DJANGO #}
+    {% if messages %}
+      <div class="mb-3">
+        {% for m in messages %}
+          <div class="alert alert-{{ m.tags|default:'info' }} mb-2">{{ m }}</div>
+        {% endfor %}
+      </div>
+    {% endif %}
+
     {% if producto %}
-      <!-- … tu bloque de resultados tal como lo tenías … -->
+      <!-- Header producto -->
+      <div class="card card-soft mb-3 fade-in">
+        <div class="card-body d-flex flex-wrap gap-3 justify-content-between align-items-start">
+          <div>
+            <h4 class="mb-1">{{ producto.nombre }}</h4>
+            <div class="d-flex flex-wrap gap-2 small">
+              <span class="sku-chip">SKU: <strong>{{ producto.sku }}</strong></span>
+              <span class="sku-chip">Marca: <strong>{{ producto.marca|default:"—" }}</strong></span>
+              <span class="sku-chip">Categoría: <strong>{{ producto.categoria|default:"—" }}</strong></span>
+            </div>
+          </div>
+          <div class="d-flex gap-2">
+            <button id="copySku" class="btn btn-outline-secondary">Copiar SKU</button>
+            <a href="{% url 'producto-detail' producto.id %}" class="btn btn-outline-primary">Ver ficha</a>
+          </div>
+        </div>
+      </div>
+
+      <!-- Métricas globales -->
+      <div class="row g-3 mb-4 fade-in">
+        <div class="col-12 col-md-4">
+          <div class="metric h-100">
+            <div class="label">Disponible total</div>
+            <div class="value text-success">{{ totales.total_disponible|default_if_none:0|floatformat:2 }}</div>
+          </div>
+        </div>
+        <div class="col-12 col-md-4">
+          <div class="metric h-100">
+            <div class="label">Reservado total</div>
+            <div class="value text-warning">{{ totales.total_reservado|default_if_none:0|floatformat:2 }}</div>
+          </div>
+        </div>
+        <div class="col-12 col-md-4">
+          <div class="metric h-100">
+            <div class="label">Neto total</div>
+            <div class="value {% if totales.total_neto|default:0 > 0 %}text-primary{% else %}text-body{% endif %}">
+              {{ totales.total_neto|default_if_none:0|floatformat:2 }}
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Resumen por sucursal -->
+      <div class="card card-soft mb-4 fade-in">
+        <div class="card-header bg-transparent">
+          <div class="d-flex align-items-center justify-content-between">
+            <strong>Stock por Sucursal</strong>
+            <span class="text-secondary small">{{ resumen_sucursales|length }} sucursal(es)</span>
+          </div>
+        </div>
+        <div class="card-body p-0">
+          {% if resumen_sucursales %}
+            <div class="table-responsive">
+              <table class="table align-middle mb-0">
+                <thead class="border-bottom">
+                  <tr>
+                    <th>Sucursal</th>
+                    <th class="td-num" style="width: 15%;">Disponible</th>
+                    <th class="td-num" style="width: 15%;">Reservado</th>
+                    <th class="td-num" style="width: 15%;">Neto</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {% for r in resumen_sucursales %}
+                  <tr class="fade-in" style="animation-delay: {{ forloop.counter0|add:0 }}00ms;">
+                    <td>
+                      <span class="fw-semibold">{{ r.ubicacion__bodega__sucursal__codigo }}</span>
+                      <span class="text-secondary">— {{ r.ubicacion__bodega__sucursal__nombre }}</span>
+                    </td>
+                    <td class="td-num">{{ r.total_disponible|floatformat:2 }}</td>
+                    <td class="td-num">{{ r.total_reservado|floatformat:2 }}</td>
+                    <td class="td-num fw-semibold">{{ r.total_neto|floatformat:2 }}</td>
+                  </tr>
+                  {% endfor %}
+                </tbody>
+              </table>
+            </div>
+          {% else %}
+            <div class="p-4 empty">No hay stock registrado por sucursal para este producto.</div>
+          {% endif %}
+        </div>
+      </div>
+
+      <!-- Detalle por bodega (acordeón por sucursal) -->
+      <div class="card card-soft fade-in">
+        <div class="card-header bg-transparent">
+          <div class="d-flex align-items-center justify-content-between">
+            <strong>Detalle por Bodega</strong>
+            <span class="text-secondary small">{{ resultados_bodegas|length }} registro(s)</span>
+          </div>
+        </div>
+        <div class="card-body">
+          {% if resultados_bodegas %}
+            {% regroup resultados_bodegas by ubicacion__bodega__sucursal__codigo as grupos %}
+            <div class="accordion" id="accSucursales">
+              {% for g in grupos %}
+                {% with scode=g.grouper %}
+                <div class="accordion-item fade-in">
+                  <h2 class="accordion-header">
+                    <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse"
+                            data-bs-target="#suc-{{ scode|slugify }}" aria-expanded="false">
+                      <div class="d-flex flex-column">
+                        <span class="fw-semibold">Sucursal {{ scode }}</span>
+                        <small class="text-secondary">
+                          {{ g.list.0.ubicacion__bodega__sucursal__nombre }} · {{ g.list|length }} bodega(s)
+                        </small>
+                      </div>
+                    </button>
+                  </h2>
+                  <div id="suc-{{ scode|slugify }}" class="accordion-collapse collapse" data-bs-parent="#accSucursales">
+                    <div class="accordion-body">
+                      <div class="table-responsive">
+                        <table class="table align-middle mb-0">
+                          <thead class="border-bottom">
+                            <tr>
+                              <th style="min-width: 280px;">Bodega</th>
+                              <th class="td-num" style="width: 15%;">Disponible</th>
+                              <th class="td-num" style="width: 15%;">Reservado</th>
+                              <th class="td-num" style="width: 15%;">Neto</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {% for r in g.list %}
+                            <tr>
+                              <td>
+                                <span class="fw-semibold">{{ r.ubicacion__bodega__codigo }}</span>
+                                <span class="text-secondary">— {{ r.ubicacion__bodega__nombre }}</span>
+                              </td>
+                              <td class="td-num">{{ r.total_disponible|floatformat:2 }}</td>
+                              <td class="td-num">{{ r.total_reservado|floatformat:2 }}</td>
+                              <td class="td-num fw-semibold">{{ r.total_neto|floatformat:2 }}</td>
+                            </tr>
+                            {% endfor %}
+                          </tbody>
+                        </table>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+                {% endwith %}
+              {% endfor %}
+            </div>
+          {% else %}
+            <div class="empty">No hay stock registrado por bodega para este producto.</div>
+          {% endif %}
+        </div>
+      </div>
+
     {% elif sku %}
       <div class="empty fade-in">Producto no encontrado.</div>
     {% else %}
@@ -69,13 +243,11 @@
   </div>
 </div>
 
-{# Bootstrap (si no lo cargas en base.html) #}
 <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
 
-<!-- ZXing y Quagga se cargan on-demand desde el propio script -->
 <script>
-/* ===== Escáner reutilizable (modal minimal) ===== */
+/* ===== Escáner minimal (modal con “Escanear”) ===== */
 (function(){
   const ZXING_URL="https://unpkg.com/@zxing/library@0.21.3";
   const QUAGGA_URL="https://unpkg.com/quagga2@1.8.4/dist/quagga.js";
@@ -266,21 +438,38 @@
 </script>
 
 <script>
-  // Integración: abre el modal y vuelca el resultado al input, luego envía el form.
+  // Abre el modal, vuelca el SKU y envía la búsqueda.
   (function(){
+    const form  = document.getElementById('searchForm');
     const input = document.getElementById('skuInput');
     const btn   = document.getElementById('btnOpenScanner');
-    const form  = document.getElementById('searchForm');
 
-    btn.addEventListener('click', ()=>{
-      if(!window.BarcodeScanner){ alert('Cargó mal el escáner. Revisa conexión.'); return; }
+    btn.addEventListener('click', () => {
+      if (!window.BarcodeScanner) { alert('Escáner no cargado.'); return; }
       BarcodeScanner.open({
         title: 'Escanear SKU',
         continuous: false,
         preferFacing: 'environment',
-        onScan: (code)=>{ input.value = code; form.submit(); }
+        onScan: (code) => {
+          input.value = code;
+          input.blur();
+          setTimeout(() => form.requestSubmit(), 0);
+        }
       });
     });
+
+    // Copiar SKU (si hay producto)
+    const btnCopy = document.getElementById('copySku');
+    if (btnCopy){
+      btnCopy.addEventListener('click', async () => {
+        try{
+          await navigator.clipboard.writeText('{{ producto.sku|default_if_none:"" }}');
+          btnCopy.classList.remove('btn-outline-secondary');
+          btnCopy.classList.add('btn-success'); btnCopy.textContent = 'SKU copiado';
+          setTimeout(()=>{ btnCopy.classList.remove('btn-success'); btnCopy.classList.add('btn-outline-secondary'); btnCopy.textContent='Copiar SKU'; }, 1400);
+        }catch(e){ console.warn(e); }
+      });
+    }
   })();
 </script>
 {% endblock %}
