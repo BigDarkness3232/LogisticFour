@@ -127,8 +127,6 @@ class CategoriaProducto(MarcaTiempo):
 # 1) Organización / Ubicaciones
 # =============================================
 
-
-
 class TipoUbicacion(models.Model):
     codigo = models.CharField(max_length=30, unique=True)  # BIN, RACK, FLOOR, STAGE
     descripcion = models.CharField(max_length=200, blank=True)
