@@ -145,6 +145,7 @@ class Sucursal(MarcaTiempo):
 
 class Bodega(MarcaTiempo):
     sucursal = models.ForeignKey(Sucursal, on_delete=models.CASCADE, related_name="bodegas")
+    
     codigo = models.CharField(max_length=30)
     nombre = models.CharField(max_length=150)
     descripcion = models.TextField(blank=True)
