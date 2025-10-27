@@ -4,6 +4,9 @@ from django.contrib.auth.models import User, Group
 from django.core.exceptions import ValidationError
 from django.db.models.signals import post_save
 from django.dispatch import receiver
+import segno
+from django.urls import reverse
+from django.conf import settings
 
 
 # =============================================
@@ -32,7 +35,9 @@ class UsuarioPerfil(MarcaTiempo):
 
     rut = models.CharField(max_length=20, blank=True)
     telefono = models.CharField(max_length=50, blank=True)
-    rol = models.CharField(max_length=20, choices=Rol.choices, default=Rol.BODEGUERO)
+    # Opcional: asociar un usuario a una sucursal concreta
+    sucursal = models.ForeignKey("Sucursal", on_delete=models.SET_NULL, null=True, blank=True, related_name="usuarios")
+    rol = models.CharField(max_length=20, choices=Rol.choices, default=Rol.ADMIN)
 
     class Meta:
         db_table = "usuarios_perfil"
@@ -122,64 +127,21 @@ class CategoriaProducto(MarcaTiempo):
 # 1) Organización / Ubicaciones
 # =============================================
 
-class Sucursal(MarcaTiempo):
-    codigo = models.CharField(max_length=30, unique=True)
-    nombre = models.CharField(max_length=150)
-    direccion = models.TextField(blank=True)
-    ciudad = models.CharField(max_length=120, blank=True)
-    region = models.CharField(max_length=120, blank=True)
-    pais = models.CharField(max_length=120, default="Chile")
-    activo = models.BooleanField(default=True)
-
-    class Meta:
-        db_table = "sucursales"
-
-    def __str__(self):
-        return f"{self.codigo} - {self.nombre}"
-
-
-class Bodega(MarcaTiempo):
-    sucursal = models.ForeignKey(Sucursal, on_delete=models.CASCADE, related_name="bodegas")
-    codigo = models.CharField(max_length=30)
-    nombre = models.CharField(max_length=150)
-    descripcion = models.TextField(blank=True)
-    activo = models.BooleanField(default=True)
-
-    class Meta:
-        db_table = "bodegas"
-        constraints = [
-            models.UniqueConstraint(fields=["sucursal", "codigo"], name="uq_bodega_sucursal_codigo")
-        ]
-
-    def __str__(self):
-        return f"{self.sucursal.codigo}:{self.codigo}"
-
-
-class AreaBodega(models.Model):
-    bodega = models.ForeignKey(Bodega, on_delete=models.CASCADE, related_name="areas")
-    codigo = models.CharField(max_length=30)
-    nombre = models.CharField(max_length=150)
-
-    class Meta:
-        db_table = "areas_bodega"
-        constraints = [
-            models.UniqueConstraint(fields=["bodega", "codigo"], name="uq_area_bodega_codigo")
-        ]
-
-
 class TipoUbicacion(models.Model):
     codigo = models.CharField(max_length=30, unique=True)  # BIN, RACK, FLOOR, STAGE
     descripcion = models.CharField(max_length=200, blank=True)
 
     class Meta:
         db_table = "tipos_ubicacion"
+    
+    def __str__(self):
+        return f"{self.codigo} — {self.descripcion or ''}".strip(" —")
 
 
 class Ubicacion(MarcaTiempo):
-    bodega = models.ForeignKey(Bodega, on_delete=models.CASCADE, related_name="ubicaciones")
-    area = models.ForeignKey(AreaBodega, on_delete=models.SET_NULL, null=True, blank=True)
+    area = models.CharField(max_length=150, null=True, blank=True)
     tipo = models.ForeignKey(TipoUbicacion, on_delete=models.SET_NULL, null=True, blank=True)
-    codigo = models.CharField(max_length=60)  # R01-A2-B3
+    codigo = models.CharField(max_length=60)
     nombre = models.CharField(max_length=150, blank=True)
     pickeable = models.BooleanField(default=True)
     almacenable = models.BooleanField(default=True)
@@ -187,11 +149,11 @@ class Ubicacion(MarcaTiempo):
     class Meta:
         db_table = "ubicaciones"
         constraints = [
-            models.UniqueConstraint(fields=["bodega", "codigo"], name="uq_ubicacion_bodega_codigo")
+            models.UniqueConstraint(fields=["codigo"], name="uq_ubicacioncodigo")
         ]
 
     def __str__(self):
-        return f"{self.bodega}:{self.codigo}"
+        return f"{self.codigo}"
 
 
 # =============================================
@@ -224,6 +186,13 @@ class Producto(MarcaTiempo):
     es_serializado = models.BooleanField(default=False)
     tiene_vencimiento = models.BooleanField(default=False)
 
+    # NUEVO: precio directo en el producto
+    precio = models.PositiveIntegerField(default=0)
+
+    stock = models.PositiveIntegerField(default=0)
+
+    ubicacion = models.ForeignKey(Ubicacion, on_delete=models.SET_NULL, null=True, blank=True, related_name="productos_ubicacion")  # Cambia related_name aquí
+
     class Meta:
         db_table = "productos"
 
@@ -253,50 +222,6 @@ class ProductoUsuarioProveedor(models.Model):
             raise ValidationError("El usuario seleccionado debe tener rol PROVEEDOR.")
 
 
-class ImagenProducto(models.Model):
-    producto = models.ForeignKey(Producto, on_delete=models.CASCADE, related_name="imagenes")
-    url = models.URLField()
-    texto_alternativo = models.CharField(max_length=200, blank=True)
-
-    class Meta:
-        db_table = "imagenes_producto"
-
-
-class PrecioProducto(models.Model):
-    producto = models.ForeignKey(Producto, on_delete=models.CASCADE, related_name="precios")
-    precio = models.DecimalField(max_digits=14, decimal_places=4)
-    vigente_desde = models.DateField(auto_now_add=True)
-    vigente_hasta = models.DateField(null=True, blank=True)
-    activo = models.BooleanField(default=True)
-
-    class Meta:
-        db_table = "precios_producto"
-
-
-class DefinicionAtributo(models.Model):
-    codigo = models.CharField(max_length=50, unique=True)    # COLOR, TALLA
-    nombre = models.CharField(max_length=100)
-    tipo_dato = models.CharField(max_length=20)              # TEXT, NUMBER, BOOLEAN, DATE
-
-    class Meta:
-        db_table = "definiciones_atributos"
-
-
-class AtributoProducto(models.Model):
-    producto = models.ForeignKey(Producto, on_delete=models.CASCADE, related_name="atributos")
-    atributo = models.ForeignKey(DefinicionAtributo, on_delete=models.CASCADE)
-    valor_texto = models.TextField(null=True, blank=True)
-    valor_numero = models.DecimalField(max_digits=20, decimal_places=6, null=True, blank=True)
-    valor_booleano = models.BooleanField(null=True, blank=True)
-    valor_fecha = models.DateField(null=True, blank=True)
-
-    class Meta:
-        db_table = "atributos_producto"
-        constraints = [
-            models.UniqueConstraint(fields=["producto", "atributo"], name="uq_producto_atributo")
-        ]
-
-
 class LoteProducto(models.Model):
     producto = models.ForeignKey(Producto, on_delete=models.CASCADE, related_name="lotes")
     codigo_lote = models.CharField(max_length=100)
@@ -320,32 +245,51 @@ class SerieProducto(models.Model):
         constraints = [
             models.UniqueConstraint(fields=["producto", "numero_serie"], name="uq_producto_numero_serie")
         ]
+        
+class Bodega(MarcaTiempo):
+    codigo = models.CharField(max_length=30)
+    nombre = models.CharField(max_length=150)
+    direccion = models.CharField(blank=True)
+    descripcion = models.TextField(blank=True)
+    activo = models.BooleanField(default=True)
+    productos = models.ForeignKey(Producto, on_delete=models.SET_NULL, null=True, blank=True, related_name="productos_bodega")  # Cambia related_name aquí
 
+
+    
+    class Meta:
+        db_table = "bodegas"
+        constraints = [
+            models.UniqueConstraint(fields=["codigo"], name="codigo")
+        ]
+
+    def __str__(self):
+        return f"{self.codigo}:{self.codigo}"
+    
+
+class Sucursal(MarcaTiempo):
+    codigo = models.CharField(max_length=30, unique=True)
+    nombre = models.CharField(max_length=150)
+    direccion = models.TextField(blank=True)
+    ciudad = models.CharField(max_length=120, blank=True)
+    region = models.CharField(max_length=120, blank=True)
+    pais = models.CharField(max_length=120, default="Chile")
+    activo = models.BooleanField(default=True)
+    productos = models.ForeignKey(Producto, on_delete=models.SET_NULL, null=True, blank=True, related_name="productos_sucursal")  # Cambia related_name aquí
+
+    bodega = models.ForeignKey(Bodega, on_delete=models.SET_NULL, null=True, blank=True, related_name="sucursales")
+
+
+
+    class Meta:
+        db_table = "sucursales"
+
+    def __str__(self):
+        return f"{self.codigo} - {self.nombre}"
+    
 
 # =============================================
 # 4) Inventario (Stock, Movimientos, Recuentos)
 # =============================================
-
-class Stock(models.Model):
-    producto = models.ForeignKey(Producto, on_delete=models.CASCADE, related_name="stocks")
-    ubicacion = models.ForeignKey(Ubicacion, on_delete=models.CASCADE, related_name="stocks")
-    lote = models.ForeignKey(LoteProducto, on_delete=models.SET_NULL, null=True, blank=True)
-    serie = models.ForeignKey(SerieProducto, on_delete=models.SET_NULL, null=True, blank=True)
-    cantidad_disponible = models.DecimalField(max_digits=20, decimal_places=6, default=0)
-    cantidad_reservada = models.DecimalField(max_digits=20, decimal_places=6, default=0)
-    actualizado_en = models.DateTimeField(auto_now=True)
-
-    class Meta:
-        db_table = "stock"
-        constraints = [
-            models.UniqueConstraint(fields=["producto", "ubicacion", "lote", "serie"], name="uq_stock_prod_ubi_lote_serie")
-        ]
-        indexes = [
-            models.Index(fields=["producto"], name="idx_stock_producto"),
-            models.Index(fields=["ubicacion"], name="idx_stock_ubicacion"),
-        ]
-
-
 class TipoMovimiento(models.Model):
     codigo = models.CharField(max_length=30, unique=True)  # IN, OUT, TRANSFER, ADJUST_POS, ADJUST_NEG, RETURN_SUPPLIER
     nombre = models.CharField(max_length=100)
@@ -460,9 +404,9 @@ class PoliticaReabastecimiento(models.Model):
 # =============================================
 
 class Transferencia(MarcaTiempo):
-    bodega_origen = models.ForeignKey(Bodega, on_delete=models.CASCADE, related_name="transferencias_salida")
-    bodega_destino = models.ForeignKey(Bodega, on_delete=models.CASCADE, related_name="transferencias_entrada")
-    estado = models.CharField(max_length=30, default="DRAFT")  # DRAFT, IN_TRANSIT, RECEIVED, CANCELED
+    bodega_origen = models.ForeignKey(Bodega, on_delete=models.CASCADE, related_name="transferencias_origen", null=True, blank=True)
+    sucursal_destino = models.ForeignKey(Sucursal, on_delete=models.CASCADE, related_name="transferencias_destino", null=True, blank=True)
+    estado = models.CharField(max_length=30, default="DRAFT")
     creado_por = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True)
 
     class Meta:
