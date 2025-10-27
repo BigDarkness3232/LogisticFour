@@ -83,8 +83,8 @@
   <div class="edit-card">
     <div class="edit-head">
       <div class="avatar">
-        {% with (obj.first_name|default:"")|slice:":1" as a %}
-        {% with (obj.last_name|default:"")|slice:":1" as b %}
+        {% with obj.first_name|default:""|slice:":1" as a %}
+        {% with obj.last_name|default:""|slice:":1" as b %}
           {{ a|upper }}{{ b|upper }}
         {% endwith %}
         {% endwith %}
