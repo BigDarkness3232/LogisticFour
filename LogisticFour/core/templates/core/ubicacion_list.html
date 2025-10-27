@@ -93,6 +93,7 @@
   <div class="lx-head">
     <h1>Ubicaciones</h1>
     <a class="lx-btn" href="{% url 'ubicacion-create' %}">➕ Crear ubicación</a>
+    <a class="btnx" href="{% url 'tipo-create' %}?next={{ request.get_full_path|urlencode }}" onclick="return openModal(this.href)">➕ tipo de Ubicacion</a>
   </div>
 
   <!-- Filtros -->

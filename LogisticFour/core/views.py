@@ -682,7 +682,7 @@ class BodegaUpdateView(LoginRequiredMixin, BodegaPermissionMixin, SuccessMessage
         return reverse_lazy("bodega-list")
 
     def dispatch(self, request, *args, **kwargs):
-        """BODEGUERO solo puede editar bodegas de su sucursal (salvo superuser)."""
+        """BODEGUERO solo puede editar bodegas (salvo superuser)."""
         perfil = getattr(request.user, "perfil", None)
         if not request.user.is_superuser and perfil and perfil.rol == UsuarioPerfil.Rol.BODEGUERO:
             obj = self.get_object()
@@ -854,40 +854,11 @@ class UbicacionDeleteView(LoginRequiredMixin, DeleteView):
 
 
 # ------------------------------------
-# AreaBodega + TipoUbicacion con modal
+#   TipoUbicacion con modal
 # ------------------------------------
 # Los modales usan <dialog> y cargan estas vistas que devuelven la página completa,
 # pero con templates chicos pensados para presentarse en un modal.
 
-class AreaBodegaCreateModal(LoginRequiredMixin, SuccessMessageMixin, CreateView):
-    model = AreaBodega
-    form_class = AreaBodegaForm
-    template_name = "core/partials/area_form_modal.html"
-    success_message = "Área creada."
-
-    def get_success_url(self):
-        # tras guardar, vuelve a la página previa (bodegas) o a listado de ubicaciones
-        return self.request.GET.get("next") or reverse_lazy("bodega-list")
-
-
-class AreaBodegaUpdateModal(LoginRequiredMixin, SuccessMessageMixin, UpdateView):
-    model = AreaBodega
-    form_class = AreaBodegaForm
-    template_name = "core/partials/area_form_modal.html"
-    success_message = "Área actualizada."
-
-    def get_success_url(self):
-        return self.request.GET.get("next") or reverse_lazy("bodega-list")
-
-
-class AreaBodegaDeleteModal(LoginRequiredMixin, DeleteView):
-    model = AreaBodega
-    template_name = "core/partials/confirm_modal.html"
-    success_url = reverse_lazy("bodega-list")
-
-    def delete(self, request, *args, **kwargs):
-        messages.success(request, "Área eliminada.")
-        return super().delete(request, *args, **kwargs)
 
 
 class TipoUbicacionCreateModal(LoginRequiredMixin, SuccessMessageMixin, CreateView):

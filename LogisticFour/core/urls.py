@@ -74,12 +74,6 @@ urlpatterns = [
      path("ubicaciones/agregar/", views.UbicacionCreateView.as_view(), name="ubicacion-create"),
      path("ubicaciones/<int:pk>/editar/", views.UbicacionUpdateView.as_view(), name="ubicacion-edit"),
      path("ubicaciones/<int:pk>/eliminar/", views.UbicacionDeleteView.as_view(), name="ubicacion-delete"),
-
-     # AreaBodega (modales)
-    path("areas/agregar/", views.AreaBodegaCreateModal.as_view(), name="area-create"),
-    path("areas/<int:pk>/editar/", views.AreaBodegaUpdateModal.as_view(), name="area-edit"),
-    path("areas/<int:pk>/eliminar/", views.AreaBodegaDeleteModal.as_view(), name="area-delete"),
-
     # TipoUbicacion (modales)
     path("tipos/agregar/", views.TipoUbicacionCreateModal.as_view(), name="tipo-create"),
     path("tipos/<int:pk>/editar/", views.TipoUbicacionUpdateModal.as_view(), name="tipo-edit"),

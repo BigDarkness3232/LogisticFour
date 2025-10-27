@@ -332,9 +332,8 @@ class SucursalForm(forms.ModelForm):
 class BodegaForm(forms.ModelForm):
     class Meta:
         model = Bodega
-        fields = ["sucursal", "codigo", "nombre", "descripcion", "activo"]
+        fields = [ "codigo", "nombre", "descripcion", "activo"]
         labels = {
-            "sucursal": "Sucursal",
             "codigo": "Código de bodega",
             "nombre": "Nombre de la bodega",
             "descripcion": "Descripción",
@@ -344,7 +343,6 @@ class BodegaForm(forms.ModelForm):
             "codigo": "Código corto y único dentro de la sucursal. Ej: BOD-01",
         }
         widgets = {
-            "sucursal": forms.Select(attrs={"class": "form-select"}),
             "codigo": forms.TextInput(attrs={
                 "class": "form-control", "maxlength": "20", "placeholder": "Ej: BOD-01",
             }),
@@ -369,26 +367,6 @@ class BodegaForm(forms.ModelForm):
             raise ValidationError("El nombre debe tener al menos 3 caracteres.")
         return nombre
     
-class AreaBodegaForm(forms.ModelForm):
-    class Meta:
-        model = AreaBodega
-        fields = ["bodega", "codigo", "nombre"]
-        widgets = {
-            "codigo": forms.TextInput(attrs={"placeholder": "Código interno del área (único por bodega)"}),
-            "nombre": forms.TextInput(attrs={"placeholder": "Nombre descriptivo del área"}),
-        }
-
-    def clean(self):
-        cd = super().clean()
-        bodega = cd.get("bodega")
-        codigo = (cd.get("codigo") or "").strip()
-        if bodega and codigo:
-            # evita confundir mayúsculas/minúsculas
-            if AreaBodega.objects.filter(bodega=bodega, codigo__iexact=codigo)\
-                                 .exclude(pk=self.instance.pk if self.instance.pk else None).exists():
-                self.add_error("codigo", "Ya existe un área con este código en la misma bodega.")
-        return cd
-
 
 class TipoUbicacionForm(forms.ModelForm):
     class Meta:
@@ -403,57 +381,44 @@ class TipoUbicacionForm(forms.ModelForm):
 class UbicacionForm(forms.ModelForm):
     class Meta:
         model = Ubicacion
-        fields = ["bodega", "area", "tipo", "codigo", "nombre", "pickeable", "almacenable"]
+        fields = ["area", "tipo", "codigo", "nombre", "pickeable", "almacenable"]
         widgets = {
             "codigo": forms.TextInput(attrs={"placeholder": "Ej: R01-A2-B3"}),
             "nombre": forms.TextInput(attrs={"placeholder": "Nombre visible (opcional)"}),
         }
 
-
-    
-
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        # si llega una bodega preseleccionada, limitamos el queryset de Area a esa bodega
-        bodega = None
-        if self.is_bound:
-            try:
-                bodega_id = int(self.data.get("bodega") or 0)
-                from .models import Bodega as _B
-                bodega = _B.objects.filter(pk=bodega_id).first()
-            except Exception:
-                bodega = None
-        elif self.instance and self.instance.pk:
-            bodega = self.instance.bodega
 
-        if bodega:
-            self.fields["area"].queryset = AreaBodega.objects.filter(bodega=bodega).order_by("codigo")
+        # Filtrar los tipos de ubicación según el área
+        if self.instance and self.instance.pk:
+            area = self.instance.area
         else:
-            self.fields["area"].queryset = AreaBodega.objects.none()
+            area = None
+        
+        # Si existe el área, filtra los tipos por esa área
+        if area:
+            self.fields["tipo"].queryset = TipoUbicacion.objects.filter(area=area).order_by("codigo")
+        else:
+            self.fields["tipo"].queryset = TipoUbicacion.objects.none()
 
-    def clean(self):
-        cd = super().clean()
-        bodega = cd.get("bodega")
-        codigo = (cd.get("codigo") or "").strip()
-        if bodega and codigo:
-            if Ubicacion.objects.filter(bodega=bodega, codigo__iexact=codigo)\
-                                .exclude(pk=self.instance.pk if self.instance.pk else None).exists():
-                self.add_error("codigo", "Ya existe una ubicación con ese código en esta bodega.")
-        return cd
-    
-
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
-        # filtrar áreas por bodega seleccionada (ya lo tienes)
-        ...
-        # etiquetas bonitas:
-        self.fields["area"].label_from_instance = lambda obj: (
-            f"{obj.bodega.sucursal.codigo}/{obj.bodega.codigo} · {obj.codigo} — {obj.nombre}"
-            if obj.bodega and obj.bodega.sucursal else f"{obj.codigo} — {obj.nombre}"
-        )
+        # Etiquetas personalizadas
         self.fields["tipo"].label_from_instance = lambda obj: (
             f"{obj.codigo} — {obj.descripcion}"
         )
+
+    def clean(self):
+        cd = super().clean()
+        area = cd.get("area")
+        codigo = (cd.get("codigo") or "").strip()
+
+        if area and codigo:
+            # Verificar si ya existe una ubicación con el mismo código en el área
+            if Ubicacion.objects.filter(area=area, codigo__iexact=codigo) \
+                                .exclude(pk=self.instance.pk if self.instance.pk else None).exists():
+                self.add_error("codigo", "Ya existe una ubicación con ese código en esta área.")
+        
+        return cd
 
 class LoteProductoForm(forms.ModelForm):
     class Meta:
