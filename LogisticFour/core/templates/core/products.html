@@ -157,6 +157,7 @@
       <thead>
         <tr>
           <th>SKU / Nombre</th>
+          <th>Ubicacion</th>
           <th>Marca</th>
           <th>Categoría</th>
           <th>Estado</th>
@@ -174,6 +175,7 @@
             <div class="sku">{{ p.sku }}</div>
             <div class="name">{{ p.nombre }}</div>
           </td>
+          <td class="muted">{{ p.ubicacion|default:"—" }}</td>
           <td class="muted">{{ p.marca|default:"—" }}</td>
           <td class="muted">{{ p.categoria|default:"—" }}</td>
           <td>
@@ -194,7 +196,6 @@
             <div class="actions">
               <a class="act" href="{% url 'producto-update' p.pk %}">Editar</a>
               <form method="post" action="{% url 'producto-delete' p.pk %}" onsubmit="return confirm('¿Eliminar este producto?')">
-                {% csrf_token %}
                 <button type="submit" class="act danger">Eliminar</button>
               </form>
             </div>

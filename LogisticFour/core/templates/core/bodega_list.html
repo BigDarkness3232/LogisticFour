@@ -86,6 +86,8 @@
         <a class="lx-btn icon" href="{% url 'bodega-create' %}">
           <span>➕ Crear Bodega</span>
         </a>
+      <a class="btnx" href="{% url 'area-create' %}?next={{ request.get_full_path|urlencode }}" onclick="return openModal(this.href)">➕ Lote</a>
+      <a class="btnx" href="{% url 'tipo-create' %}?next={{ request.get_full_path|urlencode }}" onclick="return openModal(this.href)">➕ Serie</a>
       {% endif %}
     {% endif %}
   </div>
