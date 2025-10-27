@@ -345,6 +345,33 @@ def user_delete(request, user_id: int):
 
     return render(request, "accounts/user_confirm_delete.html", {"obj": obj})
 
+
+
+
+
+
+
+
+
+
+
+
+
+from django.contrib.auth.decorators import login_required
+from django.contrib.auth.models import User
+from django.core.paginator import Paginator
+from django.db.models import Q
+from django.http import JsonResponse
+from django.shortcuts import get_object_or_404, render
+from django.views.decorators.http import require_POST
+from django.contrib.auth.decorators import login_required
+
+        
+from .models import UsuarioPerfil          
+
+
+
+
 @admin_required
 @login_required
 def user_list(request):
@@ -352,25 +379,95 @@ def user_list(request):
     Listado con búsqueda y filtro por rol.
     Template: accounts/user_list.html
     """
-    q = request.GET.get("q", "").strip()
-    rol = request.GET.get("rol", "").strip()
+    q = (request.GET.get("q") or "").strip()
+    rol = (request.GET.get("rol") or "").strip()
 
     qs = User.objects.select_related("perfil").order_by("username")
+
     if q:
-        qs = qs.filter(username__icontains=q) | qs.filter(first_name__icontains=q) | qs.filter(last_name__icontains=q) | qs.filter(email__icontains=q)
+        qs = qs.filter(
+            Q(username__icontains=q)
+            | Q(first_name__icontains=q)
+            | Q(last_name__icontains=q)
+            | Q(email__icontains=q)
+        )
+
     if rol:
+        # rol es un CharField con choices en UsuarioPerfil
         qs = qs.filter(perfil__rol=rol)
 
     paginator = Paginator(qs, 20)
     page = request.GET.get("page", 1)
     users_page = paginator.get_page(page)
 
-    return render(request, "accounts/user_list.html", {
-        "users": users_page,
-        "q": q,
-        "rol": rol,
-        "roles": UsuarioPerfil.Rol.choices,
-    })
+    return render(
+        request,
+        "accounts/user_list.html",
+        {
+            "users": users_page,
+            "q": q,
+            "rol": rol,
+            "roles": UsuarioPerfil.Rol.choices,  # (code, label)
+        },
+    )
+
+
+@admin_required
+@login_required
+@require_POST
+def usuario_set_rol(request, user_id: int):
+    """
+    Cambia el rol (perfil.rol) de un usuario vía fetch POST JSON.
+    Espera: {"rol": "<CODE>"}   (donde CODE es uno de UsuarioPerfil.Rol.choices)
+    Responde: {"ok": true, "rol_label": "<Etiqueta>"}  o {"ok": false, "error": "..."}
+    """
+    import json
+
+    try:
+        payload = json.loads(request.body or "{}")
+        code = (payload.get("rol") or "").strip()
+        if not code:
+            return JsonResponse({"ok": False, "error": "Rol no especificado."}, status=400)
+
+        # Validar que el code esté en choices
+        valid_map = dict(UsuarioPerfil.Rol.choices)   # {code: label}
+        if code not in valid_map:
+            return JsonResponse({"ok": False, "error": "Código de rol inválido."}, status=400)
+
+        target = get_object_or_404(User, pk=user_id)
+
+        # Protecciones: no tocar superuser ni al propio usuario
+        if target.is_superuser or target.id == request.user.id:
+            return JsonResponse({"ok": False, "error": "No puedes cambiar este rol."}, status=403)
+
+        perfil = getattr(target, "perfil", None)
+        if perfil is None:
+            return JsonResponse({"ok": False, "error": "El usuario no tiene perfil."}, status=400)
+
+        # Guardar el CharField
+        perfil.rol = code
+        perfil.save(update_fields=["rol"])
+
+        return JsonResponse({"ok": True, "rol_label": valid_map[code]})
+    except Exception as e:
+        return JsonResponse({"ok": False, "error": str(e)}, status=400)
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 # -------------------- CRUD Sucursal / Bodega --------------------
