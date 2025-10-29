@@ -138,22 +138,7 @@ class TipoUbicacion(models.Model):
         return f"{self.codigo} — {self.descripcion or ''}".strip(" —")
 
 
-class Ubicacion(MarcaTiempo):
-    area = models.CharField(max_length=150, null=True, blank=True)
-    tipo = models.ForeignKey(TipoUbicacion, on_delete=models.SET_NULL, null=True, blank=True)
-    codigo = models.CharField(max_length=60)
-    nombre = models.CharField(max_length=150, blank=True)
-    pickeable = models.BooleanField(default=True)
-    almacenable = models.BooleanField(default=True)
 
-    class Meta:
-        db_table = "ubicaciones"
-        constraints = [
-            models.UniqueConstraint(fields=["codigo"], name="uq_ubicacioncodigo")
-        ]
-
-    def __str__(self):
-        return f"{self.codigo}"
 
 
 # =============================================
@@ -175,6 +160,26 @@ class BitacoraAuditoria(MarcaTiempo):
 # 3) Productos y Datos Maestros
 # =============================================
 
+
+class Ubicacion(MarcaTiempo):
+    area = models.CharField(max_length=150, null=True, blank=True)
+    tipo = models.ForeignKey(TipoUbicacion, on_delete=models.SET_NULL, null=True, blank=True)
+    codigo = models.CharField(max_length=60)
+    nombre = models.CharField(max_length=150, blank=True)
+    pickeable = models.BooleanField(default=True)
+    almacenable = models.BooleanField(default=True)
+    activo = models.BooleanField(default=True)  # Agregar este campo si no existe
+
+    class Meta:
+        db_table = "ubicaciones"
+        constraints = [
+            models.UniqueConstraint(fields=["codigo"], name="uq_ubicacioncodigo")
+        ]
+
+    def __str__(self):
+        return f"{self.codigo}"
+
+
 class Producto(MarcaTiempo):
     sku = models.CharField(max_length=100, unique=True)
     nombre = models.CharField(max_length=200)
@@ -185,19 +190,96 @@ class Producto(MarcaTiempo):
     activo = models.BooleanField(default=True)
     es_serializado = models.BooleanField(default=False)
     tiene_vencimiento = models.BooleanField(default=False)
-
-    # NUEVO: precio directo en el producto
     precio = models.PositiveIntegerField(default=0)
-
     stock = models.PositiveIntegerField(default=0)
 
-    ubicacion = models.ForeignKey(Ubicacion, on_delete=models.SET_NULL, null=True, blank=True, related_name="productos_ubicacion")  # Cambia related_name aquí
+    # Cambiar related_name a algo único, como 'productos_en_ubicacion'
+    ubicacion = models.ForeignKey(Ubicacion, on_delete=models.SET_NULL, null=True, blank=True, related_name="productos_en_ubicacion")
 
     class Meta:
         db_table = "productos"
 
     def __str__(self):
         return f"{self.sku} - {self.nombre}"
+
+
+
+class Bodega(MarcaTiempo):
+    codigo = models.CharField(max_length=30)
+    nombre = models.CharField(max_length=150)
+    direccion = models.CharField(blank=True)
+    descripcion = models.TextField(blank=True)
+    activo = models.BooleanField(default=True)
+    # Relación con productos (un producto puede estar en muchas bodegas)
+    productos = models.ForeignKey(Producto, on_delete=models.SET_NULL, null=True, blank=True, related_name="productos_bodega")
+    # Relación con Ubicacion (cada bodega tiene una ubicación)
+    ubicacion = models.ForeignKey(Ubicacion, on_delete=models.SET_NULL, null=True, blank=True, related_name="bodegas")
+
+    class Meta:
+        db_table = "bodegas"
+
+    def __str__(self):
+        return f"{self.codigo}:{self.nombre}"
+
+
+
+
+
+class Sucursal(MarcaTiempo):
+    codigo = models.CharField(max_length=30, unique=True)
+    nombre = models.CharField(max_length=150)
+    direccion = models.TextField(blank=True)
+    ciudad = models.CharField(max_length=120, blank=True)
+    region = models.CharField(max_length=120, blank=True)
+    pais = models.CharField(max_length=120, default="Chile")
+    activo = models.BooleanField(default=True)
+
+    # Relación con la Ubicacion de la sucursal
+    ubicacion = models.ForeignKey(Ubicacion, on_delete=models.SET_NULL, null=True, blank=True)
+
+    # Cambio de ForeignKey a ManyToManyField
+    productos = models.ManyToManyField(Producto, blank=True, related_name="sucursales")
+
+    bodega = models.ForeignKey(Bodega, on_delete=models.SET_NULL, null=True, blank=True, related_name="sucursales")
+
+    class Meta:
+        db_table = "sucursales"
+
+    def __str__(self):
+        return f"{self.codigo} - {self.nombre}"
+
+
+class StockUbicacion(models.Model):
+    producto = models.ForeignKey(Producto, on_delete=models.CASCADE, related_name="stock_ubicaciones")  # Relación con Producto
+    ubicacion = models.ForeignKey(Ubicacion, on_delete=models.CASCADE, related_name="productos_stock_ubicacion")  # Relación con Ubicacion
+    stock = models.PositiveIntegerField(default=0)  # El stock de este producto en la ubicación
+
+    class Meta:
+        unique_together = ('producto', 'ubicacion')  # Garantiza que un producto solo pueda estar una vez en una ubicación
+
+    def __str__(self):
+        return f"{self.producto.nombre} - {self.ubicacion.nombre} - {self.stock}"
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 class ProductoUsuarioProveedor(models.Model):
@@ -246,46 +328,7 @@ class SerieProducto(models.Model):
             models.UniqueConstraint(fields=["producto", "numero_serie"], name="uq_producto_numero_serie")
         ]
         
-class Bodega(MarcaTiempo):
-    codigo = models.CharField(max_length=30)
-    nombre = models.CharField(max_length=150)
-    direccion = models.CharField(blank=True)
-    descripcion = models.TextField(blank=True)
-    activo = models.BooleanField(default=True)
-    productos = models.ForeignKey(Producto, on_delete=models.SET_NULL, null=True, blank=True, related_name="productos_bodega")  # Cambia related_name aquí
 
-
-    
-    class Meta:
-        db_table = "bodegas"
-        constraints = [
-            models.UniqueConstraint(fields=["codigo"], name="codigo")
-        ]
-
-    def __str__(self):
-        return f"{self.codigo}:{self.codigo}"
-    
-
-class Sucursal(MarcaTiempo):
-    codigo = models.CharField(max_length=30, unique=True)
-    nombre = models.CharField(max_length=150)
-    direccion = models.TextField(blank=True)
-    ciudad = models.CharField(max_length=120, blank=True)
-    region = models.CharField(max_length=120, blank=True)
-    pais = models.CharField(max_length=120, default="Chile")
-    activo = models.BooleanField(default=True)
-    productos = models.ForeignKey(Producto, on_delete=models.SET_NULL, null=True, blank=True, related_name="productos_sucursal")  # Cambia related_name aquí
-
-    bodega = models.ForeignKey(Bodega, on_delete=models.SET_NULL, null=True, blank=True, related_name="sucursales")
-
-
-
-    class Meta:
-        db_table = "sucursales"
-
-    def __str__(self):
-        return f"{self.codigo} - {self.nombre}"
-    
 
 # =============================================
 # 4) Inventario (Stock, Movimientos, Recuentos)

@@ -176,6 +176,7 @@
             <a href="{% url 'sucursal-list' %}" class="subitem {% if request.resolver_match and request.resolver_match.url_name == 'sucursal-list' %}active{% endif %}">Sucursales</a>
             <a href="{% url 'bodega-list' %}" class="subitem {% if request.resolver_match and request.resolver_match.url_name == 'bodega-list' %}active{% endif %}">Bodegas</a>
             <a href="{% url 'ubicacion-list' %}" class="subitem {% if request.resolver_match and request.resolver_match.url_name == 'ubicacion-list' %}active{% endif %}">Ubicaciones</a>
+             <li><a href="{% url 'bodega_a_sucursal' %}">Movimiento Bodega a Sucursal</a></li>
           </div>
         </div>
         <!-- ===== Fin Grupo ===== -->

@@ -305,13 +305,14 @@
   </form>
 
 
-  <div class="lx-wrap">
+<div class="lx-wrap">
     <table class="lx-table">
       <thead>
         <tr>
           <th>Código</th>
           <th>Nombre</th>
           <th>Ciudad</th>
+          <th>Stock Total</th>  <!-- Columna para el stock total de la sucursal -->
           <th>Activo</th>
           <th class="lx-actions">Acciones</th>
         </tr>
@@ -323,6 +324,7 @@
           <td data-label="Código"><span class="mono">{{ s.codigo }}</span></td>
           <td data-label="Nombre"><strong>{{ s.nombre }}</strong></td>
           <td data-label="Ciudad">{{ s.ciudad|default:"—" }}</td>
+          <td data-label="Stock Total">{{ s.total_stock }}</td>  <!-- Mostramos el stock total -->
           <td data-label="Activo">
             {% if s.activo %}<span class="lx-badge ok">Sí</span>{% else %}<span class="lx-badge no">No</span>{% endif %}
           </td>
@@ -336,70 +338,6 @@
                 </svg>
                 Ver
               </button>
-
-              <!-- Editar / Eliminar según permisos -->
-              {% url 'sucursal-edit' s.pk as edit_url %}
-              {% url 'sucursal-delete' s.pk as delete_url %}
-
-              {% if request.user.is_superuser %}
-              <a class="lx-act" href="{{ edit_url }}" title="Editar">
-                <svg aria-hidden="true">
-                  <use href="#icon-edit" />
-                </svg>
-                Editar
-              </a>
-              <a class="lx-act danger" href="{{ delete_url }}" title="Eliminar">
-                <svg aria-hidden="true">
-                  <use href="#icon-trash" />
-                </svg>
-                Eliminar
-              </a>
-              {% elif request.user.perfil and request.user.perfil.rol == 'ADMIN' %}
-              <a class="lx-act" href="{{ edit_url }}" title="Editar">
-                <svg aria-hidden="true">
-                  <use href="#icon-edit" />
-                </svg>
-                Editar
-              </a>
-              <a class="lx-act danger" href="{{ delete_url }}" title="Eliminar">
-                <svg aria-hidden="true">
-                  <use href="#icon-trash" />
-                </svg>
-                Eliminar
-              </a>
-              {% endif %}
-            </div>
-          </td>
-        </tr>
-
-        <!-- Fila expandible -->
-        <tr id="s{{ s.pk }}" class="lx-expand-row" aria-hidden="true">
-          <td colspan="5">
-            <div class="lx-expand" data-expand>
-              <div class="lx-expand__inner">
-                <div class="lx-kv">
-                  <small>Dirección</small>
-                  <div>{{ s.direccion|default:"—" }}</div>
-                </div>
-                <div class="lx-kv">
-                  <small>Ubicación</small>
-                  <div>{{ s.ciudad|default:"—" }}{% if s.region %}, {{ s.region }}{% endif %}{% if s.pais %}, {{ s.pais
-                    }}{% endif %}</div>
-                </div>
-                <div class="lx-kv">
-                  <small>Estado</small>
-                  <div>{% if s.activo %}<span class="lx-badge ok">Activa</span>{% else %}<span
-                      class="lx-badge no">Inactiva</span>{% endif %}</div>
-                </div>
-                <div class="lx-kv">
-                  <small>Creada</small>
-                  <div>{{ s.creado_en|date:"d/m/Y H:i" }}</div>
-                </div>
-                <div class="lx-kv">
-                  <small>Total bodegas</small>
-                  <div>{{ s.bodegas.count }}</div>
-                </div>
-              </div>
             </div>
           </td>
         </tr>
@@ -410,7 +348,12 @@
         {% endfor %}
       </tbody>
     </table>
-  </div>
+</div>
+
+
+
+
+
 
   {% if is_paginated %}
   <div style="display:flex;justify-content:center;gap:8px;flex-wrap:wrap">

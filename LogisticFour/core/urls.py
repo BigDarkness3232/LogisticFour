@@ -137,7 +137,8 @@ urlpatterns = [
 
 
 
-
+    path('movimiento/bodega-a-sucursal/', views.bodega_a_sucursal, name='bodega_a_sucursal'),
+    
 
 
 

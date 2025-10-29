@@ -106,6 +106,7 @@
         <th>Nombre</th>
         <th>Descripción</th>
         <th>Activo</th>
+        <th>Stock Total</th> <!-- Añadir columna para el stock total -->
         <th class="col-actions">Acciones</th>
       </tr>
     </thead>
@@ -113,8 +114,14 @@
       {% for b in bodegas %}
       <tr>
         <td data-label="Sucursal">
-          {% if b.sucursal %}
-            <strong>{{ b.sucursal.codigo }}</strong> — {{ b.sucursal.nombre }}
+          {% if b.sucursales.all %}
+            <ul>
+              {% for sucursal in b.sucursales.all %}
+                <li>
+                  <strong>{{ sucursal.codigo }}</strong> — {{ sucursal.nombre }}
+                </li>
+              {% endfor %}
+            </ul>
           {% else %}
             <em>Sin sucursal</em>
           {% endif %}
@@ -125,6 +132,7 @@
         <td data-label="Activo">
           {% if b.activo %}<span class="lx-badge ok">Sí</span>{% else %}<span class="lx-badge no">No</span>{% endif %}
         </td>
+        <td data-label="Stock Total">{{ b.total_stock }}</td> <!-- Mostrar el stock total -->
         <td class="col-actions" data-label="Acciones">
           <div class="lx-acts">
             <!-- Ver Productos -->
@@ -134,10 +142,10 @@
             </a>
 
             <!-- Ver detalle (expansión de información) -->
-                <button type="button" class="lx-act pri" data-target="s{{ b.pk }}" aria-controls="s{{ b.pk }}" aria-expanded="false" title="Ver detalle">
-                  <svg aria-hidden="true"><use href="#icon-eye"/></svg>
-                  Ver
-                </button>
+            <button type="button" class="lx-act pri" data-target="s{{ b.pk }}" aria-controls="s{{ b.pk }}" aria-expanded="false" title="Ver detalle">
+              <svg aria-hidden="true"><use href="#icon-eye"/></svg>
+              Ver
+            </button>
 
             <!-- Editar -->
             <a href="{% url 'bodega-edit' b.pk %}" class="lx-act">
@@ -154,11 +162,12 @@
         </td>
       </tr>
       {% empty %}
-      <tr><td colspan="6">No hay bodegas.</td></tr>
+      <tr><td colspan="7">No hay bodegas.</td></tr>
       {% endfor %}
     </tbody>
   </table>
 </div>
+
 
 {% if is_paginated %}
   <nav class="pager" aria-label="Paginación">

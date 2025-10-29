@@ -43,8 +43,9 @@ admin.site.register(UsuarioPerfil, UsuarioPerfilAdmin)
 
 
 # ============== Producto ==============
+
 class ProductoAdmin(admin.ModelAdmin):
-    list_display = ("sku", "nombre", "marca", "categoria", "unidad_base", "precio", "stock", "activo")
+    list_display = ("sku", "nombre", "marca", "stock", "categoria", "unidad_base", "precio", "activo")
     search_fields = ("sku", "nombre", "marca__nombre", "categoria__nombre")
     list_filter = ("activo", "marca", "categoria")
 

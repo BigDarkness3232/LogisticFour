@@ -1,0 +1,48 @@
+{% extends "core/base.html" %}
+{% block title %}Movimiento de Bodega a Sucursal{% endblock %}
+
+{% block content %}
+<h1>Movimiento de Producto: Bodega a Sucursal</h1>
+<form method="POST">
+    {% csrf_token %}
+    
+    <div>
+        <label for="bodega">Bodega:</label>
+        <select name="bodega" required>
+            {% for bodega in bodegas %}
+                <option value="{{ bodega.id }}">{{ bodega.nombre }} (Stock: {{ bodega.stock }})</option>
+            {% endfor %}
+        </select>
+    </div>
+    
+    <div>
+        <label for="sucursal">Sucursal:</label>
+        <select name="sucursal" required>
+            {% for sucursal in sucursales %}
+                <option value="{{ sucursal.id }}">{{ sucursal.nombre }}</option>
+            {% endfor %}
+        </select>
+    </div>
+    
+    <div>
+        <label for="producto">Producto:</label>
+        <select name="producto" required>
+            {% for producto in productos %}
+                <option value="{{ producto.id }}">{{ producto.nombre }} (SKU: {{ producto.sku }})</option>
+            {% endfor %}
+        </select>
+    </div>
+
+    <div>
+        <label for="cantidad">Cantidad:</label>
+        <input type="number" name="cantidad" min="1" max="{{ producto.stock }}" required>
+    </div>
+
+    <button type="submit">Mover Producto</button>
+</form>
+
+
+{% if success %}
+    <p>Movimiento realizado con éxito.</p>
+{% endif %}
+{% endblock %}

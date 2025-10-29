@@ -133,45 +133,112 @@
       </div>
 
       <!-- Resumen por sucursal -->
-      <div class="card card-soft mb-4 fade-in">
-        <div class="card-header bg-transparent">
-          <div class="d-flex align-items-center justify-content-between">
-            <strong>Stock por Sucursal</strong>
-            <span class="text-secondary small">{{ resumen_sucursales|length }} sucursal(es)</span>
-          </div>
-        </div>
-        <div class="card-body p-0">
-          {% if resumen_sucursales %}
-            <div class="table-responsive">
-              <table class="table align-middle mb-0">
-                <thead class="border-bottom">
-                  <tr>
-                    <th>Sucursal</th>
-                    <th class="td-num" style="width: 15%;">Disponible</th>
-                    <th class="td-num" style="width: 15%;">Reservado</th>
-                    <th class="td-num" style="width: 15%;">Neto</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {% for r in resumen_sucursales %}
-                  <tr class="fade-in" style="animation-delay: {{ forloop.counter0|add:0 }}00ms;">
-                    <td>
-                      <span class="fw-semibold">{{ r.ubicacion__bodega__sucursal__codigo }}</span>
-                      <span class="text-secondary">— {{ r.ubicacion__bodega__sucursal__nombre }}</span>
-                    </td>
-                    <td class="td-num">{{ r.total_disponible|floatformat:2 }}</td>
-                    <td class="td-num">{{ r.total_reservado|floatformat:2 }}</td>
-                    <td class="td-num fw-semibold">{{ r.total_neto|floatformat:2 }}</td>
-                  </tr>
-                  {% endfor %}
-                </tbody>
-              </table>
-            </div>
-          {% else %}
-            <div class="p-4 empty">No hay stock registrado por sucursal para este producto.</div>
-          {% endif %}
-        </div>
+<!-- Resumen por sucursal -->
+<div class="card card-soft mb-4 fade-in">
+  <div class="card-header bg-transparent">
+    <div class="d-flex align-items-center justify-content-between">
+      <strong>Stock por Sucursal</strong>
+      <span class="text-secondary small">{{ resumen_sucursales|length }} sucursal(es)</span>
+    </div>
+  </div>
+  <div class="card-body p-0">
+    {% if resumen_sucursales %}
+      <div class="table-responsive">
+        <table class="table align-middle mb-0">
+          <thead class="border-bottom">
+            <tr>
+              <th>Sucursal</th>
+              <th class="td-num" style="width: 15%;">Disponible</th>
+              <th class="td-num" style="width: 15%;">Reservado</th>
+              <th class="td-num" style="width: 15%;">Neto</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for r in resumen_sucursales %}
+            <tr class="fade-in" style="animation-delay: {{ forloop.counter0|add:0 }}00ms;">
+              <td>
+                <span class="fw-semibold">{{ r.ubicacion__bodega__sucursal__codigo }}</span>
+                <span class="text-secondary">— {{ r.ubicacion__bodega__sucursal__nombre }}</span>
+              </td>
+              <td class="td-num">{{ r.total_disponible|floatformat:2 }}</td>
+              <td class="td-num">{{ r.total_reservado|floatformat:2 }}</td>
+              <td class="td-num fw-semibold">{{ r.total_neto|floatformat:2 }}</td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
       </div>
+    {% else %}
+      <div class="p-4 empty">No hay stock registrado por sucursal para este producto.</div>
+    {% endif %}
+  </div>
+</div>
+
+<!-- Detalle por bodega (acordeón por sucursal) -->
+<div class="card card-soft fade-in">
+  <div class="card-header bg-transparent">
+    <div class="d-flex align-items-center justify-content-between">
+      <strong>Detalle por Bodega</strong>
+      <span class="text-secondary small">{{ resultados_bodegas|length }} registro(s)</span>
+    </div>
+  </div>
+  <div class="card-body">
+    {% if resultados_bodegas %}
+      {% regroup resultados_bodegas by ubicacion__bodega__sucursal__codigo as grupos %}
+      <div class="accordion" id="accSucursales">
+        {% for g in grupos %}
+          {% with scode=g.grouper %}
+          <div class="accordion-item fade-in">
+            <h2 class="accordion-header">
+              <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse"
+                      data-bs-target="#suc-{{ scode|slugify }}" aria-expanded="false">
+                <div class="d-flex flex-column">
+                  <span class="fw-semibold">Sucursal {{ scode }}</span>
+                  <small class="text-secondary">
+                    {{ g.list.0.ubicacion__bodega__sucursal__nombre }} · {{ g.list|length }} bodega(s)
+                  </small>
+                </div>
+              </button>
+            </h2>
+            <div id="suc-{{ scode|slugify }}" class="accordion-collapse collapse" data-bs-parent="#accSucursales">
+              <div class="accordion-body">
+                <div class="table-responsive">
+                  <table class="table align-middle mb-0">
+                    <thead class="border-bottom">
+                      <tr>
+                        <th style="min-width: 280px;">Bodega</th>
+                        <th class="td-num" style="width: 15%;">Disponible</th>
+                        <th class="td-num" style="width: 15%;">Reservado</th>
+                        <th class="td-num" style="width: 15%;">Neto</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {% for r in g.list %}
+                      <tr>
+                        <td>
+                          <span class="fw-semibold">{{ r.ubicacion__bodega__codigo }}</span>
+                          <span class="text-secondary">— {{ r.ubicacion__bodega__nombre }}</span>
+                        </td>
+                        <td class="td-num">{{ r.total_disponible|floatformat:2 }}</td>
+                        <td class="td-num">{{ r.total_reservado|floatformat:2 }}</td>
+                        <td class="td-num fw-semibold">{{ r.total_neto|floatformat:2 }}</td>
+                      </tr>
+                      {% endfor %}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            </div>
+          </div>
+          {% endwith %}
+        {% endfor %}
+      </div>
+    {% else %}
+      <div class="empty">No hay stock registrado por bodega para este producto.</div>
+    {% endif %}
+  </div>
+</div>
+
 
       <!-- Detalle por bodega (acordeón por sucursal) -->
       <div class="card card-soft fade-in">

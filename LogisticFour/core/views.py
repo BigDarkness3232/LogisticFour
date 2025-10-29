@@ -512,6 +512,9 @@ def admin_required(view_func):
     return _wrapped
 
 
+from django.db.models import Prefetch
+
+
 
 class SucursalListView(LoginRequiredMixin, ListView):
     model = Sucursal
@@ -529,9 +532,16 @@ class SucursalListView(LoginRequiredMixin, ListView):
 
     def get_queryset(self):
         q = (self.request.GET.get("q") or "").strip()
+
+        # Prefetch para obtener productos relacionados con la sucursal
+        productos_prefetch = Prefetch(
+            "productos", queryset=Producto.objects.prefetch_related("stock_ubicaciones")  # Traemos productos con su stock_ubicaciones
+        )
+
         qs = (
             Sucursal.objects
-            .only("id", "codigo", "nombre", "ciudad", "activo")  # optimiza consulta de la lista
+            .prefetch_related(productos_prefetch)  # Traemos los productos relacionados con la sucursal
+            .only("id", "codigo", "nombre", "ciudad", "activo")
             .order_by(Lower("codigo").asc())
         )
         if q:
@@ -549,7 +559,26 @@ class SucursalListView(LoginRequiredMixin, ListView):
         ctx["has_filters"] = bool(q)
         ctx["total"] = self.get_queryset().count()
         ctx["page_size"] = self.get_paginate_by(self.get_queryset())
+
+        # Aquí añadimos el stock total de productos en cada sucursal
+        sucursales = self.get_queryset()
+        for sucursal in sucursales:
+            # Sumamos el stock de todos los productos en la sucursal
+            total_stock = sum(stock_ubicacion.stock for producto in sucursal.productos.all() for stock_ubicacion in producto.stock_ubicaciones.all())
+            sucursal.total_stock = total_stock
+
+        ctx["sucursales"] = sucursales
         return ctx
+    
+
+
+
+
+
+
+
+
+
 
 
 class SucursalCreateView(LoginRequiredMixin, AdminOnlyMixin, SuccessMessageMixin, CreateView):
@@ -590,7 +619,7 @@ class BodegaListView(LoginRequiredMixin, ListView):
     model = Bodega
     template_name = "core/bodega_list.html"
     context_object_name = "bodegas"
-    paginate_by = 20  # por defecto
+    paginate_by = 20
 
     def get_paginate_by(self, queryset):
         """Permite ?page_size= (1..100)."""
@@ -605,21 +634,16 @@ class BodegaListView(LoginRequiredMixin, ListView):
 
         qs = (
             Bodega.objects
-            .select_related("sucursal")
-            .only(
-                "id", "codigo", "nombre", "descripcion", "activo",
-                "sucursal__id", "sucursal__codigo", "sucursal__nombre"
-            )
-            .order_by(Lower("sucursal__codigo").asc(), Lower("codigo").asc())
+            .prefetch_related("productos")  # Prefetch relacionados con productos
+            .only("id", "codigo", "nombre", "descripcion", "activo")
+            .order_by("codigo")
         )
 
         if q:
             qs = qs.filter(
                 Q(codigo__icontains=q) |
                 Q(nombre__icontains=q) |
-                Q(descripcion__icontains=q) |
-                Q(sucursal__nombre__icontains=q) |
-                Q(sucursal__codigo__icontains=q)
+                Q(descripcion__icontains=q)
             )
         return qs
 
@@ -631,7 +655,26 @@ class BodegaListView(LoginRequiredMixin, ListView):
         ctx["has_filters"] = bool(q)
         ctx["total"] = base_qs.count()
         ctx["page_size"] = self.get_paginate_by(base_qs)
+
+        # Añadir el stock total de productos en cada bodega
+        bodegas = self.get_queryset()
+        for bodega in bodegas:
+            # Calcular el stock total de productos de la bodega
+            total_stock = 0
+            if bodega.productos:  # Verificamos que la bodega tenga un producto asociado
+                total_stock += bodega.productos.stock  # Accedemos directamente al stock del producto
+            bodega.total_stock = total_stock
+
+        ctx["bodegas"] = bodegas
         return ctx
+
+
+
+
+
+
+
+
 
 
 class BodegaCreateView(LoginRequiredMixin, BodegaPermissionMixin, SuccessMessageMixin, CreateView):
@@ -798,30 +841,76 @@ class ProductDetailView(LoginRequiredMixin, DetailView):
     template_name = "core/product_detail.html"
     context_object_name = "producto"
 
-class UbicacionListView(LoginRequiredMixin, ListView):
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+class UbicacionListView(ListView):
     model = Ubicacion
     template_name = "core/ubicacion_list.html"
     context_object_name = "ubicaciones"
-    paginate_by = 25
+    paginate_by = 20
 
     def get_queryset(self):
-        qs = (Ubicacion.objects
-              .select_related("bodega__sucursal", "area", "tipo")
-              .order_by("bodega__sucursal__codigo", "bodega__codigo", "codigo"))
         q = (self.request.GET.get("q") or "").strip()
+        qs = (
+            Ubicacion.objects
+            .prefetch_related("bodegas")  # Prefetch para cargar las bodegas asociadas a cada ubicación
+            .only("id", "codigo", "nombre", "area", "activo")
+            .order_by("codigo")
+        )
+
         if q:
-            qs = qs.filter(codigo__icontains=q) | qs.filter(nombre__icontains=q)
-        bodega_id = self.request.GET.get("bodega")
-        if bodega_id:
-            qs = qs.filter(bodega_id=bodega_id)
+            qs = qs.filter(
+                Q(codigo__icontains=q) |
+                Q(nombre__icontains=q) |
+                Q(area__icontains=q)
+            )
         return qs
 
     def get_context_data(self, **kwargs):
         ctx = super().get_context_data(**kwargs)
-        ctx["bodegas"] = Bodega.objects.select_related("sucursal").order_by("sucursal__codigo", "codigo")
-        ctx["q"] = (self.request.GET.get("q") or "").strip()
-        ctx["bodega_sel"] = self.request.GET.get("bodega") or ""
+        q = (self.request.GET.get("q") or "").strip()
+        base_qs = self.get_queryset()
+        ctx["q"] = q
+        ctx["has_filters"] = bool(q)
+        ctx["total"] = base_qs.count()
+        ctx["page_size"] = self.get_paginate_by(base_qs)
+
+        # Agregar información adicional si es necesario
+        ubicaciones = self.get_queryset()
+        for ubicacion in ubicaciones:
+            # Aquí podrías agregar cualquier cálculo adicional si es necesario
+            pass
+
+        ctx["ubicaciones"] = ubicaciones
         return ctx
+    
+
+
+
 
 
 # ----------------------
@@ -1102,41 +1191,40 @@ def products(request):
 
 
 
+
+
+
+
+
+
+
 def productos_por_bodega(request, bodega_id):
-    # Obtener la bodega especificada
-    bodega = Bodega.objects.get(id=bodega_id)
-    
-    # Obtener todas las ubicaciones asociadas a la bodega
-    ubicaciones_en_bodega = Ubicacion.objects.filter(bodega=bodega)
-    
-    # Obtener los productos asociados a las ubicaciones de esa bodega
-    productos_en_bodega = Producto.objects.filter(ubicacion__in=ubicaciones_en_bodega)
-    
-    # Parámetro para búsqueda
-    q = request.GET.get('q', '')
+    logger.debug("Iniciando la vista productos_por_bodega.")
 
-    # Si hay un término de búsqueda, filtrar los productos
-    if q:
-        productos_en_bodega = productos_en_bodega.filter(
-            sku__icontains=q ,
-            nombre__icontains=q ,
-            marca__nombre__icontains=q ,
-            categoria__nombre__icontains=q
-        )
+    # Obtener la bodega específica por el ID proporcionado
+    try:
+        bodega = Bodega.objects.get(id=bodega_id)
+        logger.debug(f"Bodega encontrada: {bodega.nombre}")
+    except Bodega.DoesNotExist:
+        logger.error(f"Bodega con ID {bodega_id} no encontrada.")
+        return render(request, "core/error.html", {"error": "Bodega no encontrada."})
+
+    # Filtrar las ubicaciones asociadas a esa bodega
+    ubicaciones_en_bodega = Ubicacion.objects.filter(bodegas__ubicacion=bodega.ubicacion)
     
-    # Paginación
-    paginator = Paginator(productos_en_bodega, 10)  # 10 productos por página
-    page_number = request.GET.get('page')
-    page_obj = paginator.get_page(page_number)
-    
-    # Pasar los datos al template
-    return render(request, 'core/productos_por_bodega.html', {
-        'bodega': bodega,
-        'productos': page_obj,
-        'q': q,
-        'page_obj': page_obj
+    # Si no se encuentran ubicaciones asociadas a esa bodega, loguear el error
+    if not ubicaciones_en_bodega:
+        logger.warning(f"No se encontraron ubicaciones para la bodega {bodega.nombre}.")
+        return render(request, "core/error.html", {"error": "No se encontraron ubicaciones asociadas a esta bodega."})
+
+    # Mostrar las ubicaciones y productos asociados
+    productos = Producto.objects.filter(ubicacion__in=ubicaciones_en_bodega)
+
+    return render(request, "core/productos_por_bodega.html", {
+        "bodega": bodega,
+        "ubicaciones_en_bodega": ubicaciones_en_bodega,
+        "productos": productos,
     })
-
 
 
 
@@ -1421,34 +1509,37 @@ def set_stock(producto, disponible=None, reservado=None, guardar=True):
     return producto
 
 # ---------- Consulta: ver stock por producto (tu lógica, con pequeños ajustes) ----------
+from django.db.models import Sum, F
+
+from django.db.models import Sum, F
 
 @login_required
 def stock_por_producto(request):
-    """
-    Busca un producto por SKU y muestra su stock global.
-    Ahora la fuente es la tabla Producto (campos: stock y reserva),
-    no se consulta la tabla Stock ni se desglosa por sucursal/bodega.
-    """
     sku = (request.GET.get("sku") or "").strip().upper()
     producto = None
     totales = None
-    resumen_sucursales = []   # no se usan con la nueva lógica
-    resultados_bodegas = []   # no se usan con la nueva lógica
+    resumen_sucursales = []
 
     if sku:
         try:
             producto = Producto.objects.select_related("marca", "categoria").get(sku=sku)
 
-            # Campos esperados en Producto:
-            # - stock: disponible total
-            # - reserva: reservado total (si tu campo se llama distinto, ajusta abajo)
             disponible = getattr(producto, "stock", 0) or 0
-            reservado  = getattr(producto, "reserva", 0) or 0  # si tu campo es 'reservado', cámbialo aquí
+            reservado = getattr(producto, "reserva", 0) or 0  # Si tienes otro campo para reservas, ajústalo
             totales = {
                 "total_disponible": disponible,
-                "total_reservado":  reservado,
-                "total_neto":       (disponible - reservado),
+                "total_reservado": reservado,
+                "total_neto": (disponible - reservado),
             }
+
+            resumen_sucursales = StockUbicacion.objects.filter(producto=producto).values(
+                "ubicacion__bodegas__codigo",  # Accedemos correctamente a Bodega a través de Ubicacion
+                "ubicacion__bodegas__nombre",  # Nombre de la bodega
+            ).annotate(
+                total_disponible=Sum("stock"),
+                total_reservado=Sum("stock"),  # Si tienes un campo reservado, ajústalo aquí
+                total_neto=F("total_disponible") - F("total_reservado"),
+            )
 
         except Producto.DoesNotExist:
             messages.error(request, f"No se encontró ningún producto con SKU '{sku}'.")
@@ -1458,11 +1549,13 @@ def stock_por_producto(request):
         "producto": producto,
         "totales": totales,
         "resumen_sucursales": resumen_sucursales,
-        "resultados_bodegas": resultados_bodegas,
     })
 
 
-# ---------- Endpoints de gestión desde productos ----------
+
+
+
+
 
 @login_required
 @transaction.atomic
@@ -1657,3 +1750,273 @@ def stock_recuento(request):
         redirect_to=reverse("products"),
         extra={"stock_disponible": float(stock.cantidad_disponible), "producto_stock": float(producto.stock)}
     )
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+import logging
+from django.shortcuts import render
+from .models import Producto, Bodega, Sucursal, StockUbicacion
+
+# Configurar el logger
+logger = logging.getLogger(__name__)
+
+import logging
+from django.shortcuts import render
+from .models import Producto, Bodega, Sucursal, StockUbicacion
+
+# Configurar el logger
+logger = logging.getLogger(__name__)
+
+
+
+
+
+def bodega_a_sucursal(request):
+    logger.debug("Iniciando la vista bodega_a_sucursal.")
+
+    # Obtener todas las bodegas, sucursales y productos disponibles para el movimiento
+    bodegas = Bodega.objects.all()
+    sucursales = Sucursal.objects.all()
+    productos = Producto.objects.all()
+
+    if request.method == "POST":
+        logger.debug("Formulario recibido, procesando datos.")
+
+        # Obtener los datos del formulario
+        bodega_id = request.POST.get("bodega")
+        sucursal_id = request.POST.get("sucursal")
+        producto_id = request.POST.get("producto")
+        cantidad = request.POST.get("cantidad")
+
+        logger.debug(f"Datos del formulario - Bodega ID: {bodega_id}, Sucursal ID: {sucursal_id}, Producto ID: {producto_id}, Cantidad: {cantidad}")
+
+        try:
+            cantidad = int(cantidad)
+        except ValueError:
+            logger.error(f"Cantidad inválida: {cantidad}")
+            return render(request, "Movimientos/bodega_a_sucursal.html", {
+                "bodegas": bodegas, "sucursales": sucursales, "productos": productos, "error": "La cantidad proporcionada no es válida. Debe ser un número entero."
+            })
+
+        # Obtener las instancias necesarias
+        try:
+            bodega = Bodega.objects.get(id=bodega_id)
+            sucursal = Sucursal.objects.get(id=sucursal_id)
+            producto = Producto.objects.get(id=producto_id)
+            logger.debug(f"Bodega: {bodega}, Sucursal: {sucursal}, Producto: {producto}")
+        except Bodega.DoesNotExist:
+            logger.error(f"Bodega con ID {bodega_id} no encontrada.")
+            return render(request, "Movimientos/bodega_a_sucursal.html", {
+                "bodegas": bodegas, "sucursales": sucursales, "productos": productos, "error": f"Bodega con ID {bodega_id} no encontrada."
+            })
+        except Sucursal.DoesNotExist:
+            logger.error(f"Sucursal con ID {sucursal_id} no encontrada.")
+            return render(request, "Movimientos/bodega_a_sucursal.html", {
+                "bodegas": bodegas, "sucursales": sucursales, "productos": productos, "error": f"Sucursal con ID {sucursal_id} no encontrada."
+            })
+        except Producto.DoesNotExist:
+            logger.error(f"Producto con ID {producto_id} no encontrado.")
+            return render(request, "Movimientos/bodega_a_sucursal.html", {
+                "bodegas": bodegas, "sucursales": sucursales, "productos": productos, "error": f"Producto con ID {producto_id} no encontrado."
+            })
+
+        # Verificar si la bodega tiene una ubicación asignada
+        if not bodega.ubicacion:
+            logger.error(f"La bodega con ID {bodega.id} no tiene una ubicación asignada.")
+            return render(request, "Movimientos/bodega_a_sucursal.html", {
+                "bodegas": bodegas, "sucursales": sucursales, "productos": productos, "error": "La bodega no tiene una ubicación asignada. Por favor, asigna una ubicación a la bodega."
+            })
+
+        ubicacion_bodega = bodega.ubicacion
+
+        # Obtener el stock del producto en la bodega (StockUbicacion)
+        stock_bodega = StockUbicacion.objects.filter(producto=producto, ubicacion=ubicacion_bodega).first()
+
+        # Asegurarse de que tenemos el stock de la bodega
+        if stock_bodega:
+            logger.debug(f"Stock en bodega encontrado: {stock_bodega.stock} unidades.")
+        else:
+            logger.warning(f"No se encontró stock para el producto {producto.nombre} en la bodega {bodega.nombre}. Creando stock por defecto.")
+            # Si no existe stock en la bodega, crear uno automáticamente
+            stock_bodega = StockUbicacion.objects.create(producto=producto, ubicacion=ubicacion_bodega, stock=0)
+            logger.debug(f"Nuevo stock creado para el producto {producto.nombre} en la bodega {bodega.nombre}: {stock_bodega.stock} unidades.")
+
+        # Verificar que haya stock suficiente para mover
+        if stock_bodega.stock >= cantidad:
+            logger.info(f"Realizando el movimiento de {cantidad} unidades del producto {producto.nombre} de la bodega {bodega.nombre} a la sucursal {sucursal.nombre}.")
+            
+            # Restar el stock en la bodega
+            stock_bodega.stock -= cantidad
+            stock_bodega.save()
+
+            # Asegurarse de que la sucursal tenga una ubicación
+            if not sucursal.ubicacion:
+                logger.error(f"La sucursal con ID {sucursal.id} no tiene una ubicación asignada.")
+                return render(request, "Movimientos/bodega_a_sucursal.html", {
+                    "bodegas": bodegas, "sucursales": sucursales, "productos": productos, "error": "La sucursal no tiene una ubicación asignada. Por favor, asigna una ubicación a la sucursal."
+                })
+
+            # Crear o actualizar el stock en la sucursal
+            stock_sucursal, created = StockUbicacion.objects.get_or_create(
+                producto=producto, 
+                ubicacion=sucursal.ubicacion  # Aquí se asigna la ubicación de la sucursal
+            )
+
+            # Actualizar el stock en la sucursal
+            stock_sucursal.stock += cantidad
+            stock_sucursal.save()
+
+            logger.info(f"Movimiento realizado exitosamente. Nuevo stock en bodega: {stock_bodega.stock}, Nuevo stock en sucursal: {stock_sucursal.stock}")
+            return render(request, "Movimientos/bodega_a_sucursal.html", {
+                "bodegas": bodegas, "sucursales": sucursales, "productos": productos, "success": f"Movimiento realizado exitosamente de {cantidad} unidades de {producto.nombre} a la sucursal {sucursal.nombre}."
+            })
+        else:
+            logger.warning(f"No hay suficiente stock en la bodega para realizar el movimiento.")
+            return render(request, "Movimientos/bodega_a_sucursal.html", {
+                "bodegas": bodegas, "sucursales": sucursales, "productos": productos, "error": f"No hay suficiente stock en la bodega para realizar el movimiento."
+            })
+
+    return render(request, "Movimientos/bodega_a_sucursal.html", {
+        "bodegas": bodegas, "sucursales": sucursales, "productos": productos
+    })
+
+
+
+
+
+
+
+
+
+from .models import Bodega, Sucursal, Producto, StockUbicacion
+import logging
+
+# Configurar el logger
+logger = logging.getLogger(__name__)
+
+
+# Configurar el logger
+logger = logging.getLogger(__name__)
+
+def movimiento_simple_view(request):
+    if request.method == "POST":
+        # Obtener los valores del formulario
+        bodega = Bodega.objects.get(id=request.POST['bodega'])
+        sucursal = Sucursal.objects.get(id=request.POST['sucursal'])
+        producto = Producto.objects.get(id=request.POST['producto'])
+        cantidad = int(request.POST['cantidad'])
+
+        # Verificar si el producto tiene stock suficiente en la bodega
+        stock_bodega = StockUbicacion.objects.filter(producto=producto, ubicacion=bodega.ubicacion).first()
+
+        if stock_bodega:
+            if stock_bodega.stock >= cantidad:
+                # Restar el stock de la bodega
+                stock_bodega.stock -= cantidad
+                stock_bodega.save()
+
+                # Obtener o crear el stock en la sucursal
+                stock_sucursal, created = StockUbicacion.objects.get_or_create(producto=producto, ubicacion=sucursal.ubicacion)
+                stock_sucursal.stock += cantidad
+                stock_sucursal.save()
+
+                return render(request, "Movimientos/bodega_a_sucursal.html", {
+                    'success': "Movimiento realizado correctamente",
+                    'bodegas': Bodega.objects.all(),
+                    'sucursales': Sucursal.objects.all(),
+                    'productos': Producto.objects.all(),
+                })
+            else:
+                return render(request, "Movimientos/bodega_a_sucursal.html", {
+                    'error': "No hay suficiente stock disponible en la bodega.",
+                    'bodegas': Bodega.objects.all(),
+                    'sucursales': Sucursal.objects.all(),
+                    'productos': Producto.objects.all(),
+                })
+        else:
+            return render(request, "Movimientos/bodega_a_sucursal.html", {
+                'error': "No se encontró stock para este producto en la bodega.",
+                'bodegas': Bodega.objects.all(),
+                'sucursales': Sucursal.objects.all(),
+                'productos': Producto.objects.all(),
+            })
+
+    if request.method == "POST":
+        # Obtener los valores del formulario
+        bodega = Bodega.objects.get(id=request.POST['bodega'])
+        sucursal = Sucursal.objects.get(id=request.POST['sucursal'])
+        producto = Producto.objects.get(id=request.POST['producto'])
+        cantidad = int(request.POST['cantidad'])
+
+        # Verificar si el producto tiene stock en la bodega
+        if producto.stock >= cantidad:
+            logger.debug(f"Stock encontrado: {producto.stock} unidades disponibles para el producto {producto.nombre} en la bodega {bodega.nombre}")
+
+            # Realizar el movimiento de productos
+            producto.stock -= cantidad  # Reducir el stock del producto en la bodega
+            producto.save()
+
+            # Verificar si hay stock suficiente en la sucursal
+            stock_sucursal, created = StockUbicacion.objects.get_or_create(producto=producto, ubicacion=sucursal.ubicacion)
+
+            # Actualizar el stock en la sucursal
+            stock_sucursal.stock += cantidad
+            stock_sucursal.save()
+
+            logger.info(f"Movimiento realizado: {cantidad} unidades de {producto.nombre} movidas de la bodega {bodega.nombre} a la sucursal {sucursal.nombre}. Nuevo stock en bodega: {producto.stock}, Nuevo stock en sucursal: {stock_sucursal.stock}")
+
+            success = "Movimiento realizado correctamente"
+        else:
+            logger.warning(f"No hay suficiente stock para el producto {producto.nombre} en la bodega {bodega.nombre}. Stock disponible: {producto.stock}, cantidad solicitada: {cantidad}")
+            error = "No hay suficiente stock disponible para el producto"
+
+        return render(request, "Movimientos/bodega_a_sucursal.html", {
+            'success': success if 'success' in locals() else None,
+            'error': error if 'error' in locals() else None,
+            'bodegas': Bodega.objects.all(),
+            'sucursales': Sucursal.objects.all(),
+            'productos': Producto.objects.all(),
+        })
