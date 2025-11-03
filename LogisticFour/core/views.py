@@ -1561,8 +1561,8 @@ def stock_por_producto(request):
     Consulta de stock por SKU.
     Muestra:
       - totales globales
-      - desglose por sucursal (si viene de ubicacion_sucursal)
-      - desglose por bodega (si viene de ubicacion_bodega)
+      - desglose por sucursal/bodega
+      - incluye la ubicación física (código/nombre) tanto en sucursal como en bodega
     """
     sku = (request.GET.get("sku") or "").strip().upper()
     producto = None
@@ -1592,55 +1592,69 @@ def stock_por_producto(request):
 
             totales = {
                 "total_disponible": disponible,
-                # como no tienes reservas en Stock, el neto es igual al disponible
+                # neto = disponible (no hay reservas en el modelo de Stock)
                 "total_neto": disponible,
             }
 
-            # 2) DESGLOSE POR ORIGEN DE LA UBICACIÓN
-            # Creamos columnas "virtuales" para poder agrupar aunque haya
-            # registros que vienen SOLO de bodega o SOLO de sucursal
+            # 2) DESGLOSE POR UBICACIÓN (sucursal/bodega + ubicación física)
+            # Se anotan sucursal/bodega y además el detalle de la ubicación física.
             resumen_sucursales = (
                 Stock.objects
                 .filter(producto=producto)
                 .annotate(
-                    # si viene de sucursal
+                    # Datos de Sucursal
                     sucursal_codigo=Case(
-                        When(ubicacion_sucursal__isnull=False,
-                             then=F("ubicacion_sucursal__sucursal__codigo")),
+                        When(ubicacion_sucursal__isnull=False, then=F("ubicacion_sucursal__sucursal__codigo")),
                         default=Value("", output_field=CharField()),
                     ),
                     sucursal_nombre=Case(
-                        When(ubicacion_sucursal__isnull=False,
-                             then=F("ubicacion_sucursal__sucursal__nombre")),
+                        When(ubicacion_sucursal__isnull=False, then=F("ubicacion_sucursal__sucursal__nombre")),
                         default=Value("", output_field=CharField()),
                     ),
-                    # si viene de bodega
+                    # Datos de Bodega
                     bodega_codigo=Case(
-                        When(ubicacion_bodega__isnull=False,
-                             then=F("ubicacion_bodega__bodega__codigo")),
+                        When(ubicacion_bodega__isnull=False, then=F("ubicacion_bodega__bodega__codigo")),
                         default=Value("", output_field=CharField()),
                     ),
                     bodega_nombre=Case(
-                        When(ubicacion_bodega__isnull=False,
-                             then=F("ubicacion_bodega__bodega__nombre")),
+                        When(ubicacion_bodega__isnull=False, then=F("ubicacion_bodega__bodega__nombre")),
+                        default=Value("", output_field=CharField()),
+                    ),
+                    # Ubicación física dentro de sucursal / bodega
+                    sucursal_ubi_codigo=Case(
+                        When(ubicacion_sucursal__isnull=False, then=F("ubicacion_sucursal__codigo")),
+                        default=Value("", output_field=CharField()),
+                    ),
+                    sucursal_ubi_nombre=Case(
+                        When(ubicacion_sucursal__isnull=False, then=F("ubicacion_sucursal__nombre")),
+                        default=Value("", output_field=CharField()),
+                    ),
+                    bodega_ubi_codigo=Case(
+                        When(ubicacion_bodega__isnull=False, then=F("ubicacion_bodega__codigo")),
+                        default=Value("", output_field=CharField()),
+                    ),
+                    bodega_ubi_nombre=Case(
+                        When(ubicacion_bodega__isnull=False, then=F("ubicacion_bodega__nombre")),
                         default=Value("", output_field=CharField()),
                     ),
                 )
                 .values(
-                    "sucursal_codigo",
-                    "sucursal_nombre",
-                    "bodega_codigo",
-                    "bodega_nombre",
+                    "sucursal_codigo", "sucursal_nombre",
+                    "bodega_codigo", "bodega_nombre",
+                    "sucursal_ubi_codigo", "sucursal_ubi_nombre",
+                    "bodega_ubi_codigo", "bodega_ubi_nombre",
                 )
                 .annotate(
                     total_disponible=Coalesce(
                         Sum("cantidad_disponible"),
                         Value(0, output_field=DecimalField(max_digits=20, decimal_places=6))
                     ),
-                    # neto = disponible, porque no hay reservas en el modelo
                     total_neto=F("total_disponible"),
                 )
-                .order_by("sucursal_codigo", "bodega_codigo")
+                .order_by(
+                    "sucursal_codigo", "bodega_codigo",
+                    "sucursal_ubi_codigo", "bodega_ubi_codigo"
+                )
             )
 
         except Producto.DoesNotExist:
@@ -1656,8 +1670,6 @@ def stock_por_producto(request):
             "resumen_sucursales": resumen_sucursales,
         },
     )
-
-
 
 
 
