@@ -1,0 +1,122 @@
+{% extends "core/base.html" %}
+{% block title %}Dispositivos en {{ sucursal.nombre }}{% endblock %}
+
+{% block content %}
+<style>
+  :root{--ink:#0f172a;--muted:#64748b;--line:#e2e8f0;--card:#fff;--head:#eef2ff;--accent:#111827}
+  .wrap{max-width:1080px;margin-inline:auto;display:grid;gap:14px}
+  .head{display:flex;justify-content:space-between;gap:10px;align-items:center}
+  .title{margin:0;font-weight:800;font-size:clamp(1.2rem,2.2vw,1.5rem)}
+  .metric{background:#f8fafc;border:1px solid #d1d5db;border-radius:12px;padding:8px 12px}
+  .metric small{color:var(--muted);display:block}
+  .metric strong{font-size:1.1rem}
+  .card{background:var(--card);border:1px solid var(--line);border-radius:14px}
+  .body{padding:14px}
+  .filters{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:8px}
+  .in{flex:1 1 280px;min-width:220px;border:1px solid #d1d5db;border-radius:10px;padding:9px 10px;background:#f8fafc}
+  .btn{background:var(--accent);color:#fff;border:none;border-radius:10px;padding:9px 13px;font-weight:700;cursor:pointer;text-decoration:none;display:inline-flex;align-items:center}
+  table{width:100%;border-collapse:separate;border-spacing:0}
+  thead th{position:sticky;top:0;background:var(--head);padding:9px 10px;border-bottom:1px solid var(--line);text-align:left;font-size:.8rem}
+  tbody td{padding:10px;border-bottom:1px solid var(--line);vertical-align:top}
+  .mono{font-family:ui-monospace,Menlo,Consolas,monospace}
+  .pill{display:inline-block;border:1px solid #cbd5e1;border-radius:999px;padding:2px 8px;font-size:.72rem;margin:2px 6px 0 0;background:#fff}
+  .muted{color:var(--muted);font-size:.9rem}
+  .loc-box{background:#fbfcff;border:1px dashed #e2e8f0;border-radius:10px;padding:8px;display:block}
+  @media(max-width:760px){
+    thead{display:none}
+    table{display:block}
+    tbody{display:grid;gap:12px}
+    tr{display:grid;gap:6px;border:1px solid var(--line);border-radius:12px;padding:6px 8px}
+    td{border:none;padding:4px 8px}
+    td[data-label]::before{content:attr(data-label) ": ";font-weight:600;color:var(--muted)}
+  }
+</style>
+
+<div class="wrap">
+  <div class="head">
+    <div>
+      <h1 class="title">Dispositivos en {{ sucursal.nombre }}</h1>
+      <p class="muted" style="margin:.2rem 0 0">Productos con stock en esta sucursal.</p>
+    </div>
+    <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+      <div class="metric"><small>Total ítems</small><strong>{{ total_items }}</strong></div>
+      <div class="metric"><small>Suma stock</small><strong>{{ suma_stock|floatformat:0 }}</strong></div>
+      <a class="btn" href="{% url 'sucursal-list' %}">← Volver</a>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="body">
+      <form method="get" class="filters">
+        <input class="in" type="text" name="q" value="{{ q }}" placeholder="Buscar por SKU o nombre…">
+        <button class="btn" type="submit">Buscar</button>
+        {% if q %}
+          <a class="btn" style="background:#fff;color:#111;border:1px solid var(--line)" href="{% url 'sucursal-dispositivos' sucursal.id %}">Limpiar</a>
+        {% endif %}
+      </form>
+
+      <table id="tbl">
+        <thead>
+          <tr>
+            <th>SKU</th>
+            <th>Nombre</th>
+            <th class="mono">Stock</th>
+            <th>Ubicaciones</th>
+          </tr>
+        </thead>
+        <tbody id="body">
+          {% for p in productos %}
+            <tr>
+              <td class="mono" data-label="SKU">{{ p.producto__sku }}</td>
+              <td data-label="Nombre"><strong>{{ p.producto__nombre }}</strong></td>
+              <td class="mono" data-label="Stock">{{ p.stock_total|floatformat:0 }}</td>
+              <td data-label="Ubicaciones">
+                <!-- Se carga automáticamente sin botón -->
+                <div class="loc-box" data-producto="{{ p.producto__id }}">
+                  <span class="muted">Cargando ubicaciones…</span>
+                </div>
+              </td>
+            </tr>
+          {% empty %}
+            <tr><td colspan="4" class="muted" style="text-align:center;padding:14px">Sin resultados.</td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
+<script>
+(function(){
+  const sucursalId = {{ sucursal.id }};
+  const boxes = document.querySelectorAll('.loc-box');
+
+  const render = (box, lista) => {
+    if (!lista || lista.length === 0) {
+      box.innerHTML = '<span class="muted">No hay stock por ubicación.</span>';
+      return;
+    }
+    let html = '<div class="muted" style="margin-bottom:4px">Detalle por ubicación:</div><div>';
+    lista.forEach(u=>{
+      html += `<span class="pill">${u.codigo} — ${(u.nombre||'')} · <strong>${u.cantidad}</strong></span>`;
+    });
+    html += '</div>';
+    box.innerHTML = html;
+  };
+
+  // Cargar ubicaciones para cada producto automáticamente
+  boxes.forEach(async (box) => {
+    const pid = box.getAttribute('data-producto');
+    try{
+      const r = await fetch(`/ajax/ubicaciones-por-producto-sucursal/?sucursal_id=${sucursalId}&producto_id=${pid}`);
+      const data = await r.json();
+      if (data.error){ throw new Error(data.error); }
+      render(box, data.ubicaciones || []);
+    }catch(e){
+      console.error(e);
+      box.innerHTML = '<span class="muted" style="color:#b91c1c">Error al cargar ubicaciones.</span>';
+    }
+  });
+})();
+</script>
+{% endblock %}

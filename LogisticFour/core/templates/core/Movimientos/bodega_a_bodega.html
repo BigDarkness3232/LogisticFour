@@ -3,95 +3,432 @@
 {% block title %}Movimiento: Bodega → Bodega{% endblock %}
 
 {% block content %}
-<div class="page-wrap container py-4">
-  <h2 class="mb-3">Movimiento: Bodega → Bodega</h2>
+<style>
+  :root {
+    --ink: #0f172a;
+    --muted: #64748b;
+    --line: #e2e8f0;
+    --bg: #f1f5f9;
+    --card: #ffffff;
+    --accent: #111827;
+    --success-bg: #ecfdf5;
+    --success-border: #a7f3d0;
+    --success-ink: #166534;
+    --error-bg: #fef2f2;
+    --error-border: #fecaca;
+    --error-ink: #991b1b;
+  }
 
-  {% if error %}
-    <div class="alert alert-danger fade show" role="alert">
-      {{ error }}
+  .mv-shell {
+    max-width: 1080px;
+    margin-inline: auto;
+    display: grid;
+    gap: 1.1rem;
+    padding-bottom: 1.1rem;
+  }
+
+  .mv-head {
+    display: flex;
+    justify-content: space-between;
+    gap: 1rem;
+    align-items: center;
+  }
+
+  .mv-title {
+    font-weight: 800;
+    font-size: clamp(1.35rem, 2.4vw, 1.6rem);
+    margin: 0;
+    display: flex;
+    gap: .6rem;
+    align-items: center;
+  }
+
+  .mv-title-badge {
+    background: #e2e8f0;
+    color: #0f172a;
+    border-radius: 999px;
+    padding: 3px 10px 4px;
+    font-size: .68rem;
+    text-transform: uppercase;
+    letter-spacing: .04em;
+  }
+
+  .mv-sub {
+    margin: .2rem 0 0;
+    color: var(--muted);
+    font-size: .85rem;
+  }
+
+  .mv-formwrap {
+    display: grid;
+    gap: 14px;
+    grid-template-columns: 1.05fr .95fr;
+  }
+
+  .mv-card {
+    background: var(--card);
+    border: 1px solid rgba(148,163,184,.35);
+    border-radius: 14px;
+    box-shadow: 0 12px 35px rgba(15,23,42,.03);
+    animation: fadeUp .35s ease;
+  }
+
+  .mv-card-body {
+    padding: 16px 16px 10px;
+    display: grid;
+    gap: 14px;
+  }
+
+  .mv-form {
+    display: grid;
+    gap: 13px;
+  }
+
+  .mv-field {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+  }
+
+  .mv-label {
+    font-weight: 600;
+    color: var(--ink);
+    display: flex;
+    gap: 6px;
+    align-items: center;
+  }
+
+  .mv-step-pill {
+    background: rgba(15,23,42,.05);
+    border-radius: 999px;
+    font-size: .65rem;
+    padding: 2px 7px 3px;
+  }
+
+  .mv-select,
+  .mv-input {
+    width: 100%;
+    padding: 9px 10px;
+    border: 1px solid #d1d5db;
+    border-radius: 10px;
+    background: #f8fafc;
+    outline: none;
+    transition: box-shadow .15s ease, border .15s ease, background .15s ease;
+    font-size: .9rem;
+  }
+
+  .mv-select:focus,
+  .mv-input:focus {
+    border-color: rgba(17,24,39,.55);
+    background: #fff;
+    box-shadow: 0 0 0 3px rgba(15,23,42,.08);
+  }
+
+  .mv-select[disabled],
+  .mv-input[disabled] {
+    background: #e2e8f0;
+    cursor: not-allowed;
+    opacity: .85;
+  }
+
+  .mv-btnrow {
+    display: flex;
+    gap: .65rem;
+    flex-wrap: wrap;
+  }
+
+  .mv-btn-primary {
+    background: var(--accent);
+    color: #fff;
+    border: none;
+    border-radius: 999px;
+    padding: 9.5px 16px 9px;
+    font-weight: 600;
+    display: inline-flex;
+    align-items: center;
+    gap: .4rem;
+    transition: transform .12s ease, box-shadow .12s ease;
+  }
+
+  .mv-btn-primary:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 8px 22px rgba(15,23,42,.14);
+  }
+
+  .mv-btn-secondary {
+    background: transparent;
+    border: 1px solid rgba(15,23,42,.15);
+    border-radius: 999px;
+    padding: 9px 14px 8px;
+    font-weight: 500;
+    color: #0f172a;
+  }
+
+  .mv-messages {
+    display: grid;
+    gap: 8px;
+  }
+
+  .msg-success,
+  .msg-error {
+    border-radius: .8rem;
+    padding: 9px 11px;
+    display: flex;
+    gap: .7rem;
+    align-items: flex-start;
+  }
+
+  .msg-success {
+    background: var(--success-bg);
+    border: 1px solid var(--success-border);
+    color: var(--success-ink);
+  }
+
+  .msg-error {
+    background: var(--error-bg);
+    border: 1px solid var(--error-border);
+    color: var(--error-ink);
+  }
+
+  .msg-icon {
+    width: 26px;
+    height: 26px;
+    background: rgba(255,255,255,.75);
+    border-radius: 999px;
+    display: grid;
+    place-items: center;
+    font-weight: 700;
+  }
+
+  /* SIDE */
+  .mv-side-head {
+    padding: 14px 16px 0;
+    display: flex;
+    justify-content: space-between;
+    gap: .5rem;
+  }
+
+  .mv-side-title {
+    font-weight: 600;
+  }
+
+  .mv-side-content {
+    padding: 14px 16px 15px;
+    display: grid;
+    gap: .7rem;
+  }
+
+  .mv-badge {
+    background: rgba(148,163,184,.12);
+    border: 1px solid rgba(148,163,184,.35);
+    border-radius: .7rem;
+    padding: 4px 9px 4px;
+    font-size: .72rem;
+    display: inline-flex;
+    gap: .4rem;
+    align-items: center;
+  }
+
+  .mv-metric {
+    background: #f8fafc;
+    border: 1px solid rgba(148,163,184,.16);
+    border-radius: .9rem;
+    padding: 8px 9px 7px;
+  }
+
+  .mv-metric small {
+    color: var(--muted);
+    font-size: .7rem;
+  }
+
+  .mv-metric strong {
+    font-size: 1.3rem;
+    display: block;
+  }
+
+  .mv-empty {
+    border: 1px dashed rgba(148,163,184,.5);
+    border-radius: .9rem;
+    padding: .55rem .7rem;
+    font-size: .8rem;
+    background: rgba(241,245,249,.3);
+  }
+
+  @keyframes fadeUp {
+    from { opacity: 0; transform: translateY(5px); }
+    to   { opacity: 1; transform: translateY(0); }
+  }
+
+  @media (max-width: 1000px) {
+    .mv-formwrap { grid-template-columns: 1fr; }
+  }
+
+  @media (max-width: 560px) {
+    .mv-head { flex-direction: column; align-items: flex-start; }
+    .mv-btnrow { width: 100%; }
+    .mv-btn-primary, .mv-btn-secondary { flex: 1 1 auto; justify-content: center; }
+  }
+</style>
+
+<div class="mv-shell">
+  <!-- Encabezado -->
+  <div class="mv-head">
+    <div>
+      <h1 class="mv-title">
+        <span>Movimiento: Bodega → Bodega</span>
+        <span class="mv-title-badge">Inventario</span>
+      </h1>
+      <p class="mv-sub">
+        Mueve stock entre bodegas. Primero selecciona la bodega de origen para cargar los productos disponibles.
+      </p>
     </div>
-  {% endif %}
-  {% if success %}
-    <div class="alert alert-success fade show" role="alert">
-      {{ success }}
-    </div>
-  {% endif %}
+  </div>
 
-  <div class="card shadow-sm">
-    <div class="card-body">
-      <form method="post" class="row g-3">
-        {% csrf_token %}
+  <div class="mv-formwrap">
+    <!-- FORM PRINCIPAL -->
+    <div class="mv-card">
+      <div class="mv-card-body">
+        <form method="post" class="mv-form">
+          {% csrf_token %}
 
-        <div class="col-md-6">
-          <label class="form-label fw-semibold">Bodega origen</label>
-          <select name="bodega_origen" id="bodega_origen" class="form-select" required>
-            <option value="">-- Seleccione --</option>
-            {% for b in bodegas %}
-              <option value="{{ b.id }}" {% if b.id|stringformat:"s" == bodega_sel|stringformat:"s" %}selected{% endif %}>
-                {{ b.codigo }} — {{ b.nombre }}
-              </option>
-            {% endfor %}
-          </select>
-          <div class="form-text">De aquí se descontará el stock.</div>
-        </div>
-
-        <div class="col-md-6">
-          <label class="form-label fw-semibold">Bodega destino</label>
-          <select name="bodega_destino" id="bodega_destino" class="form-select" required>
-            <option value="">-- Seleccione --</option>
-            {% for b in bodegas %}
-              <option value="{{ b.id }}">
-                {{ b.codigo }} — {{ b.nombre }}
-              </option>
-            {% endfor %}
-          </select>
-          <div class="form-text">Aquí se sumará el stock.</div>
-        </div>
-
-        <div class="col-md-6">
-          <label class="form-label fw-semibold">Producto</label>
-          {% if productos %}
-            <select name="producto" class="form-select" required>
-              <option value="">-- Seleccione --</option>
-              {% for p in productos %}
-                <option value="{{ p.id }}">
-                  {{ p.sku }} — {{ p.nombre }} (stock orig: {{ p.stock_total }})
+          <!-- BODEGA ORIGEN -->
+          <div class="mv-field">
+            <label class="mv-label">
+              <span class="mv-step-pill">1</span> Bodega origen
+            </label>
+            <select name="bodega_origen" class="mv-select" required onchange="this.form.submit()">
+              <option value="">— Seleccione bodega —</option>
+              {% for b in bodegas %}
+                <option value="{{ b.id }}" {% if b.id|stringformat:'s' == bodega_sel|stringformat:'s' %}selected{% endif %}>
+                  {{ b.codigo }} — {{ b.nombre }}
                 </option>
               {% endfor %}
             </select>
-          {% else %}
-            <input type="number" name="producto" class="form-control" placeholder="ID de producto" required>
-            <div class="form-text">Seleccione primero la bodega de origen y envíe para ver productos.</div>
-          {% endif %}
-        </div>
+            <small class="text-muted">De aquí se descontará el stock.</small>
+          </div>
 
-        <div class="col-md-3">
-          <label class="form-label fw-semibold">Cantidad</label>
-          <input type="number" name="cantidad" class="form-control" min="1" step="1" required>
-        </div>
+          <!-- BODEGA DESTINO -->
+          <div class="mv-field">
+            <label class="mv-label">
+              <span class="mv-step-pill">2</span> Bodega destino
+            </label>
+            {% if bodegas %}
+              <select name="bodega_destino" class="mv-select" required>
+                <option value="">— Seleccione destino —</option>
+                {% for b in bodegas %}
+                  {% if not bodega_sel or b.id|stringformat:'s' != bodega_sel|stringformat:'s' %}
+                    <option value="{{ b.id }}">{{ b.codigo }} — {{ b.nombre }}</option>
+                  {% endif %}
+                {% endfor %}
+              </select>
+            {% else %}
+              <select class="mv-select" disabled>
+                <option>Sin bodegas…</option>
+              </select>
+            {% endif %}
+            <small class="text-muted">Aquí se sumará el stock.</small>
+          </div>
 
-        <div class="col-12 d-flex gap-2 mt-3">
-          <button type="submit" class="btn btn-primary px-4">Mover</button>
-          <a href="" class="btn btn-outline-secondary">Limpiar</a>
+          <!-- PRODUCTO -->
+          <div class="mv-field">
+            <label class="mv-label">
+              <span class="mv-step-pill">3</span> Producto
+            </label>
+            {% if productos %}
+              <select name="producto" class="mv-select" required>
+                <option value="">— Seleccione producto —</option>
+                {% for p in productos %}
+                  <option value="{{ p.id }}">
+                    {{ p.sku }} — {{ p.nombre }} ({{ p.stock_total|floatformat:0 }} disp.)
+                  </option>
+                {% endfor %}
+              </select>
+              <small class="text-muted">Solo productos con stock en la bodega origen.</small>
+            {% else %}
+              <select class="mv-select" disabled>
+                <option>Seleccione una bodega de origen…</option>
+              </select>
+            {% endif %}
+          </div>
+
+          <!-- CANTIDAD -->
+          <div class="mv-field" style="max-width: 180px;">
+            <label class="mv-label">
+              <span class="mv-step-pill">4</span> Cantidad
+            </label>
+            <input type="number" name="cantidad" class="mv-input" min="1" value="1" required>
+          </div>
+
+          <!-- BOTONES -->
+          <div class="mv-btnrow">
+            <button type="submit" class="mv-btn-primary">
+              <span style="font-size:1.1rem; line-height:1;">⇄</span>
+              <span>Mover ahora</span>
+            </button>
+            <a href="{% url 'mov_bodega_a_bodega' %}" class="mv-btn-secondary">Limpiar</a>
+          </div>
+
+          <!-- MENSAJES -->
+          <div class="mv-messages">
+            {% if success %}
+              <div class="msg-success">
+                <span class="msg-icon">✓</span>
+                <div>{{ success }}</div>
+              </div>
+            {% endif %}
+            {% if error %}
+              <div class="msg-error">
+                <span class="msg-icon">!</span>
+                <div>{{ error }}</div>
+              </div>
+            {% endif %}
+          </div>
+        </form>
+      </div>
+    </div>
+
+    <!-- PANEL LATERAL -->
+    <div class="mv-card" aria-label="Resumen del movimiento">
+      <div class="mv-side-head">
+        <div>
+          <p class="mv-side-title">Resumen rápido</p>
+          <p class="mv-sub" style="margin-top:2px;">Estado actual del formulario.</p>
         </div>
-      </form>
+      </div>
+      <div class="mv-side-content">
+        {% if bodega_sel %}
+          <span class="mv-badge">
+            <span style="width:7px;height:7px;border-radius:999px;background:#22c55e;display:inline-block;"></span>
+            Origen seleccionado
+          </span>
+
+          <div class="mv-metric">
+            <small>Bodega origen</small>
+            <strong>
+              {% for b in bodegas %}
+                {% if b.id|stringformat:'s' == bodega_sel|stringformat:'s' %}
+                  {{ b.nombre }}
+                {% endif %}
+              {% endfor %}
+            </strong>
+          </div>
+
+          <div class="mv-metric">
+            <small>Productos con stock</small>
+            <strong>{{ productos|length|default:0 }}</strong>
+          </div>
+
+          <p class="mv-sub" style="font-size:.72rem;">
+            Si no ves productos es porque esa bodega no tiene stock en su primera ubicación.
+          </p>
+        {% else %}
+          <div class="mv-empty">
+            Selecciona primero una <strong>bodega de origen</strong> para ver sus productos y fijar la bodega destino.
+          </div>
+        {% endif %}
+      </div>
     </div>
   </div>
 </div>
 
-<script>
-  // Evitar misma bodega en origen/destino
-  const bOrigen = document.getElementById('bodega_origen');
-  const bDestino = document.getElementById('bodega_destino');
-  function syncBodegas() {
-    const oVal = bOrigen.value;
-    [...bDestino.options].forEach(o => {
-      o.disabled = (o.value && o.value === oVal);
-    });
-  }
-  if (bOrigen && bDestino) {
-    bOrigen.addEventListener('change', syncBodegas);
-    syncBodegas();
-  }
-</script>
 {% endblock %}

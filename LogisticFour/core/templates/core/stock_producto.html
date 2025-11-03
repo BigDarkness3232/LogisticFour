@@ -18,10 +18,7 @@
 
   /* botón de cámara pegado al input */
   .btn-scan{
-    display:inline-flex;
-    align-items:center;
-    justify-content:center;
-    width:46px
+    display:inline-flex; align-items:center; justify-content:center; width:46px
   }
   .btn-scan svg{ width:20px; height:20px }
 
@@ -65,6 +62,14 @@
   }
   .table thead th { position: sticky; top: 0; background: var(--bs-body-bg); z-index: 1; }
   .td-num { text-align: right; white-space: nowrap; }
+
+  /* pill de ubicación */
+  .pill {
+    display:inline-flex; align-items:center; gap:.35rem;
+    padding:.2rem .55rem; border-radius:999px;
+    background:var(--bs-tertiary-bg); border:1px solid var(--bs-border-color);
+    font-size:.8rem;
+  }
 </style>
 
 <div class="container-fluid py-4">
@@ -90,9 +95,7 @@
         </div>
         <div class="col-12 col-lg-5 col-xxl-4">
           <div class="d-flex gap-3">
-            <button class="btn btn-primary btn-lg btn-action" id="btnSubmit" type="submit">
-              Buscar
-            </button>
+            <button class="btn btn-primary btn-lg btn-action" id="btnSubmit" type="submit">Buscar</button>
             <a class="btn btn-outline-secondary btn-lg btn-action" href="{% url 'stock-por-producto' %}">Limpiar</a>
           </div>
         </div>
@@ -151,7 +154,7 @@
         </div>
       </div>
 
-      <!-- Resumen por ubicación (sucursal/bodega) -->
+      <!-- Resumen por ubicación (sucursal/bodega + ubicación física) -->
       <div class="card card-soft mb-4 fade-in">
         <div class="card-header bg-transparent">
           <div class="d-flex align-items-center justify-content-between">
@@ -167,6 +170,7 @@
                   <tr>
                     <th style="min-width: 200px;">Sucursal</th>
                     <th style="min-width: 200px;">Bodega</th>
+                    <th style="min-width: 220px;">Ubicación</th>
                     <th class="td-num" style="width: 15%;">Disponible</th>
                     <th class="td-num" style="width: 15%;">Neto</th>
                   </tr>
@@ -190,6 +194,29 @@
                         <span class="text-secondary">—</span>
                       {% endif %}
                     </td>
+                    <td data-label="Ubicación">
+                      {% if r.sucursal_ubi_codigo or r.sucursal_ubi_nombre or r.bodega_ubi_codigo or r.bodega_ubi_nombre %}
+                        <span class="pill">
+                          {% if r.sucursal_ubi_codigo or r.sucursal_ubi_nombre %}
+                            <span class="fw-semibold">
+                              {{ r.sucursal_ubi_codigo|default:r.sucursal_ubi_nombre }}
+                            </span>
+                            <span class="text-secondary">
+                              {% if r.sucursal_ubi_codigo and r.sucursal_ubi_nombre %}· {{ r.sucursal_ubi_nombre }}{% endif %}
+                            </span>
+                          {% else %}
+                            <span class="fw-semibold">
+                              {{ r.bodega_ubi_codigo|default:r.bodega_ubi_nombre }}
+                            </span>
+                            <span class="text-secondary">
+                              {% if r.bodega_ubi_codigo and r.bodega_ubi_nombre %}· {{ r.bodega_ubi_nombre }}{% endif %}
+                            </span>
+                          {% endif %}
+                        </span>
+                      {% else %}
+                        <span class="text-secondary">—</span>
+                      {% endif %}
+                    </td>
                     <td class="td-num" data-label="Disponible">
                       {{ r.total_disponible|default:0|floatformat:0 }}
                     </td>
@@ -207,7 +234,7 @@
         </div>
       </div>
 
-      <!-- Acordeón agrupado por sucursal (opcional) -->
+      <!-- Acordeón agrupado por sucursal (incluye ubicación) -->
       <div class="card card-soft fade-in">
         <div class="card-header bg-transparent">
           <div class="d-flex align-items-center justify-content-between">
@@ -249,6 +276,7 @@
                             <thead class="border-bottom">
                               <tr>
                                 <th>Bodega</th>
+                                <th>Ubicación</th>
                                 <th class="td-num">Disponible</th>
                                 <th class="td-num">Neto</th>
                               </tr>
@@ -260,6 +288,29 @@
                                   {% if r.bodega_codigo %}
                                     <span class="fw-semibold">{{ r.bodega_codigo }}</span>
                                     <span class="text-secondary">— {{ r.bodega_nombre }}</span>
+                                  {% else %}
+                                    <span class="text-secondary">—</span>
+                                  {% endif %}
+                                </td>
+                                <td>
+                                  {% if r.sucursal_ubi_codigo or r.sucursal_ubi_nombre or r.bodega_ubi_codigo or r.bodega_ubi_nombre %}
+                                    <span class="pill">
+                                      {% if r.sucursal_ubi_codigo or r.sucursal_ubi_nombre %}
+                                        <span class="fw-semibold">
+                                          {{ r.sucursal_ubi_codigo|default:r.sucursal_ubi_nombre }}
+                                        </span>
+                                        <span class="text-secondary">
+                                          {% if r.sucursal_ubi_codigo and r.sucursal_ubi_nombre %}· {{ r.sucursal_ubi_nombre }}{% endif %}
+                                        </span>
+                                      {% else %}
+                                        <span class="fw-semibold">
+                                          {{ r.bodega_ubi_codigo|default:r.bodega_ubi_nombre }}
+                                        </span>
+                                        <span class="text-secondary">
+                                          {% if r.bodega_ubi_codigo and r.bodega_ubi_nombre %}· {{ r.bodega_ubi_nombre }}{% endif %}
+                                        </span>
+                                      {% endif %}
+                                    </span>
                                   {% else %}
                                     <span class="text-secondary">—</span>
                                   {% endif %}
