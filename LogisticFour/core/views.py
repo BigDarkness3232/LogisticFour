@@ -2338,55 +2338,71 @@ def bodega_a_sucursal(request):
 
 
 
+from .utils import ensure_ubicacion_sucursal
 
 
 
 @login_required
 def sucursal_a_sucursal(request):
-    # listar todas las sucursales
+    # 1) siempre cargamos todas las sucursales para el select de ORIGEN
     sucursales = (
         Sucursal.objects
         .prefetch_related("ubicaciones")
         .order_by("nombre")
     )
 
+    # 2) la sucursal de origen puede venir por GET (cuando solo cambias el select)
+    #    o por POST (cuando ya mandas el formulario)
     suc_origen_id = request.GET.get("sucursal_origen") or request.POST.get("sucursal_origen")
-    sucursales_destino = None
-    productos_de_origen = None
+
+    sucursales_destino = None      # se llena cuando hay origen
+    productos_de_origen = None     # se llena cuando hay origen
     suc_origen = None
 
-    # --- Si ya se eligió una sucursal de origen, mostrar productos y posibles destinos ---
+    # ============================
+    #   PRE-CARGA POR ORIGEN
+    # ============================
     if suc_origen_id:
         try:
             suc_origen = Sucursal.objects.get(pk=suc_origen_id)
         except Sucursal.DoesNotExist:
             suc_origen = None
         else:
-            # todas las demás sucursales (independientes de bodega)
+            # si la sucursal no tiene ubicación, la creamos acá mismo
+            ensure_ubicacion_sucursal(suc_origen)
+
+            # sucursales destino = TODAS menos la de origen
             sucursales_destino = (
-                Sucursal.objects.exclude(pk=suc_origen.pk).order_by("nombre")
+                Sucursal.objects
+                .exclude(pk=suc_origen.pk)
+                .order_by("nombre")
             )
-            # productos con stock > 0 en esa sucursal
+
+            # productos con stock > 0 en la sucursal de origen
             productos_de_origen = (
                 Producto.objects
-                .filter(stocks__ubicacion_sucursal__sucursal=suc_origen,
-                        stocks__cantidad_disponible__gt=0)
+                .filter(
+                    stocks__ubicacion_sucursal__sucursal=suc_origen,
+                    stocks__cantidad_disponible__gt=0,
+                )
                 .annotate(
                     stock_total=Coalesce(
                         Sum("stocks__cantidad_disponible"),
-                        Value(0, output_field=DecimalField(max_digits=20, decimal_places=6))
+                        Value(0, output_field=DecimalField(max_digits=20, decimal_places=6)),
                     )
                 )
                 .distinct()
             )
 
-    # --- POST: realizar movimiento ---
+    # ============================
+    #   POST → mover
+    # ============================
     if request.method == "POST":
         suc_destino_id = request.POST.get("sucursal_destino")
         producto_id = request.POST.get("producto")
         cantidad_raw = request.POST.get("cantidad")
 
-        # validación de datos mínimos
+        # validación rápida
         if not all([suc_origen_id, suc_destino_id, producto_id, cantidad_raw]):
             return render(
                 request,
@@ -2413,73 +2429,111 @@ def sucursal_a_sucursal(request):
                 },
             )
 
-        # validaciones y obtención de instancias
+        # cantidad
         try:
             cantidad = int(cantidad_raw)
         except (ValueError, TypeError):
             cantidad = 0
+
         if cantidad <= 0:
             return render(
                 request,
                 "core/Movimientos/sucursal_a_sucursal.html",
-                {"sucursales": sucursales, "error": "La cantidad debe ser mayor que 0."},
+                {
+                    "sucursales": sucursales,
+                    "sucursal_sel": suc_origen_id,
+                    "sucursales_destino": sucursales_destino,
+                    "productos": productos_de_origen,
+                    "error": "La cantidad debe ser mayor que 0.",
+                },
             )
 
+        # instancias firmes
         suc_origen = get_object_or_404(Sucursal, pk=suc_origen_id)
         suc_destino = get_object_or_404(Sucursal, pk=suc_destino_id)
         producto = get_object_or_404(Producto, pk=producto_id)
 
-        ubi_origen = suc_origen.ubicaciones.first()
-        ubi_destino = suc_destino.ubicaciones.first()
-        if not ubi_origen or not ubi_destino:
-            return render(
-                request,
-                "core/Movimientos/sucursal_a_sucursal.html",
-                {"sucursales": sucursales, "error": "Faltan ubicaciones en alguna sucursal."},
-            )
+        # garantiza que las 2 sucursales tengan al menos 1 ubicación
+        ubi_origen = ensure_ubicacion_sucursal(suc_origen)
+        ubi_destino = ensure_ubicacion_sucursal(suc_destino)
 
-        # --- Movimiento atómico ---
+        # ============================
+        #   MOVIMIENTO ATÓMICO
+        # ============================
         with transaction.atomic():
+            # ORIGEN
             stock_origen = (
-                Stock.objects.select_for_update()
+                Stock.objects
+                .select_for_update()
                 .filter(producto=producto, ubicacion_sucursal=ubi_origen)
                 .first()
             )
+
             if not stock_origen or stock_origen.cantidad_disponible < cantidad:
                 return render(
                     request,
                     "core/Movimientos/sucursal_a_sucursal.html",
                     {
                         "sucursales": sucursales,
+                        "sucursal_sel": suc_origen_id,
+                        "sucursales_destino": sucursales_destino,
+                        "productos": productos_de_origen,
                         "error": f"No hay stock suficiente en {suc_origen.nombre}.",
                     },
                 )
 
-            stock_destino, _ = Stock.objects.select_for_update().get_or_create(
-                producto=producto,
-                ubicacion_sucursal=ubi_destino,
-                defaults={"cantidad_disponible": Decimal("0")},
+            # DESTINO
+            stock_destino, _ = (
+                Stock.objects
+                .select_for_update()
+                .get_or_create(
+                    producto=producto,
+                    ubicacion_sucursal=ubi_destino,
+                    defaults={"cantidad_disponible": Decimal("0")},
+                )
             )
 
+            # aplicar movimiento
             stock_origen.cantidad_disponible -= Decimal(cantidad)
             stock_destino.cantidad_disponible += Decimal(cantidad)
             stock_origen.save(update_fields=["cantidad_disponible"])
             stock_destino.save(update_fields=["cantidad_disponible"])
 
-        # recalcular total global
-        producto.stock = (
-            Stock.objects.filter(producto=producto)
-            .aggregate(total=Coalesce(Sum("cantidad_disponible"), Value(0)))["total"]
-        )
+        # ============================
+        #   RECALCULAR STOCK GLOBAL
+        # ============================
+        total_prod = (
+            Stock.objects
+            .filter(producto=producto)
+            .aggregate(
+                total=Coalesce(
+                    Sum("cantidad_disponible"),
+                    Value(0, output_field=DecimalField(max_digits=20, decimal_places=6)),
+                )
+            )["total"]
+        ) or 0
+
+        producto.stock = int(total_prod)
         producto.save(update_fields=["stock"])
 
-        # recargar combos ya filtrados
-        sucursales_destino = Sucursal.objects.exclude(pk=suc_origen.pk).order_by("nombre")
+        # recargar combos ya filtrados por la misma sucursal de origen
+        sucursales_destino = (
+            Sucursal.objects
+            .exclude(pk=suc_origen.pk)
+            .order_by("nombre")
+        )
         productos_de_origen = (
             Producto.objects
-            .filter(stocks__ubicacion_sucursal__sucursal=suc_origen,
-                    stocks__cantidad_disponible__gt=0)
-            .annotate(stock_total=Coalesce(Sum("stocks__cantidad_disponible"), Value(0)))
+            .filter(
+                stocks__ubicacion_sucursal__sucursal=suc_origen,
+                stocks__cantidad_disponible__gt=0,
+            )
+            .annotate(
+                stock_total=Coalesce(
+                    Sum("stocks__cantidad_disponible"),
+                    Value(0, output_field=DecimalField(max_digits=20, decimal_places=6)),
+                )
+            )
             .distinct()
         )
 
@@ -2491,11 +2545,13 @@ def sucursal_a_sucursal(request):
                 "sucursal_sel": suc_origen.id,
                 "sucursales_destino": sucursales_destino,
                 "productos": productos_de_origen,
-                "success": f"Movimiento realizado: {cantidad} de {producto.nombre} → {suc_destino.nombre}.",
+                "success": "Movimiento realizado.",
             },
         )
 
-    # GET inicial
+    # ============================
+    #   GET inicial / sin mover
+    # ============================
     return render(
         request,
         "core/Movimientos/sucursal_a_sucursal.html",
@@ -2506,8 +2562,6 @@ def sucursal_a_sucursal(request):
             "productos": productos_de_origen,
         },
     )
-
-
 
 @login_required
 def bodega_a_bodega(request):
