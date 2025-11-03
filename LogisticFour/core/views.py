@@ -43,9 +43,53 @@ from core.forms import *
 from core.forms import SignupUserForm, UsuarioPerfilForm
 from core.models import *
 from core.models import Producto, UsuarioPerfil
-from core.utils import ensure_ubicacion_sucursal    
+from core.utils import ensure_ubicacion_sucursal
+from django.db import models as djmodels
 
-# -------------------- Vistas principales --------------------
+# Si tu modelo TipoMovimiento tiene un campo NOT NULL 'direccion',
+# definimos un default por código:
+def _direccion_default_value():
+    """
+    Devuelve el valor por defecto correcto para TipoMovimiento.direccion
+    según su tipo: 0 si es IntegerField, "NEUTRO" si es CharField.
+    """
+    field = TipoMovimiento._meta.get_field("direccion")
+    if isinstance(field, djmodels.IntegerField):
+        return 0   # neutro numérico
+    return "NEUTRO"  # neutro texto
+
+def _tm(codigo: str) -> TipoMovimiento:
+    """
+    Devuelve (o crea) un TipoMovimiento con 'direccion' y 'nombre' completos,
+    evitando IntegrityError por NOT NULL y el error de tipos.
+    """
+    codigo_up = (codigo or "").upper()
+    defaults = {
+        "nombre": codigo_up.replace("_", " ").title(),
+        "direccion": _direccion_default_value(),
+    }
+    obj, created = TipoMovimiento.objects.get_or_create(codigo=codigo_up, defaults=defaults)
+
+    # Completar si faltan valores o están vacíos
+    to_update = []
+    if getattr(obj, "direccion", None) in (None, ""):
+        obj.direccion = defaults["direccion"]
+        to_update.append("direccion")
+    if not getattr(obj, "nombre", None):
+        obj.nombre = defaults["nombre"]
+        to_update.append("nombre")
+    if to_update:
+        obj.save(update_fields=to_update)
+
+    return obj
+
+def _unidad_default() -> UnidadMedida | None:
+    return (
+        UnidadMedida.objects.filter(codigo="UN").first()
+        or UnidadMedida.objects.order_by("id").first()
+    )
+# ==== /Helpers Kardex ====
+# ==== /Helpers Kardex ====
 def dashboard(request):
     return render(request, "core/dashboard.html")
 
@@ -1890,173 +1934,106 @@ def bodega_a_sucursal(request):
         producto_id = request.POST.get("producto")
         cantidad_raw = request.POST.get("cantidad")
 
-        print("[MOV] POST →", {
-            "bodega": bodega_id,
-            "sucursal": sucursal_id,
-            "producto": producto_id,
-            "cantidad": cantidad_raw,
-        })
-
         if not all([bodega_id, sucursal_id, producto_id, cantidad_raw]):
-            return render(
-                request,
-                "core/Movimientos/bodega_a_sucursal.html",
-                {"bodegas": bodegas, "error": "Faltan datos en el formulario."},
-            )
+            return render(request, "core/Movimientos/bodega_a_sucursal.html",
+                          {"bodegas": bodegas, "error": "Faltan datos en el formulario."})
 
-        # validar cantidad
         try:
             cantidad = int(cantidad_raw)
         except (ValueError, TypeError):
-            return render(
-                request,
-                "core/Movimientos/bodega_a_sucursal.html",
-                {"bodegas": bodegas, "error": "La cantidad debe ser un número entero."},
-            )
+            return render(request, "core/Movimientos/bodega_a_sucursal.html",
+                          {"bodegas": bodegas, "error": "La cantidad debe ser un número entero."})
 
         if cantidad <= 0:
-            return render(
-                request,
-                "core/Movimientos/bodega_a_sucursal.html",
-                {"bodegas": bodegas, "error": "La cantidad debe ser mayor que 0."},
-            )
+            return render(request, "core/Movimientos/bodega_a_sucursal.html",
+                          {"bodegas": bodegas, "error": "La cantidad debe ser mayor que 0."})
 
-        # instancias base
         try:
             bodega = Bodega.objects.get(pk=bodega_id)
-        except Bodega.DoesNotExist:
-            return render(
-                request,
-                "core/Movimientos/bodega_a_sucursal.html",
-                {"bodegas": bodegas, "error": "La bodega seleccionada no existe."},
-            )
-
-        try:
             sucursal = Sucursal.objects.get(pk=sucursal_id, bodega=bodega)
-        except Sucursal.DoesNotExist:
-            return render(
-                request,
-                "core/Movimientos/bodega_a_sucursal.html",
-                {"bodegas": bodegas, "error": "La sucursal no pertenece a esa bodega."},
-            )
-
-        try:
             producto = Producto.objects.get(pk=producto_id)
-        except Producto.DoesNotExist:
-            return render(
-                request,
-                "core/Movimientos/bodega_a_sucursal.html",
-                {"bodegas": bodegas, "error": "El producto seleccionado no existe."},
-            )
+        except (Bodega.DoesNotExist, Sucursal.DoesNotExist, Producto.DoesNotExist):
+            return render(request, "core/Movimientos/bodega_a_sucursal.html",
+                          {"bodegas": bodegas, "error": "Alguna entidad seleccionada no existe."})
 
         ubi_origen = bodega.ubicaciones.first()
         ubi_destino = sucursal.ubicaciones.first()
-
         if not ubi_origen or not ubi_destino:
-            return render(
-                request,
-                "core/Movimientos/bodega_a_sucursal.html",
-                {"bodegas": bodegas, "error": "Faltan ubicaciones en bodega o sucursal."},
-            )
-
-        print(f"[MOV] mover {cantidad} de {producto.sku} "
-              f"ORIGEN BOD({bodega.id})/ubi:{ubi_origen.id} "
-              f"→ DEST SUC({sucursal.id})/ubi:{ubi_destino.id}")
+            return render(request, "core/Movimientos/bodega_a_sucursal.html",
+                          {"bodegas": bodegas, "error": "Faltan ubicaciones en bodega o sucursal."})
 
         with transaction.atomic():
-            # 1) ORIGEN (bodega)
+            # ORIGEN (bodega)
             stock_origen = (
-                Stock.objects
-                .select_for_update()
-                .filter(producto=producto, ubicacion_bodega=ubi_origen)
-                .first()
+                Stock.objects.select_for_update()
+                .filter(producto=producto, ubicacion_bodega=ubi_origen).first()
             )
             if not stock_origen:
                 stock_origen = Stock.objects.create(
-                    producto=producto,
-                    ubicacion_bodega=ubi_origen,
+                    producto=producto, ubicacion_bodega=ubi_origen,
                     cantidad_disponible=Decimal("0"),
                 )
-                print("[MOV] stock_origen creado:", stock_origen.id)
-
-            print("[MOV] stock_origen ANTES:", stock_origen.id, stock_origen.cantidad_disponible)
 
             if stock_origen.cantidad_disponible < cantidad:
-                return render(
-                    request,
-                    "core/Movimientos/bodega_a_sucursal.html",
-                    {
-                        "bodegas": bodegas,
-                        "error": (
-                            f"No hay stock suficiente en la bodega. Disponible: "
-                            f"{stock_origen.cantidad_disponible}."
-                        ),
-                    },
-                )
+                return render(request, "core/Movimientos/bodega_a_sucursal.html",
+                              {"bodegas": bodegas,
+                               "error": f"No hay stock suficiente en la bodega. Disponible: {stock_origen.cantidad_disponible}."})
 
-            # 2) DESTINO (sucursal)
+            # DESTINO (sucursal)
             stock_destino = (
-                Stock.objects
-                .select_for_update()
-                .filter(producto=producto, ubicacion_sucursal=ubi_destino)
-                .first()
+                Stock.objects.select_for_update()
+                .filter(producto=producto, ubicacion_sucursal=ubi_destino).first()
             )
 
-            # 🔥 CASO PROBLEMÁTICO:
-            # hay un stock que tiene ambas FK llenas y además es el mismo que el de origen
             if stock_destino and stock_destino.id == stock_origen.id:
-                print("[WARN] origen y destino son la MISMA fila con 2 FK → la saneo")
-                # esta fila debe representar la BODEGA, así que le quitamos la sucursal
                 stock_origen.ubicacion_sucursal = None
                 stock_origen.save(update_fields=["ubicacion_sucursal"])
-                print("[FIX] limpié la sucursal de la fila origen:", stock_origen.id)
-                # ahora sí puedo crear la fila de destino sin romper UNIQUE
                 stock_destino = Stock.objects.create(
-                    producto=producto,
-                    ubicacion_sucursal=ubi_destino,
+                    producto=producto, ubicacion_sucursal=ubi_destino,
                     cantidad_disponible=Decimal("0"),
                 )
-                print("[FIX] fila de destino creada:", stock_destino.id)
-
             elif not stock_destino:
-                # no existía stock en esa sucursal → lo creo
                 stock_destino = Stock.objects.create(
-                    producto=producto,
-                    ubicacion_sucursal=ubi_destino,
+                    producto=producto, ubicacion_sucursal=ubi_destino,
                     cantidad_disponible=Decimal("0"),
                 )
-                print("[MOV] stock_destino creado:", stock_destino.id)
 
-            print("[MOV] stock_destino ANTES:", stock_destino.id, stock_destino.cantidad_disponible)
-
-            # 3) aplicar movimiento
-            stock_origen.cantidad_disponible = (
-                stock_origen.cantidad_disponible - Decimal(cantidad)
-            )
+            # aplicar movimiento (tu lógica de stock)
+            stock_origen.cantidad_disponible -= Decimal(cantidad)
             stock_origen.save(update_fields=["cantidad_disponible"])
-
-            stock_destino.cantidad_disponible = (
-                stock_destino.cantidad_disponible + Decimal(cantidad)
-            )
+            stock_destino.cantidad_disponible += Decimal(cantidad)
             stock_destino.save(update_fields=["cantidad_disponible"])
 
-            print("[MOV] stock_origen DESPUÉS:", stock_origen.id, stock_origen.cantidad_disponible)
-            print("[MOV] stock_destino DESPUÉS:", stock_destino.id, stock_destino.cantidad_disponible)
-
-        # 4) recalcular stock global
-        total_prod = (
-            Stock.objects
-            .filter(producto=producto)
-            .aggregate(
-                t=Coalesce(
-                    Sum("cantidad_disponible"),
-                    Value(0, output_field=DecimalField(max_digits=20, decimal_places=6)),
+            # === KÁRDEX: crear MovimientoStock TRANSFERENCIA ===
+            try:
+                MovimientoStock.objects.create(
+                    tipo_movimiento=_tm("TRANSFERENCIA"),
+                    producto=producto,
+                    ubicacion_bodega_desde=ubi_origen,
+                    ubicacion_sucursal_desde=None,
+                    ubicacion_bodega_hasta=None,
+                    ubicacion_sucursal_hasta=ubi_destino,
+                    lote=None,  # ajusta si manejas lotes/series
+                    serie=None,
+                    cantidad=Decimal(cantidad),
+                    unidad=_unidad_default(),
+                    tabla_referencia="vista:bodega_a_sucursal",
+                    referencia_id=None,
+                    creado_por=request.user,
+                    notas=f"Bodega {bodega.codigo} → Sucursal {sucursal.codigo}",
                 )
+            except TipoMovimiento.DoesNotExist:
+                pass
+
+        # recalcular stock global (tu lógica)
+        total_prod = (
+            Stock.objects.filter(producto=producto).aggregate(
+                t=Coalesce(Sum("cantidad_disponible"),
+                           Value(0, output_field=DecimalField(max_digits=20, decimal_places=6)))
             )["t"]
         ) or 0
         producto.stock = int(total_prod)
         producto.save(update_fields=["stock"])
-        print(f"[MOV] stock global de {producto.sku} = {producto.stock}")
 
         sucursales_de_bodega = bodega.sucursales.all().order_by("codigo")
         productos_de_bodega = (
@@ -2066,23 +2043,16 @@ def bodega_a_sucursal(request):
                     Sum("stocks__cantidad_disponible"),
                     Value(0, output_field=DecimalField(max_digits=20, decimal_places=6)),
                 )
-            )
-            .distinct()
+            ).distinct()
         )
 
-        return render(
-            request,
-            "core/Movimientos/bodega_a_sucursal.html",
-            {
-                "bodegas": bodegas,
-                "sucursales": sucursales_de_bodega,
-                "productos": productos_de_bodega,
-                "success": (
-                    f"Movimiento realizado: {cantidad} de {producto.nombre} → {sucursal.nombre}."
-                ),
-                "bodega_sel": bodega.id,
-            },
-        )
+        return render(request, "core/Movimientos/bodega_a_sucursal.html", {
+            "bodegas": bodegas,
+            "sucursales": sucursales_de_bodega,
+            "productos": productos_de_bodega,
+            "success": f"Movimiento realizado: {cantidad} de {producto.nombre} → {sucursal.nombre}.",
+            "bodega_sel": bodega.id,
+        })
 
     return render(request, "core/Movimientos/bodega_a_sucursal.html", {"bodegas": bodegas})
 
@@ -2096,44 +2066,26 @@ from .utils import ensure_ubicacion_sucursal
 
 @login_required
 def sucursal_a_sucursal(request):
-    # 1) siempre cargamos todas las sucursales para el select de ORIGEN
-    sucursales = (
-        Sucursal.objects
-        .prefetch_related("ubicaciones")
-        .order_by("nombre")
-    )
-
-    # 2) la sucursal de origen puede venir por GET (cuando solo cambias el select)
-    #    o por POST (cuando ya mandas el formulario)
+    sucursales = Sucursal.objects.prefetch_related("ubicaciones").order_by("nombre")
     suc_origen_id = request.GET.get("sucursal_origen") or request.POST.get("sucursal_origen")
 
-    sucursales_destino = None      # se llena cuando hay origen
-    productos_de_origen = None     # se llena cuando hay origen
+    sucursales_destino = None
+    productos_de_origen = None
     suc_origen = None
 
-    # ============================
-    #   PRE-CARGA POR ORIGEN
-    # ============================
     if suc_origen_id:
         try:
             suc_origen = Sucursal.objects.get(pk=suc_origen_id)
         except Sucursal.DoesNotExist:
             suc_origen = None
         else:
-            # si la sucursal no tiene ubicación, la creamos acá mismo
+            # asegúrate de que exista ubicacion
+            from .utils import ensure_ubicacion_sucursal
             ensure_ubicacion_sucursal(suc_origen)
 
-            # sucursales destino = TODAS menos la de origen
-            sucursales_destino = (
-                Sucursal.objects
-                .exclude(pk=suc_origen.pk)
-                .order_by("nombre")
-            )
-
-            # productos con stock > 0 en la sucursal de origen
+            sucursales_destino = Sucursal.objects.exclude(pk=suc_origen.pk).order_by("nombre")
             productos_de_origen = (
-                Producto.objects
-                .filter(
+                Producto.objects.filter(
                     stocks__ubicacion_sucursal__sucursal=suc_origen,
                     stocks__cantidad_disponible__gt=0,
                 )
@@ -2142,141 +2094,112 @@ def sucursal_a_sucursal(request):
                         Sum("stocks__cantidad_disponible"),
                         Value(0, output_field=DecimalField(max_digits=20, decimal_places=6)),
                     )
-                )
-                .distinct()
+                ).distinct()
             )
 
-    # ============================
-    #   POST → mover
-    # ============================
     if request.method == "POST":
         suc_destino_id = request.POST.get("sucursal_destino")
         producto_id = request.POST.get("producto")
         cantidad_raw = request.POST.get("cantidad")
 
-        # validación rápida
         if not all([suc_origen_id, suc_destino_id, producto_id, cantidad_raw]):
-            return render(
-                request,
-                "core/Movimientos/sucursal_a_sucursal.html",
-                {
-                    "sucursales": sucursales,
-                    "sucursal_sel": suc_origen_id,
-                    "sucursales_destino": sucursales_destino,
-                    "productos": productos_de_origen,
-                    "error": "Faltan datos en el formulario.",
-                },
-            )
+            return render(request, "core/Movimientos/sucursal_a_sucursal.html", {
+                "sucursales": sucursales,
+                "sucursal_sel": suc_origen_id,
+                "sucursales_destino": sucursales_destino,
+                "productos": productos_de_origen,
+                "error": "Faltan datos en el formulario.",
+            })
 
         if suc_origen_id == suc_destino_id:
-            return render(
-                request,
-                "core/Movimientos/sucursal_a_sucursal.html",
-                {
-                    "sucursales": sucursales,
-                    "sucursal_sel": suc_origen_id,
-                    "sucursales_destino": sucursales_destino,
-                    "productos": productos_de_origen,
-                    "error": "La sucursal de origen y destino no pueden ser la misma.",
-                },
-            )
+            return render(request, "core/Movimientos/sucursal_a_sucursal.html", {
+                "sucursales": sucursales,
+                "sucursal_sel": suc_origen_id,
+                "sucursales_destino": sucursales_destino,
+                "productos": productos_de_origen,
+                "error": "La sucursal de origen y destino no pueden ser la misma.",
+            })
 
-        # cantidad
         try:
             cantidad = int(cantidad_raw)
         except (ValueError, TypeError):
             cantidad = 0
 
         if cantidad <= 0:
-            return render(
-                request,
-                "core/Movimientos/sucursal_a_sucursal.html",
-                {
-                    "sucursales": sucursales,
-                    "sucursal_sel": suc_origen_id,
-                    "sucursales_destino": sucursales_destino,
-                    "productos": productos_de_origen,
-                    "error": "La cantidad debe ser mayor que 0.",
-                },
-            )
+            return render(request, "core/Movimientos/sucursal_a_sucursal.html", {
+                "sucursales": sucursales,
+                "sucursal_sel": suc_origen_id,
+                "sucursales_destino": sucursales_destino,
+                "productos": productos_de_origen,
+                "error": "La cantidad debe ser mayor que 0.",
+            })
 
-        # instancias firmes
         suc_origen = get_object_or_404(Sucursal, pk=suc_origen_id)
         suc_destino = get_object_or_404(Sucursal, pk=suc_destino_id)
         producto = get_object_or_404(Producto, pk=producto_id)
 
-        # garantiza que las 2 sucursales tengan al menos 1 ubicación
+        from .utils import ensure_ubicacion_sucursal
         ubi_origen = ensure_ubicacion_sucursal(suc_origen)
         ubi_destino = ensure_ubicacion_sucursal(suc_destino)
 
-        # ============================
-        #   MOVIMIENTO ATÓMICO
-        # ============================
         with transaction.atomic():
-            # ORIGEN
             stock_origen = (
-                Stock.objects
-                .select_for_update()
-                .filter(producto=producto, ubicacion_sucursal=ubi_origen)
-                .first()
+                Stock.objects.select_for_update()
+                .filter(producto=producto, ubicacion_sucursal=ubi_origen).first()
             )
-
             if not stock_origen or stock_origen.cantidad_disponible < cantidad:
-                return render(
-                    request,
-                    "core/Movimientos/sucursal_a_sucursal.html",
-                    {
-                        "sucursales": sucursales,
-                        "sucursal_sel": suc_origen_id,
-                        "sucursales_destino": sucursales_destino,
-                        "productos": productos_de_origen,
-                        "error": f"No hay stock suficiente en {suc_origen.nombre}.",
-                    },
-                )
+                return render(request, "core/Movimientos/sucursal_a_sucursal.html", {
+                    "sucursales": sucursales,
+                    "sucursal_sel": suc_origen_id,
+                    "sucursales_destino": sucursales_destino,
+                    "productos": productos_de_origen,
+                    "error": f"No hay stock suficiente en {suc_origen.nombre}.",
+                })
 
-            # DESTINO
             stock_destino, _ = (
-                Stock.objects
-                .select_for_update()
-                .get_or_create(
-                    producto=producto,
-                    ubicacion_sucursal=ubi_destino,
+                Stock.objects.select_for_update().get_or_create(
+                    producto=producto, ubicacion_sucursal=ubi_destino,
                     defaults={"cantidad_disponible": Decimal("0")},
                 )
             )
 
-            # aplicar movimiento
             stock_origen.cantidad_disponible -= Decimal(cantidad)
-            stock_destino.cantidad_disponible += Decimal(cantidad)
             stock_origen.save(update_fields=["cantidad_disponible"])
+            stock_destino.cantidad_disponible += Decimal(cantidad)
             stock_destino.save(update_fields=["cantidad_disponible"])
 
-        # ============================
-        #   RECALCULAR STOCK GLOBAL
-        # ============================
-        total_prod = (
-            Stock.objects
-            .filter(producto=producto)
-            .aggregate(
-                total=Coalesce(
-                    Sum("cantidad_disponible"),
-                    Value(0, output_field=DecimalField(max_digits=20, decimal_places=6)),
+            # === KÁRDEX ===
+            try:
+                MovimientoStock.objects.create(
+                    tipo_movimiento=_tm("TRANSFERENCIA"),
+                    producto=producto,
+                    ubicacion_bodega_desde=None,
+                    ubicacion_sucursal_desde=ubi_origen,
+                    ubicacion_bodega_hasta=None,
+                    ubicacion_sucursal_hasta=ubi_destino,
+                    lote=None, serie=None,
+                    cantidad=Decimal(cantidad),
+                    unidad=_unidad_default(),
+                    tabla_referencia="vista:sucursal_a_sucursal",
+                    referencia_id=None,
+                    creado_por=request.user,
+                    notas=f"Suc {suc_origen.codigo} → Suc {suc_destino.codigo}",
                 )
+            except TipoMovimiento.DoesNotExist:
+                pass
+
+        total_prod = (
+            Stock.objects.filter(producto=producto).aggregate(
+                total=Coalesce(Sum("cantidad_disponible"),
+                               Value(0, output_field=DecimalField(max_digits=20, decimal_places=6)))
             )["total"]
         ) or 0
-
         producto.stock = int(total_prod)
         producto.save(update_fields=["stock"])
 
-        # recargar combos ya filtrados por la misma sucursal de origen
-        sucursales_destino = (
-            Sucursal.objects
-            .exclude(pk=suc_origen.pk)
-            .order_by("nombre")
-        )
+        sucursales_destino = Sucursal.objects.exclude(pk=suc_origen.pk).order_by("nombre")
         productos_de_origen = (
-            Producto.objects
-            .filter(
+            Producto.objects.filter(
                 stocks__ubicacion_sucursal__sucursal=suc_origen,
                 stocks__cantidad_disponible__gt=0,
             )
@@ -2285,43 +2208,30 @@ def sucursal_a_sucursal(request):
                     Sum("stocks__cantidad_disponible"),
                     Value(0, output_field=DecimalField(max_digits=20, decimal_places=6)),
                 )
-            )
-            .distinct()
+            ).distinct()
         )
 
-        return render(
-            request,
-            "core/Movimientos/sucursal_a_sucursal.html",
-            {
-                "sucursales": sucursales,
-                "sucursal_sel": suc_origen.id,
-                "sucursales_destino": sucursales_destino,
-                "productos": productos_de_origen,
-                "success": "Movimiento realizado.",
-            },
-        )
-
-    # ============================
-    #   GET inicial / sin mover
-    # ============================
-    return render(
-        request,
-        "core/Movimientos/sucursal_a_sucursal.html",
-        {
+        return render(request, "core/Movimientos/sucursal_a_sucursal.html", {
             "sucursales": sucursales,
-            "sucursal_sel": suc_origen_id,
+            "sucursal_sel": suc_origen.id,
             "sucursales_destino": sucursales_destino,
             "productos": productos_de_origen,
-        },
-    )
+            "success": "Movimiento realizado.",
+        })
+
+    return render(request, "core/Movimientos/sucursal_a_sucursal.html", {
+        "sucursales": sucursales,
+        "sucursal_sel": suc_origen_id,
+        "sucursales_destino": sucursales_destino,
+        "productos": productos_de_origen,
+    })
+
+
+
 
 @login_required
 def bodega_a_bodega(request):
-    bodegas = (
-        Bodega.objects
-        .prefetch_related("ubicaciones")
-        .order_by("codigo")
-    )
+    bodegas = Bodega.objects.prefetch_related("ubicaciones").order_by("codigo")
 
     if request.method == "POST":
         bodega_origen_id = request.POST.get("bodega_origen")
@@ -2330,136 +2240,100 @@ def bodega_a_bodega(request):
         cantidad_raw = request.POST.get("cantidad")
 
         if not all([bodega_origen_id, bodega_destino_id, producto_id, cantidad_raw]):
-            return render(
-                request,
-                "core/Movimientos/bodega_a_bodega.html",
-                {"bodegas": bodegas, "error": "Faltan datos en el formulario."},
-            )
+            return render(request, "core/Movimientos/bodega_a_bodega.html",
+                          {"bodegas": bodegas, "error": "Faltan datos en el formulario."})
 
         if bodega_origen_id == bodega_destino_id:
-            return render(
-                request,
-                "core/Movimientos/bodega_a_bodega.html",
-                {"bodegas": bodegas, "error": "La bodega de origen y destino no pueden ser la misma."},
-            )
+            return render(request, "core/Movimientos/bodega_a_bodega.html",
+                          {"bodegas": bodegas, "error": "La bodega de origen y destino no pueden ser la misma."})
 
         try:
             cantidad = int(cantidad_raw)
         except (ValueError, TypeError):
-            return render(
-                request,
-                "core/Movimientos/bodega_a_bodega.html",
-                {"bodegas": bodegas, "error": "La cantidad debe ser un número entero."},
-            )
+            return render(request, "core/Movimientos/bodega_a_bodega.html",
+                          {"bodegas": bodegas, "error": "La cantidad debe ser un número entero."})
 
         if cantidad <= 0:
-            return render(
-                request,
-                "core/Movimientos/bodega_a_bodega.html",
-                {"bodegas": bodegas, "error": "La cantidad debe ser mayor que 0."},
-            )
+            return render(request, "core/Movimientos/bodega_a_bodega.html",
+                          {"bodegas": bodegas, "error": "La cantidad debe ser mayor que 0."})
 
         try:
             bodega_origen = Bodega.objects.get(pk=bodega_origen_id)
-        except Bodega.DoesNotExist:
-            return render(
-                request,
-                "core/Movimientos/bodega_a_bodega.html",
-                {"bodegas": bodegas, "error": "La bodega de origen no existe."},
-            )
-
-        try:
             bodega_destino = Bodega.objects.get(pk=bodega_destino_id)
-        except Bodega.DoesNotExist:
-            return render(
-                request,
-                "core/Movimientos/bodega_a_bodega.html",
-                {"bodegas": bodegas, "error": "La bodega de destino no existe."},
-            )
-
-        try:
             producto = Producto.objects.get(pk=producto_id)
-        except Producto.DoesNotExist:
-            return render(
-                request,
-                "core/Movimientos/bodega_a_bodega.html",
-                {"bodegas": bodegas, "error": "El producto seleccionado no existe."},
-            )
+        except (Bodega.DoesNotExist, Producto.DoesNotExist):
+            return render(request, "core/Movimientos/bodega_a_bodega.html",
+                          {"bodegas": bodegas, "error": "Alguna entidad no existe."})
 
         ubi_origen = bodega_origen.ubicaciones.first()
         ubi_destino = bodega_destino.ubicaciones.first()
         if not ubi_origen or not ubi_destino:
-            return render(
-                request,
-                "core/Movimientos/bodega_a_bodega.html",
-                {"bodegas": bodegas, "error": "Faltan ubicaciones en alguna bodega."},
-            )
+            return render(request, "core/Movimientos/bodega_a_bodega.html",
+                          {"bodegas": bodegas, "error": "Faltan ubicaciones en alguna bodega."})
 
         with transaction.atomic():
-            # ORIGEN
             stock_origen = (
-                Stock.objects
-                .select_for_update()
-                .filter(producto=producto, ubicacion_bodega=ubi_origen)
-                .first()
+                Stock.objects.select_for_update()
+                .filter(producto=producto, ubicacion_bodega=ubi_origen).first()
             )
             if not stock_origen:
                 stock_origen = Stock.objects.create(
-                    producto=producto,
-                    ubicacion_bodega=ubi_origen,
+                    producto=producto, ubicacion_bodega=ubi_origen,
                     cantidad_disponible=Decimal("0"),
                 )
 
             if stock_origen.cantidad_disponible < cantidad:
-                return render(
-                    request,
-                    "core/Movimientos/bodega_a_bodega.html",
-                    {
-                        "bodegas": bodegas,
-                        "error": f"No hay stock suficiente en la bodega de origen. Disponible: {stock_origen.cantidad_disponible}.",
-                    },
-                )
+                return render(request, "core/Movimientos/bodega_a_bodega.html",
+                              {"bodegas": bodegas,
+                               "error": f"No hay stock suficiente en la bodega de origen. Disponible: {stock_origen.cantidad_disponible}."})
 
-            # DESTINO
             stock_destino = (
-                Stock.objects
-                .select_for_update()
-                .filter(producto=producto, ubicacion_bodega=ubi_destino)
-                .first()
+                Stock.objects.select_for_update()
+                .filter(producto=producto, ubicacion_bodega=ubi_destino).first()
             )
 
             if stock_destino and stock_destino.id == stock_origen.id:
-                # lo saneamos: esta fila será la de origen
                 stock_origen.ubicacion_sucursal = None
                 stock_origen.save(update_fields=["ubicacion_sucursal"])
                 stock_destino = Stock.objects.create(
-                    producto=producto,
-                    ubicacion_bodega=ubi_destino,
+                    producto=producto, ubicacion_bodega=ubi_destino,
                     cantidad_disponible=Decimal("0"),
                 )
             elif not stock_destino:
                 stock_destino = Stock.objects.create(
-                    producto=producto,
-                    ubicacion_bodega=ubi_destino,
+                    producto=producto, ubicacion_bodega=ubi_destino,
                     cantidad_disponible=Decimal("0"),
                 )
 
-            # aplicar
-            stock_origen.cantidad_disponible = stock_origen.cantidad_disponible - Decimal(cantidad)
+            stock_origen.cantidad_disponible -= Decimal(cantidad)
             stock_origen.save(update_fields=["cantidad_disponible"])
-
-            stock_destino.cantidad_disponible = stock_destino.cantidad_disponible + Decimal(cantidad)
+            stock_destino.cantidad_disponible += Decimal(cantidad)
             stock_destino.save(update_fields=["cantidad_disponible"])
 
-        # recalcular global
-        total_prod = (
-            Stock.objects
-            .filter(producto=producto)
-            .aggregate(
-                t=Coalesce(
-                    Sum("cantidad_disponible"),
-                    Value(0, output_field=DecimalField(max_digits=20, decimal_places=6)),
+            # === KÁRDEX ===
+            try:
+                MovimientoStock.objects.create(
+                    tipo_movimiento=_tm("TRANSFERENCIA"),
+                    producto=producto,
+                    ubicacion_bodega_desde=ubi_origen,
+                    ubicacion_sucursal_desde=None,
+                    ubicacion_bodega_hasta=ubi_destino,
+                    ubicacion_sucursal_hasta=None,
+                    lote=None, serie=None,
+                    cantidad=Decimal(cantidad),
+                    unidad=_unidad_default(),
+                    tabla_referencia="vista:bodega_a_bodega",
+                    referencia_id=None,
+                    creado_por=request.user,
+                    notas=f"Bod {bodega_origen.codigo} → Bod {bodega_destino.codigo}",
                 )
+            except TipoMovimiento.DoesNotExist:
+                pass
+
+        total_prod = (
+            Stock.objects.filter(producto=producto).aggregate(
+                t=Coalesce(Sum("cantidad_disponible"),
+                           Value(0, output_field=DecimalField(max_digits=20, decimal_places=6)))
             )["t"]
         ) or 0
         producto.stock = int(total_prod)
@@ -2472,20 +2346,15 @@ def bodega_a_bodega(request):
                     Sum("stocks__cantidad_disponible"),
                     Value(0, output_field=DecimalField(max_digits=20, decimal_places=6)),
                 )
-            )
-            .distinct()
+            ).distinct()
         )
 
-        return render(
-            request,
-            "core/Movimientos/bodega_a_bodega.html",
-            {
-                "bodegas": bodegas,
-                "productos": productos_de_origen,
-                "success": f"Movimiento realizado: {cantidad} de {producto.nombre} → {bodega_destino.nombre}.",
-                "bodega_sel": bodega_origen.id,
-            },
-        )
+        return render(request, "core/Movimientos/bodega_a_bodega.html", {
+            "bodegas": bodegas,
+            "productos": productos_de_origen,
+            "success": f"Movimiento realizado: {cantidad} de {producto.nombre} → {bodega_destino.nombre}.",
+            "bodega_sel": bodega_origen.id,
+        })
 
     return render(request, "core/Movimientos/bodega_a_bodega.html", {"bodegas": bodegas})
 
@@ -2494,13 +2363,11 @@ def bodega_a_bodega(request):
 
 
 
+
 @login_required
 def sucursal_a_bodega(request):
-    # necesitamos bodegas porque la sucursal igual cuelga de una
     bodegas = (
-        Bodega.objects
-        .prefetch_related("sucursales", "ubicaciones")
-        .order_by("codigo")
+        Bodega.objects.prefetch_related("sucursales", "ubicaciones").order_by("codigo")
     )
 
     if request.method == "POST":
@@ -2510,130 +2377,98 @@ def sucursal_a_bodega(request):
         cantidad_raw = request.POST.get("cantidad")
 
         if not all([sucursal_id, bodega_id, producto_id, cantidad_raw]):
-            return render(
-                request,
-                "core/Movimientos/sucursal_a_bodega.html",
-                {"bodegas": bodegas, "error": "Faltan datos en el formulario."},
-            )
+            return render(request, "core/Movimientos/sucursal_a_bodega.html",
+                          {"bodegas": bodegas, "error": "Faltan datos en el formulario."})
 
         try:
             cantidad = int(cantidad_raw)
         except (ValueError, TypeError):
-            return render(
-                request,
-                "core/Movimientos/sucursal_a_bodega.html",
-                {"bodegas": bodegas, "error": "La cantidad debe ser un número entero."},
-            )
-        if cantidad <= 0:
-            return render(
-                request,
-                "core/Movimientos/sucursal_a_bodega.html",
-                {"bodegas": bodegas, "error": "La cantidad debe ser mayor que 0."},
-            )
+            return render(request, "core/Movimientos/sucursal_a_bodega.html",
+                          {"bodegas": bodegas, "error": "La cantidad debe ser un número entero."})
 
-        # instancias
+        if cantidad <= 0:
+            return render(request, "core/Movimientos/sucursal_a_bodega.html",
+                          {"bodegas": bodegas, "error": "La cantidad debe ser mayor que 0."})
+
         try:
             bodega = Bodega.objects.get(pk=bodega_id)
-        except Bodega.DoesNotExist:
-            return render(
-                request,
-                "core/Movimientos/sucursal_a_bodega.html",
-                {"bodegas": bodegas, "error": "La bodega seleccionada no existe."},
-            )
-
-        try:
             sucursal = Sucursal.objects.get(pk=sucursal_id, bodega=bodega)
-        except Sucursal.DoesNotExist:
-            return render(
-                request,
-                "core/Movimientos/sucursal_a_bodega.html",
-                {"bodegas": bodegas, "error": "La sucursal no pertenece a esa bodega."},
-            )
-
-        try:
             producto = Producto.objects.get(pk=producto_id)
-        except Producto.DoesNotExist:
-            return render(
-                request,
-                "core/Movimientos/sucursal_a_bodega.html",
-                {"bodegas": bodegas, "error": "El producto seleccionado no existe."},
-            )
+        except (Bodega.DoesNotExist, Sucursal.DoesNotExist, Producto.DoesNotExist):
+            return render(request, "core/Movimientos/sucursal_a_bodega.html",
+                          {"bodegas": bodegas, "error": "Alguna entidad seleccionada no existe."})
 
         ubi_origen = sucursal.ubicaciones.first()
         ubi_destino = bodega.ubicaciones.first()
         if not ubi_origen or not ubi_destino:
-            return render(
-                request,
-                "core/Movimientos/sucursal_a_bodega.html",
-                {"bodegas": bodegas, "error": "Faltan ubicaciones en bodega o sucursal."},
-            )
+            return render(request, "core/Movimientos/sucursal_a_bodega.html",
+                          {"bodegas": bodegas, "error": "Faltan ubicaciones en bodega o sucursal."})
 
         with transaction.atomic():
-            # ORIGEN: sucursal
             stock_origen = (
-                Stock.objects
-                .select_for_update()
-                .filter(producto=producto, ubicacion_sucursal=ubi_origen)
-                .first()
+                Stock.objects.select_for_update()
+                .filter(producto=producto, ubicacion_sucursal=ubi_origen).first()
             )
             if not stock_origen:
                 stock_origen = Stock.objects.create(
-                    producto=producto,
-                    ubicacion_sucursal=ubi_origen,
+                    producto=producto, ubicacion_sucursal=ubi_origen,
                     cantidad_disponible=Decimal("0"),
                 )
 
             if stock_origen.cantidad_disponible < cantidad:
-                return render(
-                    request,
-                    "core/Movimientos/sucursal_a_bodega.html",
-                    {
-                        "bodegas": bodegas,
-                        "error": f"No hay stock suficiente en la sucursal. Disponible: {stock_origen.cantidad_disponible}.",
-                    },
-                )
+                return render(request, "core/Movimientos/sucursal_a_bodega.html",
+                              {"bodegas": bodegas,
+                               "error": f"No hay stock suficiente en la sucursal. Disponible: {stock_origen.cantidad_disponible}."})
 
-            # DESTINO: bodega
             stock_destino = (
-                Stock.objects
-                .select_for_update()
-                .filter(producto=producto, ubicacion_bodega=ubi_destino)
-                .first()
+                Stock.objects.select_for_update()
+                .filter(producto=producto, ubicacion_bodega=ubi_destino).first()
             )
 
-            # caso raro
             if stock_destino and stock_destino.id == stock_origen.id:
-                # esta fila la dejamos como sucursal (origen)
                 stock_origen.ubicacion_bodega = None
                 stock_origen.save(update_fields=["ubicacion_bodega"])
                 stock_destino = Stock.objects.create(
-                    producto=producto,
-                    ubicacion_bodega=ubi_destino,
+                    producto=producto, ubicacion_bodega=ubi_destino,
                     cantidad_disponible=Decimal("0"),
                 )
             elif not stock_destino:
                 stock_destino = Stock.objects.create(
-                    producto=producto,
-                    ubicacion_bodega=ubi_destino,
+                    producto=producto, ubicacion_bodega=ubi_destino,
                     cantidad_disponible=Decimal("0"),
                 )
 
-            # aplicar
-            stock_origen.cantidad_disponible = stock_origen.cantidad_disponible - Decimal(cantidad)
+            stock_origen.cantidad_disponible -= Decimal(cantidad)
             stock_origen.save(update_fields=["cantidad_disponible"])
-
-            stock_destino.cantidad_disponible = stock_destino.cantidad_disponible + Decimal(cantidad)
+            stock_destino.cantidad_disponible += Decimal(cantidad)
             stock_destino.save(update_fields=["cantidad_disponible"])
 
-        # recalcular global
-        total_prod = (
-            Stock.objects
-            .filter(producto=producto)
-            .aggregate(
-                t=Coalesce(
-                    Sum("cantidad_disponible"),
-                    Value(0, output_field=DecimalField(max_digits=20, decimal_places=6)),
+            # === KÁRDEX ===
+            try:
+                MovimientoStock.objects.create(
+                    tipo_movimiento=_tm("TRANSFERENCIA"),
+                    producto=producto,
+                    # ORIGEN: SUCURSAL
+                    ubicacion_bodega_desde=None,
+                    ubicacion_sucursal_desde=ubi_origen,
+                    # DESTINO: BODEGA
+                    ubicacion_bodega_hasta=ubi_destino,
+                    ubicacion_sucursal_hasta=None,
+                    lote=None, serie=None,
+                    cantidad=Decimal(cantidad),
+                    unidad=_unidad_default(),
+                    tabla_referencia="vista:sucursal_a_bodega",
+                    referencia_id=None,
+                    creado_por=request.user,
+                    notas=f"Suc {sucursal.codigo} → Bod {bodega.codigo}",
                 )
+            except TipoMovimiento.DoesNotExist:
+                pass
+
+        total_prod = (
+            Stock.objects.filter(producto=producto).aggregate(
+                t=Coalesce(Sum("cantidad_disponible"),
+                           Value(0, output_field=DecimalField(max_digits=20, decimal_places=6)))
             )["t"]
         ) or 0
         producto.stock = int(total_prod)
@@ -2647,21 +2482,16 @@ def sucursal_a_bodega(request):
                     Sum("stocks__cantidad_disponible"),
                     Value(0, output_field=DecimalField(max_digits=20, decimal_places=6)),
                 )
-            )
-            .distinct()
+            ).distinct()
         )
 
-        return render(
-            request,
-            "core/Movimientos/sucursal_a_bodega.html",
-            {
-                "bodegas": bodegas,
-                "sucursales": sucursales_de_bodega,
-                "productos": productos_de_sucursal,
-                "success": f"Movimiento realizado: {cantidad} de {producto.nombre} → {bodega.nombre}.",
-                "bodega_sel": bodega.id,
-            },
-        )
+        return render(request, "core/Movimientos/sucursal_a_bodega.html", {
+            "bodegas": bodegas,
+            "sucursales": sucursales_de_bodega,
+            "productos": productos_de_sucursal,
+            "success": f"Movimiento realizado: {cantidad} de {producto.nombre} → {bodega.nombre}.",
+            "bodega_sel": bodega.id,
+        })
 
     return render(request, "core/Movimientos/sucursal_a_bodega.html", {"bodegas": bodegas})
 
@@ -2907,3 +2737,252 @@ def paypal_ingresos_view(request):
         .order_by("-creado_en")[:50]
     )
     return render(request, "core/paypal_ingresos.html", {"ordenes": ordenes})
+
+def _parse_contada_from_notas(notas: str | None):
+    """
+    Para RECUENTO_CIERRE: acepta 'contada=12.5' en notas.
+    """
+    if not notas:
+        return None
+    for part in notas.strip().split():
+        if part.lower().startswith("contada="):
+            try:
+                return Decimal(part.split("=", 1)[1])
+            except Exception:
+                return None
+    return None
+
+@receiver(post_save, sender=MovimientoStock)
+def rellenar_tablas_por_movimiento(sender, instance: MovimientoStock, created, **kwargs):
+    """
+    Se ejecuta SOLO cuando se CREA un MovimientoStock.
+    - AJUSTE           -> crea AjusteInventario + LineaAjusteInventario
+    - RECUENTO_CIERRE  -> crea RecuentoInventario + LineaRecuentoInventario (si hay 'contada=XX' en notas)
+    - RESERVA          -> crea Reserva
+    - LIBERAR_RESERVA  -> resta a la última Reserva coincidente (o por referencia)
+    - TRANSFERENCIA / ENTRADA / SALIDA -> no hacen nada extra aquí (solo kárdex)
+    IMPORTANTE: aquí NO se modifica la tabla Stock.
+    """
+    if not created:
+        return
+
+    codigo = (instance.tipo_movimiento.codigo or "").upper()
+
+    with transaction.atomic():
+        # ======================
+        # AJUSTE
+        # ======================
+        if codigo == "AJUSTE":
+            # Deducir bodega desde alguna ubicación
+            bodega: Bodega | None = None
+            for ub in (
+                instance.ubicacion_bodega_hasta,
+                instance.ubicacion_bodega_desde,
+                instance.ubicacion_sucursal_hasta,
+                instance.ubicacion_sucursal_desde,
+            ):
+                if ub is not None and hasattr(ub, "bodega"):
+                    bodega = ub.bodega
+                    break
+
+            cab = AjusteInventario.objects.create(
+                bodega=bodega,
+                motivo=(instance.notas or "Ajuste inventario"),
+                estado="CLOSED",
+                creado_por=instance.creado_por,
+            )
+            LineaAjusteInventario.objects.create(
+                ajuste=cab,
+                producto=instance.producto,
+                ubicacion_bodega=instance.ubicacion_bodega_hasta or instance.ubicacion_bodega_desde,
+                ubicacion_sucursal=instance.ubicacion_sucursal_hasta or instance.ubicacion_sucursal_desde,
+                lote=instance.lote,
+                serie=instance.serie,
+                cantidad_delta=Decimal(instance.cantidad),
+                motivo=(instance.notas or ""),
+            )
+            return
+
+        # ======================
+        # RECUENTO_CIERRE
+        # ======================
+        if codigo == "RECUENTO_CIERRE":
+            contada = _parse_contada_from_notas(instance.notas)
+            if contada is None:
+                return
+
+            ub_bod = instance.ubicacion_bodega_hasta or instance.ubicacion_bodega_desde
+            ub_suc = instance.ubicacion_sucursal_hasta or instance.ubicacion_sucursal_desde
+
+            # Solo LECTURA para mostrar “cantidad_sistema” en la línea del recuento
+            cant_sistema = Decimal("0")
+            st = Stock.objects.filter(
+                producto=instance.producto,
+                ubicacion_bodega=ub_bod,
+                ubicacion_sucursal=ub_suc,
+            ).first()
+            if st and st.cantidad_disponible is not None:
+                cant_sistema = Decimal(st.cantidad_disponible)
+
+            diferencia = Decimal(contada) - cant_sistema
+
+            bodega: Bodega | None = None
+            for ub in (ub_bod, ub_suc):
+                if ub is not None and hasattr(ub, "bodega"):
+                    bodega = ub.bodega
+                    break
+
+            rec = RecuentoInventario.objects.create(
+                bodega=bodega,
+                codigo_ciclo=timezone.now().strftime("C-%Y%m%d%H%M"),
+                estado="CLOSED",
+                creado_por=instance.creado_por,
+            )
+            LineaRecuentoInventario.objects.create(
+                recuento=rec,
+                producto=instance.producto,
+                ubicacion_bodega=ub_bod,
+                ubicacion_sucursal=ub_suc,
+                lote=instance.lote,
+                serie=instance.serie,
+                cantidad_sistema=cant_sistema,
+                cantidad_contada=contada,
+                contado_por=instance.creado_por,
+                diferencia=diferencia,
+            )
+            return
+
+        # ======================
+        # RESERVA
+        # ======================
+        if codigo == "RESERVA":
+            Reserva.objects.create(
+                producto=instance.producto,
+                ubicacion_bodega=instance.ubicacion_bodega_hasta,
+                ubicacion_sucursal=instance.ubicacion_sucursal_hasta,
+                lote=instance.lote,
+                serie=instance.serie,
+                cantidad_reservada=Decimal(instance.cantidad),
+                tabla_referencia=instance.tabla_referencia or "",
+                referencia_id=instance.referencia_id,
+            )
+            return
+
+        # ======================
+        # LIBERAR_RESERVA
+        # ======================
+        if codigo == "LIBERAR_RESERVA":
+            q = Reserva.objects.filter(
+                producto=instance.producto,
+                ubicacion_bodega=instance.ubicacion_bodega_hasta,
+                ubicacion_sucursal=instance.ubicacion_sucursal_hasta,
+            )
+            if instance.referencia_id:
+                q = q.filter(
+                    tabla_referencia=instance.tabla_referencia or "",
+                    referencia_id=instance.referencia_id,
+                )
+            r = q.order_by("-id").first()
+            if r:
+                nueva = (r.cantidad_reservada or Decimal("0")) - Decimal(instance.cantidad)
+                r.cantidad_reservada = (nueva if nueva > 0 else Decimal("0"))
+                r.save()
+            return
+
+        # TRANSFERENCIA / ENTRADA / SALIDA → no-ops aquí (solo guardamos el kárdex en tus vistas).
+        return
+    
+@login_required
+def auditoria_inventario(request):
+    """
+    Visual para inspeccionar lo que se rellena automáticamente desde MovimientoStock (por señales).
+    Filtros:
+      - ?desde=YYYY-MM-DD
+      - ?hasta=YYYY-MM-DD
+      - ?producto_id=123
+    Por defecto: hoy.
+    """
+    hoy = timezone.localdate()
+    desde_str = request.GET.get("desde")
+    hasta_str = request.GET.get("hasta")
+    producto_id = request.GET.get("producto_id")
+
+    try:
+        desde = datetime.fromisoformat(desde_str).date() if desde_str else hoy
+    except Exception:
+        desde = hoy
+    try:
+        hasta = datetime.fromisoformat(hasta_str).date() if hasta_str else hoy
+    except Exception:
+        hasta = hoy
+
+    prod_filter = Q()
+    if producto_id:
+        prod_filter = Q(producto_id=producto_id)
+
+    # MOVS (solo por fecha, ignorando hora)
+    movimientos = (
+        MovimientoStock.objects
+        .select_related("tipo_movimiento", "producto", "unidad",
+                        "ubicacion_bodega_desde", "ubicacion_bodega_hasta",
+                        "ubicacion_sucursal_desde", "ubicacion_sucursal_hasta",
+                        "creado_por")
+        .filter(ocurrido_en__date__range=(desde, hasta))
+        .filter(prod_filter)
+        .order_by("-ocurrido_en")[:500]
+    )
+
+    # AJUSTES
+    ajustes = (
+        AjusteInventario.objects
+        .select_related("bodega", "creado_por")
+        .filter(creado_en__date__range=(desde, hasta))
+        .order_by("-creado_en")[:200]
+    )
+    lineas_ajuste = (
+        LineaAjusteInventario.objects
+        .select_related("ajuste", "producto", "ubicacion_bodega", "ubicacion_sucursal", "lote", "serie")
+        .filter(ajuste__creado_en__date__range=(desde, hasta))
+        .filter(prod_filter)
+        .order_by("-ajuste__creado_en")[:1000]
+    )
+
+    # RECUENTOS
+    recuentos = (
+        RecuentoInventario.objects
+        .select_related("bodega", "creado_por")
+        .filter(creado_en__date__range=(desde, hasta))
+        .order_by("-creado_en")[:200]
+    )
+    lineas_recuento = (
+        LineaRecuentoInventario.objects
+        .select_related("recuento", "producto", "ubicacion_bodega", "ubicacion_sucursal", "lote", "serie", "contado_por")
+        .filter(recuento__creado_en__date__range=(desde, hasta))
+        .filter(prod_filter)
+        .order_by("-recuento__creado_en")[:1000]
+    )
+
+    # RESERVAS
+    reservas = (
+        Reserva.objects
+        .select_related("producto", "ubicacion_bodega", "ubicacion_sucursal", "lote", "serie")
+        .filter(creado_en__date__range=(desde, hasta))
+        .filter(prod_filter)
+        .order_by("-creado_en")[:500]
+    )
+
+    productos = Producto.objects.only("id", "nombre").order_by("nombre")[:1000]
+
+    ctx = {
+        "desde": desde,
+        "hasta": hasta,
+        "movimientos": movimientos,
+        "ajustes": ajustes,
+        "lineas_ajuste": lineas_ajuste,
+        "recuentos": recuentos,
+        "lineas_recuento": lineas_recuento,
+        "reservas": reservas,
+        "productos": productos,
+        "producto_id": int(producto_id) if producto_id else None,
+    }
+    return render(request, "core/auditoria_inventario.html", ctx)

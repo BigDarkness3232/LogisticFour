@@ -102,6 +102,8 @@ urlpatterns = [
     path("series/agregar/", views.SerieCreateModal.as_view(), name="serie-create"),
     path("series/<int:pk>/editar/", views.SerieUpdateModal.as_view(), name="serie-edit"),
     path("series/<int:pk>/eliminar/", views.SerieDeleteModal.as_view(), name="serie-delete"),
+
+    path("auditoria/inventario/", views.auditoria_inventario, name="auditoria_inventario"),
     
 
 

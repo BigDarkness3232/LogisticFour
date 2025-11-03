@@ -363,6 +363,7 @@
       {% if user.is_authenticated and user.perfil and user.perfil.rol == 'ADMIN' %}
         <a href="{% url 'usuario-list' %}" class="item">👥 Usuarios</a>
       {% endif %}
+      <a href="{% url 'auditoria_inventario' %}" class="item">💻 Auditoria</a>
     </nav>
 
     <div class="sidenav-footer">
