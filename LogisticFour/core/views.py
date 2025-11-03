@@ -1,40 +1,49 @@
-﻿from datetime import timezone
-import io
+﻿# =============================================
+#  LIBRERÍAS ESTÁNDAR DE PYTHON
+# =============================================
 import json
-import segno
+import logging
+from datetime import timezone
 
-from django.shortcuts import render, redirect, get_object_or_404
+# =============================================
+#  LIBRERÍAS DE DJANGO
+# =============================================
+from django import forms
+from django.conf import settings
+from django.contrib import messages
 from django.contrib.auth import authenticate, login, logout
 from django.contrib.auth.decorators import login_required, user_passes_test
-from django.urls import reverse, NoReverseMatch
-from django.contrib import messages
 from django.contrib.auth.forms import UserCreationForm
+from django.contrib.auth.mixins import LoginRequiredMixin, UserPassesTestMixin
 from django.contrib.auth.models import User, Group
-from django.db import IntegrityError, transaction
-from django import forms
-from core.forms import *
-from core.models import *
-from django.http import HttpResponse, Http404
-from django.conf import settings
-from django.views.generic import ListView, CreateView, UpdateView, DeleteView, DetailView
-from django.contrib.auth.mixins import LoginRequiredMixin  # agrega PermissionRequiredMixin si ya manejas permisos
 from django.contrib.messages.views import SuccessMessageMixin
-from django.urls import reverse_lazy
-from django.db.models import Q, Sum, F, Value, DecimalField
-from django.db.models.functions import Coalesce
-from django.shortcuts import redirect
-from django.contrib import messages
 from django.core.paginator import Paginator
-from core.forms import SignupUserForm, UsuarioPerfilForm
-from core.models import UsuarioPerfil
-from django.contrib.auth.mixins import UserPassesTestMixin
+from django.db import IntegrityError, transaction
+from django.db.models import (
+    Q, Sum, F, Value, Count, DecimalField, ExpressionWrapper
+)
+from django.db.models.functions import Coalesce, Lower
+from django.http import (
+    HttpResponse, Http404, JsonResponse,
+    HttpResponseBadRequest, HttpResponseRedirect
+)
+from django.shortcuts import render, redirect, get_object_or_404
+from django.urls import reverse, reverse_lazy, NoReverseMatch
 from django.views import View
-from django.db.models.functions import Lower
-from django.db.models import Count
+from django.views.decorators.http import require_POST, require_GET
+from django.views.generic import (
+    ListView, CreateView, UpdateView,
+    DeleteView, DetailView
+)
 
-
-
-
+# =============================================
+#  MÓDULOS DEL PROYECTO (CORE)
+# =============================================
+from core.forms import *
+from core.forms import SignupUserForm, UsuarioPerfilForm
+from core.models import *
+from core.models import Producto, UsuarioPerfil
+from core.utils import ensure_ubicacion_sucursal    
 
 # -------------------- Vistas principales --------------------
 def dashboard(request):
@@ -83,9 +92,6 @@ def products(request):
         },
     )
 
-
-
-
 @login_required
 def category(request, slug):
     return render(request, "core/category.html", {"category_name": slug.replace("-", " ").title()})
@@ -108,10 +114,6 @@ def product_add(request):
         form = ProductoForm()
 
     return render(request, "core/product_add.html", {"form": form})
-
-
-
-
 
 # -------------------- Login Helpers --------------------
 def _redirect_url_by_role(perfil):
@@ -361,33 +363,6 @@ def user_delete(request, user_id: int):
 
     return render(request, "accounts/user_confirm_delete.html", {"obj": obj})
 
-
-
-
-
-
-
-
-
-
-
-
-
-from django.contrib.auth.decorators import login_required
-from django.contrib.auth.models import User
-from django.core.paginator import Paginator
-from django.db.models import Q
-from django.http import JsonResponse
-from django.shortcuts import get_object_or_404, render
-from django.views.decorators.http import require_POST, require_GET
-from django.contrib.auth.decorators import login_required
-
-        
-from .models import UsuarioPerfil          
-
-
-
-
 @admin_required
 @login_required
 def user_list(request):
@@ -468,24 +443,6 @@ def usuario_set_rol(request, user_id: int):
     except Exception as e:
         return JsonResponse({"ok": False, "error": str(e)}, status=400)
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 # -------------------- CRUD Sucursal / Bodega --------------------
 class AdminOnlyMixin(UserPassesTestMixin):
     """Mixin para CBV que deja pasar sÃ³lo a ADMIN."""
@@ -526,11 +483,6 @@ def admin_required(view_func):
             return redirect('dashboard')
         return view_func(request, *args, **kwargs)
     return _wrapped
-
-
-from django.db.models import Prefetch
-
-
 
 class SucursalListView(LoginRequiredMixin, ListView):
     model = Sucursal
@@ -599,16 +551,6 @@ class SucursalListView(LoginRequiredMixin, ListView):
         ctx["page_size"] = self.get_paginate_by(self.get_queryset())
         return ctx
 
-
-
-
-
-
-
-
-
-
-
 class SucursalCreateView(LoginRequiredMixin, AdminOnlyMixin, SuccessMessageMixin, CreateView):
     model = Sucursal
     form_class = SucursalForm
@@ -637,10 +579,6 @@ class SucursalDeleteView(LoginRequiredMixin, AdminOnlyMixin, SuccessMessageMixin
     def delete(self, request, *args, **kwargs):
         messages.success(request, "Sucursal eliminada correctamente.")
         return super().delete(request, *args, **kwargs)
-
-
-
-
 
 class BodegaListView(LoginRequiredMixin, ListView):
     model = Bodega
@@ -720,13 +658,6 @@ class BodegaListView(LoginRequiredMixin, ListView):
         ctx["q"] = (self.request.GET.get("q") or "").strip()
         return ctx
 
-
-
-
-
-
-
-
 class BodegaCreateView(LoginRequiredMixin, BodegaPermissionMixin, SuccessMessageMixin, CreateView):
     model = Bodega
     form_class = BodegaForm
@@ -799,7 +730,6 @@ class BodegaUpdateView(LoginRequiredMixin, BodegaPermissionMixin, SuccessMessage
                 form.fields["sucursal"].queryset = Sucursal.objects.none()
         return form
 
-
 class BodegaDeleteView(LoginRequiredMixin, BodegaPermissionMixin, SuccessMessageMixin, DeleteView):
     model = Bodega
     template_name = "core/bodega_confirm_delete.html"
@@ -826,8 +756,6 @@ class BodegaDetailView(LoginRequiredMixin, DetailView):
     context_object_name = "bodega"
 
 #Area de productos
-
-
 
 class ProductsListView(LoginRequiredMixin, ListView):
     model = Producto
@@ -918,34 +846,6 @@ class ProductDetailView(LoginRequiredMixin, DetailView):
     model = Producto
     template_name = "core/product_detail.html"
     context_object_name = "producto"
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 
 # ----------------------
 # CRUD Ubicacion (pÃ¡ginas)
@@ -1075,14 +975,11 @@ class UbicacionSucursalDeleteView(LoginRequiredMixin, DeleteView):
         messages.success(request, "Ubicación eliminada.")
         return super().delete(request, *args, **kwargs)
 
-
 # ------------------------------------
 #   TipoUbicacion con modal
 # ------------------------------------
 # Los modales usan <dialog> y cargan estas vistas que devuelven la pÃ¡gina completa,
 # pero con templates chicos pensados para presentarse en un modal.
-
-
 
 class TipoUbicacionCreateModal(LoginRequiredMixin, SuccessMessageMixin, CreateView):
     model = TipoUbicacion
@@ -1145,7 +1042,6 @@ class MarcaDeleteModal(LoginRequiredMixin, DeleteView):
         messages.success(request, "Marca eliminada.")
         return super().delete(request, *args, **kwargs)
 
-
 # ======================
 # Unidad de Medida
 # ======================
@@ -1177,7 +1073,6 @@ class UnidadMedidaDeleteModal(LoginRequiredMixin, DeleteView):
     def delete(self, request, *args, **kwargs):
         messages.success(request, "Unidad de medida eliminada.")
         return super().delete(request, *args, **kwargs)
-
 
 # ======================
 # Tasa de Impuesto
@@ -1211,7 +1106,6 @@ class TasaImpuestoDeleteModal(LoginRequiredMixin, DeleteView):
         messages.success(request, "Tasa de impuesto eliminada.")
         return super().delete(request, *args, **kwargs)
 
-
 # ======================
 # CategorÃ­a de Producto
 # ======================
@@ -1244,8 +1138,6 @@ class CategoriaProductoDeleteModal(LoginRequiredMixin, DeleteView):
         messages.success(request, "CategorÃ­a eliminada.")
         return super().delete(request, *args, **kwargs)
     
-
-
 # ===== LoteProducto (modales) =====
 class LoteCreateModal(LoginRequiredMixin, SuccessMessageMixin, CreateView):
     model = LoteProducto
@@ -1271,7 +1163,6 @@ class LoteDeleteModal(LoginRequiredMixin, SuccessMessageMixin, DeleteView):
     success_message = "Lote eliminado."
     # messages en DeleteView requieren manejo en form_valid o post_delete signal; si usas messages en template, puedes mostrar el texto allÃ­.
 
-
 # ===== SerieProducto (modales) =====
 class SerieCreateModal(LoginRequiredMixin, SuccessMessageMixin, CreateView):
     model = SerieProducto
@@ -1296,12 +1187,6 @@ class SerieDeleteModal(LoginRequiredMixin, SuccessMessageMixin, DeleteView):
     template_name = "core/partials/confirm_delete_modal.html"
     success_message = "Serie eliminada."
 
-
-
-
-
-
-
 def test_scanner(request):
     return render(request, "core/test_scanner.html")
 
@@ -1322,13 +1207,6 @@ def products(request):
         "productos": productos,
         "q": (request.GET.get("q") or "").strip(),
     })
-
-
-
-
-
-
-
 
 @login_required
 def productos_por_bodega(request, bodega_id):
@@ -1408,76 +1286,6 @@ def product_list(request):
             "is_paginated": page_obj.has_other_pages(),
         },
     )
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-from core.models import Producto            # o el app donde tengas Producto
-
-
-
-
-
-
-
-from django.contrib import messages
-from django.contrib.auth.decorators import login_required
-from django.db import transaction
-from django.db.models import Sum, Value, DecimalField, F
-from django.db.models.functions import Coalesce
-from django.http import JsonResponse, HttpResponseBadRequest, HttpResponseRedirect
-from django.shortcuts import get_object_or_404, redirect, render
-from django.urls import reverse
-
-# Ajusta estos imports a tus modelos reales
-from .models import Producto
-
-
-
-from django.db.models import Sum, Value, DecimalField, ExpressionWrapper
-
-
-
-
 
 # ---------- Utilidades comunes ----------
 
@@ -1935,56 +1743,6 @@ def stock_recuento(request):
         redirect_to=reverse("products"),
     )
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-import logging
-from django.shortcuts import render
-from .models import Producto, Bodega, Sucursal, Stock
-
-# Configurar el logger
-
-
-
 # Configurar el logger
 logger = logging.getLogger(__name__)
 
@@ -2119,13 +1877,6 @@ def _recalcular_stock_global(producto: Producto) -> None:
     total = agg["total"] or 0
     producto.stock = int(total)
     producto.save(update_fields=["stock"])
-
-
-
-
-
-
-
 
 @login_required
 def bodega_a_sucursal(request):
@@ -3145,10 +2896,6 @@ def paypal_stock_in(request):
     except Exception as e:
         # 👇 esto es para que AHORA sí veas el error real en el popup
         return JsonResponse({"ok": False, "error": str(e)}, status=400)
-
-
-
-
 
 
 @login_required
