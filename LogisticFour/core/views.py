@@ -1,42 +1,53 @@
-﻿import io
+﻿# =============================================
+#  LIBRERÍAS ESTÁNDAR DE PYTHON
+# =============================================
 import json
-import segno
+import logging
+from datetime import timezone
 
-from django.shortcuts import render, redirect, get_object_or_404
+# =============================================
+#  LIBRERÍAS DE DJANGO
+# =============================================
+from django import forms
+from django.conf import settings
+from django.contrib import messages
 from django.contrib.auth import authenticate, login, logout
 from django.contrib.auth.decorators import login_required, user_passes_test
-from django.urls import reverse, NoReverseMatch
-from django.contrib import messages
 from django.contrib.auth.forms import UserCreationForm
+from django.contrib.auth.mixins import LoginRequiredMixin, UserPassesTestMixin
 from django.contrib.auth.models import User, Group
-from django.db import transaction
-from django import forms
-from core.forms import *
-from core.models import *
-from django.http import HttpResponse, Http404
-from django.conf import settings
-from django.views.generic import ListView, CreateView, UpdateView, DeleteView, DetailView
-from django.contrib.auth.mixins import LoginRequiredMixin  # agrega PermissionRequiredMixin si ya manejas permisos
 from django.contrib.messages.views import SuccessMessageMixin
-from django.urls import reverse_lazy
-from django.db.models import Q, Sum, F, Value, DecimalField
-from django.db.models.functions import Coalesce
-from django.shortcuts import redirect
-from django.contrib import messages
 from django.core.paginator import Paginator
-from core.forms import SignupUserForm, UsuarioPerfilForm
-from core.models import UsuarioPerfil
-from django.contrib.auth.mixins import UserPassesTestMixin
+from django.db import IntegrityError, transaction
+from django.db.models import (
+    Q, Sum, F, Value, Count, DecimalField, ExpressionWrapper
+)
+from django.db.models.functions import Coalesce, Lower
+from django.http import (
+    HttpResponse, Http404, JsonResponse,
+    HttpResponseBadRequest, HttpResponseRedirect
+)
+from django.shortcuts import render, redirect, get_object_or_404
+from django.urls import reverse, reverse_lazy, NoReverseMatch
 from django.views import View
+from django.views.generic import ListView, DetailView, CreateView, UpdateView, DeleteView
 from django.db.models.functions import Lower
 from django.db.models import Count
 import requests
 from django.http import JsonResponse
-from django.views.decorators.http import require_GET
+from django.views.decorators.http import require_GET, require_POST
 from core.utils import ensure_ubicacion_bodega, ensure_ubicacion_sucursal
 
 
 
+# =============================================
+#  MÓDULOS DEL PROYECTO (CORE)
+# =============================================
+from core.forms import *
+from core.forms import SignupUserForm, UsuarioPerfilForm
+from core.models import *
+from core.models import Producto, UsuarioPerfil
+from core.utils import ensure_ubicacion_sucursal    
 
 # -------------------- Vistas principales --------------------
 def dashboard(request):
@@ -85,9 +96,6 @@ def products(request):
         },
     )
 
-
-
-
 @login_required
 def category(request, slug):
     return render(request, "core/category.html", {"category_name": slug.replace("-", " ").title()})
@@ -110,10 +118,6 @@ def product_add(request):
         form = ProductoForm()
 
     return render(request, "core/product_add.html", {"form": form})
-
-
-
-
 
 # -------------------- Login Helpers --------------------
 def _redirect_url_by_role(perfil):
@@ -363,33 +367,6 @@ def user_delete(request, user_id: int):
 
     return render(request, "accounts/user_confirm_delete.html", {"obj": obj})
 
-
-
-
-
-
-
-
-
-
-
-
-
-from django.contrib.auth.decorators import login_required
-from django.contrib.auth.models import User
-from django.core.paginator import Paginator
-from django.db.models import Q
-from django.http import JsonResponse
-from django.shortcuts import get_object_or_404, render
-from django.views.decorators.http import require_POST, require_GET
-from django.contrib.auth.decorators import login_required
-
-        
-from .models import UsuarioPerfil          
-
-
-
-
 @admin_required
 @login_required
 def user_list(request):
@@ -470,24 +447,6 @@ def usuario_set_rol(request, user_id: int):
     except Exception as e:
         return JsonResponse({"ok": False, "error": str(e)}, status=400)
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 # -------------------- CRUD Sucursal / Bodega --------------------
 class AdminOnlyMixin(UserPassesTestMixin):
     """Mixin para CBV que deja pasar sÃ³lo a ADMIN."""
@@ -528,11 +487,6 @@ def admin_required(view_func):
             return redirect('dashboard')
         return view_func(request, *args, **kwargs)
     return _wrapped
-
-
-from django.db.models import Prefetch
-
-
 
 class SucursalListView(LoginRequiredMixin, ListView):
     model = Sucursal
@@ -600,16 +554,6 @@ class SucursalListView(LoginRequiredMixin, ListView):
         ctx["total"] = self.get_queryset().count()
         ctx["page_size"] = self.get_paginate_by(self.get_queryset())
         return ctx
-
-
-
-
-
-
-
-
-
-
 
 class SucursalCreateView(LoginRequiredMixin, AdminOnlyMixin, SuccessMessageMixin, CreateView):
     model = Sucursal
@@ -804,13 +748,6 @@ class BodegaListView(LoginRequiredMixin, ListView):
         ctx["q"] = (self.request.GET.get("q") or "").strip()
         return ctx
 
-
-
-
-
-
-
-
 class BodegaCreateView(LoginRequiredMixin, BodegaPermissionMixin, SuccessMessageMixin, CreateView):
     model = Bodega
     form_class = BodegaForm
@@ -906,8 +843,6 @@ class BodegaDetailView(LoginRequiredMixin, DetailView):
 
 #Area de productos
 
-
-
 class ProductsListView(LoginRequiredMixin, ListView):
     model = Producto
     template_name = "core/products.html"
@@ -997,34 +932,6 @@ class ProductDetailView(LoginRequiredMixin, DetailView):
     model = Producto
     template_name = "core/product_detail.html"
     context_object_name = "producto"
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 
 # ----------------------
 # CRUD Ubicacion (pÃ¡ginas)
@@ -1154,14 +1061,11 @@ class UbicacionSucursalDeleteView(LoginRequiredMixin, DeleteView):
         messages.success(request, "Ubicación eliminada.")
         return super().delete(request, *args, **kwargs)
 
-
 # ------------------------------------
 #   TipoUbicacion con modal
 # ------------------------------------
 # Los modales usan <dialog> y cargan estas vistas que devuelven la pÃ¡gina completa,
 # pero con templates chicos pensados para presentarse en un modal.
-
-
 
 class TipoUbicacionCreateModal(LoginRequiredMixin, SuccessMessageMixin, CreateView):
     model = TipoUbicacion
@@ -1224,7 +1128,6 @@ class MarcaDeleteModal(LoginRequiredMixin, DeleteView):
         messages.success(request, "Marca eliminada.")
         return super().delete(request, *args, **kwargs)
 
-
 # ======================
 # Unidad de Medida
 # ======================
@@ -1256,7 +1159,6 @@ class UnidadMedidaDeleteModal(LoginRequiredMixin, DeleteView):
     def delete(self, request, *args, **kwargs):
         messages.success(request, "Unidad de medida eliminada.")
         return super().delete(request, *args, **kwargs)
-
 
 # ======================
 # Tasa de Impuesto
@@ -1290,7 +1192,6 @@ class TasaImpuestoDeleteModal(LoginRequiredMixin, DeleteView):
         messages.success(request, "Tasa de impuesto eliminada.")
         return super().delete(request, *args, **kwargs)
 
-
 # ======================
 # CategorÃ­a de Producto
 # ======================
@@ -1323,8 +1224,6 @@ class CategoriaProductoDeleteModal(LoginRequiredMixin, DeleteView):
         messages.success(request, "CategorÃ­a eliminada.")
         return super().delete(request, *args, **kwargs)
     
-
-
 # ===== LoteProducto (modales) =====
 class LoteCreateModal(LoginRequiredMixin, SuccessMessageMixin, CreateView):
     model = LoteProducto
@@ -1350,7 +1249,6 @@ class LoteDeleteModal(LoginRequiredMixin, SuccessMessageMixin, DeleteView):
     success_message = "Lote eliminado."
     # messages en DeleteView requieren manejo en form_valid o post_delete signal; si usas messages en template, puedes mostrar el texto allÃ­.
 
-
 # ===== SerieProducto (modales) =====
 class SerieCreateModal(LoginRequiredMixin, SuccessMessageMixin, CreateView):
     model = SerieProducto
@@ -1375,12 +1273,6 @@ class SerieDeleteModal(LoginRequiredMixin, SuccessMessageMixin, DeleteView):
     template_name = "core/partials/confirm_delete_modal.html"
     success_message = "Serie eliminada."
 
-
-
-
-
-
-
 def test_scanner(request):
     return render(request, "core/test_scanner.html")
 
@@ -1401,13 +1293,6 @@ def products(request):
         "productos": productos,
         "q": (request.GET.get("q") or "").strip(),
     })
-
-
-
-
-
-
-
 
 @login_required
 def productos_por_bodega(request, bodega_id):
@@ -1487,76 +1372,6 @@ def product_list(request):
             "is_paginated": page_obj.has_other_pages(),
         },
     )
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-from core.models import Producto            # o el app donde tengas Producto
-
-
-
-
-
-
-
-from django.contrib import messages
-from django.contrib.auth.decorators import login_required
-from django.db import transaction
-from django.db.models import Sum, Value, DecimalField, F
-from django.db.models.functions import Coalesce
-from django.http import JsonResponse, HttpResponseBadRequest, HttpResponseRedirect
-from django.shortcuts import get_object_or_404, redirect, render
-from django.urls import reverse
-
-# Ajusta estos imports a tus modelos reales
-from .models import Producto
-
-
-
-from django.db.models import Sum, Value, DecimalField, ExpressionWrapper
-
-
-
-
 
 # ---------- Utilidades comunes ----------
 
@@ -2014,56 +1829,6 @@ def stock_recuento(request):
         redirect_to=reverse("products"),
     )
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-import logging
-from django.shortcuts import render
-from .models import Producto, Bodega, Sucursal, Stock
-
-# Configurar el logger
-
-
-
 # Configurar el logger
 logger = logging.getLogger(__name__)
 
@@ -2198,13 +1963,6 @@ def _recalcular_stock_global(producto: Producto) -> None:
     total = agg["total"] or 0
     producto.stock = int(total)
     producto.save(update_fields=["stock"])
-
-
-
-
-
-
-
 
 @login_required
 def bodega_a_sucursal(request):
@@ -3165,88 +2923,134 @@ def geocode(request):
         "display_name": item.get("display_name", q),
     })
     
+from django.utils import timezone
+
 
 
 @require_POST
 @login_required
+@transaction.atomic
 def paypal_stock_in(request):
     """
-    Recibe el POST desde el JS de PayPal (onApprove) y suma stock
-    en alguna ubicación de la bodega.
-
-    Espera JSON:
-    {
-      "bodega_id": 3,
-      "producto_id": 12,
-      "cantidad": "5",
-      "paypal_id": "PAYID-...",
-      "monto_usd": "10.00"
-    }
+    Llega desde el JS de PayPal cuando el pago fue APROBADO.
+    Hace TODO automático y si algo falla devuelve el error en JSON.
     """
-    # 1) leer JSON
     try:
-        data = json.loads(request.body.decode("utf-8"))
-    except Exception:
-        return JsonResponse({"ok": False, "error": "JSON inválido"}, status=400)
+        # -------------------------------------------------
+        # 1) leer JSON
+        # -------------------------------------------------
+        try:
+            data = json.loads(request.body.decode("utf-8"))
+        except Exception as e:
+            return JsonResponse({"ok": False, "error": f"JSON inválido: {e}"}, status=400)
 
-    bodega_id = data.get("bodega_id")
-    producto_id = data.get("producto_id")
-    cantidad = data.get("cantidad")
-    paypal_id = data.get("paypal_id")
-    monto_usd = data.get("monto_usd")
+        bodega_id = data.get("bodega_id")
+        producto_id = data.get("producto_id")
+        cantidad_raw = data.get("cantidad")
+        paypal_id = data.get("paypal_id") or "SIN-ID"
+        monto_usd_raw = data.get("monto_usd") or "0"
 
-    if not bodega_id or not producto_id or not cantidad:
-        return JsonResponse({"ok": False, "error": "Faltan datos"}, status=400)
+        if not bodega_id or not producto_id or not cantidad_raw:
+            return JsonResponse({"ok": False, "error": "Faltan datos"}, status=400)
 
-    # 2) cantidad válida
-    try:
-        cant = Decimal(str(cantidad))
-        if cant <= 0:
-            raise ValueError
-    except Exception:
-        return JsonResponse({"ok": False, "error": "Cantidad inválida"}, status=400)
+        # -------------------------------------------------
+        # 2) cantidad válida
+        # -------------------------------------------------
+        try:
+            cantidad = Decimal(str(cantidad_raw))
+            if cantidad <= 0:
+                raise ValueError
+        except Exception:
+            return JsonResponse({"ok": False, "error": "Cantidad inválida"}, status=400)
 
-    # 3) objetos
-    try:
-        bodega = Bodega.objects.get(pk=bodega_id)
-        producto = Producto.objects.get(pk=producto_id)
-    except (Bodega.DoesNotExist, Producto.DoesNotExist):
-        return JsonResponse({"ok": False, "error": "Bodega o producto no existen"}, status=404)
+        # -------------------------------------------------
+        # 3) buscar bodega y producto
+        # -------------------------------------------------
+        try:
+            bodega = Bodega.objects.get(pk=bodega_id)
+            producto = Producto.objects.get(pk=producto_id)
+        except Bodega.DoesNotExist:
+            return JsonResponse({"ok": False, "error": "Bodega no encontrada"}, status=404)
+        except Producto.DoesNotExist:
+            return JsonResponse({"ok": False, "error": "Producto no encontrado"}, status=404)
 
-    # 4) conseguir una ubicación de esa bodega
-    #    si no tiene, le creamos una por defecto
-    ubi = bodega.ubicaciones.filter(activo=True).order_by("id").first()
-    if not ubi:
-        ubi = UbicacionBodega.objects.create(
-            bodega=bodega,
-            codigo="AUTO-PP",
-            nombre="Ubicación generada por PayPal",
-            activo=True,
+        # -------------------------------------------------
+        # 4) asegurar UNA ubicación en esa bodega
+        # -------------------------------------------------
+        ubi = bodega.ubicaciones.filter(activo=True).order_by("id").first()
+        if not ubi:
+            ubi = UbicacionBodega.objects.create(
+                bodega=bodega,
+                codigo="AUTO-PP",
+                nombre="Ubicación generada por PayPal",
+                activo=True,
+            )
+
+        # -------------------------------------------------
+        # 5) sumar stock en ESA ubicación
+        # -------------------------------------------------
+        stock_obj, created = Stock.objects.get_or_create(
+            producto=producto,
+            ubicacion_bodega=ubi,
+            defaults={"cantidad_disponible": Decimal("0")}
+        )
+        Stock.objects.filter(pk=stock_obj.pk).update(
+            cantidad_disponible=F("cantidad_disponible") + cantidad
+        )
+        stock_obj.refresh_from_db()
+
+        # -------------------------------------------------
+        # 6) usuario proveedor PayPal (rol = PROVEEDOR)
+        # -------------------------------------------------
+        proveedor_user, _ = User.objects.get_or_create(
+            username="paypal_proveedor",
+            defaults={
+                "first_name": "Proveedor",
+                "last_name": "PayPal",
+                "email": "paypal@example.com",
+            },
+        )
+        UsuarioPerfil.objects.get_or_create(
+            usuario=proveedor_user,
+            defaults={"rol": UsuarioPerfil.Rol.PROVEEDOR},
         )
 
-    # 5) crear/actualizar el stock en ESA ubicación
-    stock_obj, created = Stock.objects.get_or_create(
-        producto=producto,
-        ubicacion_bodega=ubi,
-        defaults={"cantidad_disponible": 0}
-    )
+        # -------------------------------------------------
+        # 7) unidad de medida segura
+        # -------------------------------------------------
+        um = getattr(producto, "unidad_base", None)
+        if not um:
+            # intentamos agarrar una existente
+            um = UnidadMedida.objects.first()
+        if not um:
+            # si no hay ninguna en la bd, creamos una por defecto
+            um, _ = UnidadMedida.objects.get_or_create(
+                codigo="UN-PP",
+                defaults={"descripcion": "Unidad por PayPal"},
+            )
 
-    # sumamos usando F para evitar condiciones de carrera
-    Stock.objects.filter(pk=stock_obj.pk).update(
-        cantidad_disponible=F("cantidad_disponible") + cant
-    )
-    stock_obj.refresh_from_db()
+        # -------------------------------------------------
+        # 8) crear ORDEN DE COMPRA
+        # -------------------------------------------------
+        numero_orden = f"OC-PAYPAL-{timezone.now().strftime('%Y%m%d%H%M%S')}"
+        oc = OrdenCompra.objects.create(
+            proveedor=proveedor_user,
+            tasa_impuesto=None,
+            bodega=bodega,
+            numero_orden=numero_orden,
+            estado="COMPLETED",
+            fecha_esperada=timezone.now().date(),
+            creado_por=request.user,
+        )
 
-    # 6) responder al JS
-    return JsonResponse({
-        "ok": True,
-        "nuevo_stock": str(stock_obj.cantidad_disponible),
-        "msg": "Stock agregado correctamente",
-    })
-
-
-
-
+         # 6) responder al JS
+        return JsonResponse({
+            "ok": True,
+            "nuevo_stock": str(stock_obj.cantidad_disponible),
+            "msg": "Stock agregado correctamente",
+        })
+    except Exception as e:
+        return JsonResponse({"ok": False, "error": f"Error inesperado: {e}"}, status=500)
 
 @login_required
 def bodega_agregar_sucursal(request, bodega_id):
@@ -3421,3 +3225,15 @@ def ajax_ubicaciones_por_producto(request):
       ]
   }
   return JsonResponse(data)
+
+
+@login_required
+def paypal_ingresos_view(request):
+    ordenes = (
+        OrdenCompra.objects
+        .filter(numero_orden__startswith="OC-PAYPAL-")
+        .select_related("bodega")
+        .prefetch_related("lineas__producto")
+        .order_by("-id")
+    )
+    return render(request, "core/paypal_ingresos.html", {"ordenes": ordenes})
