@@ -320,7 +320,6 @@
   }
 </style>
 
-<!-- CONTENIDO -->
 <div class="bodega-page">
   <header class="page-head">
     <div>
@@ -373,7 +372,9 @@
         </td>
       </tr>
       {% empty %}
-      <tr><td colspan="9" style="text-align:center;color:var(--muted);padding:20px;">No hay bodegas aún.</td></tr>
+      <tr>
+        <td colspan="9" style="text-align:center;color:var(--muted);padding:20px;">No hay bodegas aún.</td>
+      </tr>
       {% endfor %}
       </tbody>
     </table>
@@ -413,44 +414,74 @@
   </div>
 </div>
 
+{# SDK PayPal #}
 <script src="https://www.paypal.com/sdk/js?client-id=AcJh5Q-9moAqbK1_ri8GBhkmOjloGpEXxlfb_IC6MCRGzUyrh5p5IyGqS9GPUhVg7UlO63FQiSeDm2uN&currency=USD"></script>
 <script>
-  const csrfToken = "{{ csrf_token }}";
-  const ppBackdrop = document.getElementById('paypalBackdrop');
+  const csrfToken   = "{{ csrf_token }}";
+  const ppBackdrop  = document.getElementById('paypalBackdrop');
   const bodegaInput = document.getElementById('pp-bodega-id');
-  const ppTitle = document.getElementById('pp-title');
+  const ppTitle     = document.getElementById('pp-title');
 
   function openPaypalModal(bodegaId, nombre){
     bodegaInput.value = bodegaId;
     ppTitle.textContent = "Comprar stock para: " + nombre;
     ppBackdrop.style.display = "flex";
   }
-  function closePaypalModal(){ ppBackdrop.style.display = "none"; }
+  function closePaypalModal(){
+    ppBackdrop.style.display = "none";
+  }
 
   paypal.Buttons({
     style:{layout:'vertical',color:'gold',shape:'rect',label:'paypal'},
     createOrder:(data,actions)=>{
-      const monto=document.getElementById('pp-monto').value||"1.00";
-      return actions.order.create({purchase_units:[{amount:{value:monto}}]});
+      const monto = document.getElementById('pp-monto').value || "1.00";
+      return actions.order.create({
+        purchase_units:[{ amount:{ value:monto } }]
+      });
     },
     onApprove:(data,actions)=>{
       return actions.order.capture().then(()=>{
-        const bodegaId=bodegaInput.value;
-        const productoId=document.getElementById('pp-producto').value;
-        const cantidad=document.getElementById('pp-cantidad').value;
-        const monto=document.getElementById('pp-monto').value;
-        fetch("{% url 'paypal-stock-in' %}",{
-          method:"POST",
-          headers:{"Content-Type":"application/json","X-CSRFToken":csrfToken},
-          body:JSON.stringify({bodega_id:bodegaId,producto_id:productoId,cantidad:cantidad,paypal_id:data.orderID,monto_usd:monto})
-        }).then(r=>r.json()).then(resp=>{
-          if(resp.ok){alert("Pago aprobado y stock registrado.");location.reload();}
-          else{alert("Pago aprobado en PayPal pero no se pudo registrar en Django.");}
-        }).catch(()=>alert("Error al registrar en Django."));
+        const bodegaId   = bodegaInput.value;
+        const productoId = document.getElementById('pp-producto').value;
+        const cantidad   = document.getElementById('pp-cantidad').value;
+        const monto      = document.getElementById('pp-monto').value;
+
+        fetch("{% url 'paypal-stock-in' %}", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            "X-CSRFToken": csrfToken,
+          },
+          body: JSON.stringify({
+            bodega_id: bodegaId,
+            producto_id: productoId,
+            cantidad: cantidad,
+            paypal_id: data.orderID,
+            monto_usd: monto,
+          }),
+        })
+        .then(r => r.json())
+        .then(resp => {
+          if (resp.ok) {
+            alert("Pago aprobado y stock registrado.");
+            closePaypalModal();
+            window.location.reload();
+          } else {
+            // 🔥 ahora sí muestra el error que viene del backend
+            alert(resp.error || "Pago aprobado en PayPal pero no se pudo registrar en Django.");
+          }
+        })
+        .catch(err => {
+          console.error(err);
+          alert("Error al registrar en Django: " + err);
+        });
       });
     },
     onCancel:()=>alert("Pago cancelado."),
-    onError:()=>alert("Error con PayPal.")
+    onError:(err)=>{
+      console.error(err);
+      alert("Error con PayPal.");
+    }
   }).render('#paypal-button-container');
 </script>
 {% endblock %}

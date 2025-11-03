@@ -1,4 +1,5 @@
-﻿import io
+﻿from datetime import timezone
+import io
 import json
 import segno
 
@@ -9,7 +10,7 @@ from django.urls import reverse, NoReverseMatch
 from django.contrib import messages
 from django.contrib.auth.forms import UserCreationForm
 from django.contrib.auth.models import User, Group
-from django.db import transaction
+from django.db import IntegrityError, transaction
 from django import forms
 from core.forms import *
 from core.models import *
@@ -2958,81 +2959,202 @@ def geocode(request):
         "display_name": item.get("display_name", q),
     })
     
-
-
+from django.utils import timezone
 @require_POST
 @login_required
+@transaction.atomic
 def paypal_stock_in(request):
     """
-    Recibe el POST desde el JS de PayPal (onApprove) y suma stock
-    en alguna ubicación de la bodega.
-
-    Espera JSON:
-    {
-      "bodega_id": 3,
-      "producto_id": 12,
-      "cantidad": "5",
-      "paypal_id": "PAYID-...",
-      "monto_usd": "10.00"
-    }
+    Llega desde el JS de PayPal cuando el pago fue APROBADO.
+    Hace TODO automático y si algo falla devuelve el error en JSON.
     """
-    # 1) leer JSON
     try:
-        data = json.loads(request.body.decode("utf-8"))
-    except Exception:
-        return JsonResponse({"ok": False, "error": "JSON inválido"}, status=400)
+        # -------------------------------------------------
+        # 1) leer JSON
+        # -------------------------------------------------
+        try:
+            data = json.loads(request.body.decode("utf-8"))
+        except Exception as e:
+            return JsonResponse({"ok": False, "error": f"JSON inválido: {e}"}, status=400)
 
-    bodega_id = data.get("bodega_id")
-    producto_id = data.get("producto_id")
-    cantidad = data.get("cantidad")
-    paypal_id = data.get("paypal_id")
-    monto_usd = data.get("monto_usd")
+        bodega_id = data.get("bodega_id")
+        producto_id = data.get("producto_id")
+        cantidad_raw = data.get("cantidad")
+        paypal_id = data.get("paypal_id") or "SIN-ID"
+        monto_usd_raw = data.get("monto_usd") or "0"
 
-    if not bodega_id or not producto_id or not cantidad:
-        return JsonResponse({"ok": False, "error": "Faltan datos"}, status=400)
+        if not bodega_id or not producto_id or not cantidad_raw:
+            return JsonResponse({"ok": False, "error": "Faltan datos"}, status=400)
 
-    # 2) cantidad válida
-    try:
-        cant = Decimal(str(cantidad))
-        if cant <= 0:
-            raise ValueError
-    except Exception:
-        return JsonResponse({"ok": False, "error": "Cantidad inválida"}, status=400)
+        # -------------------------------------------------
+        # 2) cantidad válida
+        # -------------------------------------------------
+        try:
+            cantidad = Decimal(str(cantidad_raw))
+            if cantidad <= 0:
+                raise ValueError
+        except Exception:
+            return JsonResponse({"ok": False, "error": "Cantidad inválida"}, status=400)
 
-    # 3) objetos
-    try:
-        bodega = Bodega.objects.get(pk=bodega_id)
-        producto = Producto.objects.get(pk=producto_id)
-    except (Bodega.DoesNotExist, Producto.DoesNotExist):
-        return JsonResponse({"ok": False, "error": "Bodega o producto no existen"}, status=404)
+        # -------------------------------------------------
+        # 3) buscar bodega y producto
+        # -------------------------------------------------
+        try:
+            bodega = Bodega.objects.get(pk=bodega_id)
+            producto = Producto.objects.get(pk=producto_id)
+        except Bodega.DoesNotExist:
+            return JsonResponse({"ok": False, "error": "Bodega no encontrada"}, status=404)
+        except Producto.DoesNotExist:
+            return JsonResponse({"ok": False, "error": "Producto no encontrado"}, status=404)
 
-    # 4) conseguir una ubicación de esa bodega
-    #    si no tiene, le creamos una por defecto
-    ubi = bodega.ubicaciones.filter(activo=True).order_by("id").first()
-    if not ubi:
-        ubi = UbicacionBodega.objects.create(
-            bodega=bodega,
-            codigo="AUTO-PP",
-            nombre="Ubicación generada por PayPal",
-            activo=True,
+        # -------------------------------------------------
+        # 4) asegurar UNA ubicación en esa bodega
+        # -------------------------------------------------
+        ubi = bodega.ubicaciones.filter(activo=True).order_by("id").first()
+        if not ubi:
+            ubi = UbicacionBodega.objects.create(
+                bodega=bodega,
+                codigo="AUTO-PP",
+                nombre="Ubicación generada por PayPal",
+                activo=True,
+            )
+
+        # -------------------------------------------------
+        # 5) sumar stock en ESA ubicación
+        # -------------------------------------------------
+        stock_obj, created = Stock.objects.get_or_create(
+            producto=producto,
+            ubicacion_bodega=ubi,
+            defaults={"cantidad_disponible": Decimal("0")}
+        )
+        Stock.objects.filter(pk=stock_obj.pk).update(
+            cantidad_disponible=F("cantidad_disponible") + cantidad
+        )
+        stock_obj.refresh_from_db()
+
+        # -------------------------------------------------
+        # 6) usuario proveedor PayPal (rol = PROVEEDOR)
+        # -------------------------------------------------
+        proveedor_user, _ = User.objects.get_or_create(
+            username="paypal_proveedor",
+            defaults={
+                "first_name": "Proveedor",
+                "last_name": "PayPal",
+                "email": "paypal@example.com",
+            },
+        )
+        UsuarioPerfil.objects.get_or_create(
+            usuario=proveedor_user,
+            defaults={"rol": UsuarioPerfil.Rol.PROVEEDOR},
         )
 
-    # 5) crear/actualizar el stock en ESA ubicación
-    stock_obj, created = Stock.objects.get_or_create(
-        producto=producto,
-        ubicacion_bodega=ubi,
-        defaults={"cantidad_disponible": 0}
-    )
+        # -------------------------------------------------
+        # 7) unidad de medida segura
+        # -------------------------------------------------
+        um = getattr(producto, "unidad_base", None)
+        if not um:
+            # intentamos agarrar una existente
+            um = UnidadMedida.objects.first()
+        if not um:
+            # si no hay ninguna en la bd, creamos una por defecto
+            um, _ = UnidadMedida.objects.get_or_create(
+                codigo="UN-PP",
+                defaults={"descripcion": "Unidad por PayPal"},
+            )
 
-    # sumamos usando F para evitar condiciones de carrera
-    Stock.objects.filter(pk=stock_obj.pk).update(
-        cantidad_disponible=F("cantidad_disponible") + cant
-    )
-    stock_obj.refresh_from_db()
+        # -------------------------------------------------
+        # 8) crear ORDEN DE COMPRA
+        # -------------------------------------------------
+        numero_orden = f"OC-PAYPAL-{timezone.now().strftime('%Y%m%d%H%M%S')}"
+        oc = OrdenCompra.objects.create(
+            proveedor=proveedor_user,
+            tasa_impuesto=None,
+            bodega=bodega,
+            numero_orden=numero_orden,
+            estado="COMPLETED",
+            fecha_esperada=timezone.now().date(),
+            creado_por=request.user,
+        )
 
-    # 6) responder al JS
-    return JsonResponse({
-        "ok": True,
-        "nuevo_stock": str(stock_obj.cantidad_disponible),
-        "msg": "Stock agregado correctamente",
-    })
+        # monto
+        try:
+            monto_usd = Decimal(str(monto_usd_raw))
+        except Exception:
+            monto_usd = Decimal("0")
+
+        LineaOrdenCompra.objects.create(
+            orden_compra=oc,
+            producto=producto,
+            descripcion=f"Compra PayPal #{paypal_id}",
+            cantidad_pedida=cantidad,
+            unidad=um,
+            precio=monto_usd,
+        )
+
+        # -------------------------------------------------
+        # 9) crear RECEPCIÓN
+        # -------------------------------------------------
+        rec = RecepcionMercaderia.objects.create(
+            orden_compra=oc,
+            bodega=bodega,
+            numero_recepcion=f"RC-PAYPAL-{timezone.now().strftime('%Y%m%d%H%M%S')}",
+            estado="CLOSED",
+            recibido_por=request.user,
+        )
+        LineaRecepcionMercaderia.objects.create(
+            recepcion=rec,
+            producto=producto,
+            cantidad_recibida=cantidad,
+            unidad=um,
+        )
+
+        # -------------------------------------------------
+        # 10) crear FACTURA (cuidando el unique)
+        # -------------------------------------------------
+        base_numero_factura = f"FP-PAYPAL-{paypal_id}"
+        try:
+            FacturaProveedor.objects.create(
+                proveedor=proveedor_user,
+                numero_factura=base_numero_factura,
+                monto_total=monto_usd,
+                fecha_factura=timezone.now().date(),
+                estado="PAID",
+            )
+        except IntegrityError:
+            # si ya existía una factura con ese número, le metemos sufijo de tiempo
+            FacturaProveedor.objects.create(
+                proveedor=proveedor_user,
+                numero_factura=f"{base_numero_factura}-{timezone.now().strftime('%H%M%S')}",
+                monto_total=monto_usd,
+                fecha_factura=timezone.now().date(),
+                estado="PAID",
+            )
+
+        # -------------------------------------------------
+        # LISTO
+        # -------------------------------------------------
+        return JsonResponse({
+            "ok": True,
+            "msg": "Pago registrado y stock sumado.",
+            "nuevo_stock": str(stock_obj.cantidad_disponible),
+            "orden": oc.numero_orden,
+        })
+
+    except Exception as e:
+        # 👇 esto es para que AHORA sí veas el error real en el popup
+        return JsonResponse({"ok": False, "error": str(e)}, status=400)
+
+
+
+
+
+
+@login_required
+def paypal_ingresos_view(request):
+    ordenes = (
+        OrdenCompra.objects
+        .filter(numero_orden__startswith="OC-PAYPAL-")
+        .prefetch_related("lineas", "bodega", "proveedor")
+        .order_by("-creado_en")[:50]
+    )
+    return render(request, "core/paypal_ingresos.html", {"ordenes": ordenes})

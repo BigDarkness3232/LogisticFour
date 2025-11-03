@@ -13,6 +13,16 @@ from core.models import (
     Sucursal, Bodega, UbicacionBodega, UbicacionSucursal,
     # productos
     Producto, LoteProducto, SerieProducto,
+    #orden
+    OrdenCompra,
+    LineaOrdenCompra,
+    RecepcionMercaderia,
+    LineaRecepcionMercaderia,
+    FacturaProveedor,
+    UsuarioPerfil,
+    Producto,
+    UnidadMedida,
+    Bodega,
 )
 
 
@@ -512,3 +522,8 @@ class SerieProductoForm(forms.ModelForm):
         if lote and prod and lote.producto_id != prod.id:
             self.add_error("lote", "El lote seleccionado no pertenece a este producto.")
         return cd
+
+
+
+
+
