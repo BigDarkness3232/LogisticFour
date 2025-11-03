@@ -471,7 +471,7 @@ class FinanzasReporteForm(forms.Form):
         empty_label="---------",
     )
     proveedor = forms.ModelChoiceField(
-        queryset=User.objects.none(),  # se completa en __init__
+        queryset=User.objects.none(),  # se define en __init__
         required=False,
         label="Proveedor",
         empty_label="---------",
@@ -491,20 +491,14 @@ class FinanzasReporteForm(forms.Form):
         super().__init__(*args, **kwargs)
 
         # Etiquetas legibles
-        self.fields["bodega"].label_from_instance = (
-            lambda b: f"{b.codigo} - {b.nombre}"
-        )
-        self.fields["proveedor"].label_from_instance = (
-            lambda u: (u.get_full_name() or u.username)
-        )
+        self.fields["bodega"].label_from_instance = lambda b: f"{b.codigo} - {b.nombre}"
+        self.fields["proveedor"].label_from_instance = lambda u: (u.get_full_name() or u.username)
 
-        # Queryset correcto para proveedores (nota el doble underscore)
-        self.fields["proveedor"].queryset = (
-            User.objects.filter(
-                perfil__rol=UsuarioPerfil.Rol.PROVEEDOR,
-                is_active=True,
-            ).order_by("username")
-        )
+        # Filtro correcto: solo usuarios con rol PROVEEDOR y activos
+        self.fields["proveedor"].queryset = User.objects.filter(
+            perfil__rol=UsuarioPerfil.Rol.PROVEEDOR,
+            is_active=True
+        ).order_by("username")
 
     def clean(self):
         data = super().clean()
@@ -512,7 +506,6 @@ class FinanzasReporteForm(forms.Form):
         if d and h and d > h:
             self.add_error("fecha_hasta", "La fecha hasta no puede ser menor que la fecha desde.")
         return data
-
 # =========================================================
 #  Series
 # =========================================================
