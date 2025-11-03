@@ -2908,3 +2908,8 @@ def sucursal_a_bodega(request):
         )
 
     return render(request, "core/Movimientos/sucursal_a_bodega.html", {"bodegas": bodegas})
+
+
+
+def movimientos_index(request):
+    return render(request, "core/Movimientos/movimientos_index.html")

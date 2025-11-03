@@ -130,7 +130,7 @@ urlpatterns = [
 
 
 
-
+    path("movimientos/", views.movimientos_index, name="movimientos_index"),
     path("movimientos/bodega-a-sucursal/", views.bodega_a_sucursal, name="bodega_a_sucursal"),
     path("movimientos/sucursal-a-sucursal/", views.sucursal_a_sucursal,name="mov_sucursal_a_sucursal",),
     path("movimientos/bodega-a-bodega/", views.bodega_a_bodega, name="mov_bodega_a_bodega",),

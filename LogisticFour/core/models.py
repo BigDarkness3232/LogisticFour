@@ -562,6 +562,12 @@ class Reserva(MarcaTiempo):
         db_table = "reservas"
 
 
+
+
+
+
+
+
 class PoliticaReabastecimiento(models.Model):
     producto = models.ForeignKey(Producto, on_delete=models.CASCADE)
     ubicacion_bodega = models.ForeignKey(UbicacionBodega, on_delete=models.CASCADE, null=True, blank=True)
