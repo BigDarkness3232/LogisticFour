@@ -1,8 +1,24 @@
+# forms.py
 from django import forms
 from django.contrib.auth.forms import UserCreationForm
 from django.contrib.auth.models import User
-from core.models import *
+from django.core.exceptions import ValidationError
 
+from core.models import (
+    # usuarios
+    UsuarioPerfil,
+    # catálogos
+    TasaImpuesto, UnidadMedida, ConversionUM, Marca, CategoriaProducto, TipoUbicacion,
+    # org
+    Sucursal, Bodega, UbicacionBodega, UbicacionSucursal,
+    # productos
+    Producto, LoteProducto, SerieProducto,
+)
+
+
+# =========================================================
+#  Usuarios
+# =========================================================
 class SignupUserForm(UserCreationForm):
     email = forms.EmailField(required=False, label="Email")
     first_name = forms.CharField(required=False, label="Nombre")
@@ -12,17 +28,18 @@ class SignupUserForm(UserCreationForm):
         model = User
         fields = ("username", "first_name", "last_name", "email", "password1", "password2")
 
+
 class UsuarioPerfilForm(forms.ModelForm):
     class Meta:
         model = UsuarioPerfil
-        # incluimos rol para que el ADMIN asigne el rol al crear
+        # el admin puede elegir rol
         fields = ("telefono", "rol")
         widgets = {
             "telefono": forms.TextInput(attrs={"placeholder": "+56 9 1234 5678"}),
         }
-        
+
+
 class UserEditForm(forms.ModelForm):
-    # opcional: permitir activar/desactivar
     is_active = forms.BooleanField(required=False, label="Activo")
 
     class Meta:
@@ -35,6 +52,7 @@ class UserEditForm(forms.ModelForm):
             "email":      forms.EmailInput(attrs={"class": "form-control"}),
         }
 
+
 class UsuarioPerfilEditForm(forms.ModelForm):
     class Meta:
         model = UsuarioPerfil
@@ -44,8 +62,12 @@ class UsuarioPerfilEditForm(forms.ModelForm):
             "rol": forms.Select(attrs={"class": "form-select"}),
         }
 
+
+# =========================================================
+#  Producto
+#  (sin el campo ubicacion porque ya no existe en el modelo)
+# =========================================================
 class ProductoForm(forms.ModelForm):
-    # Opcional: forzar empty_label más claro en los FKs opcionales
     marca = forms.ModelChoiceField(
         queryset=Marca.objects.none(),
         required=False,
@@ -59,17 +81,12 @@ class ProductoForm(forms.ModelForm):
     unidad_base = forms.ModelChoiceField(
         queryset=UnidadMedida.objects.none(),
         required=True,
-        empty_label=None  # obligatorio: sin opción vacía
+        empty_label=None
     )
     tasa_impuesto = forms.ModelChoiceField(
         queryset=TasaImpuesto.objects.none(),
         required=False,
         empty_label="— Sin impuesto —"
-    )
-    ubicacion = forms.ModelChoiceField(
-        queryset=Ubicacion.objects.all(),
-        required=False,
-        empty_label="— Selecciona una ubicación —"
     )
     stock = forms.IntegerField(
         min_value=0,
@@ -81,10 +98,12 @@ class ProductoForm(forms.ModelForm):
     class Meta:
         model = Producto
         fields = [
-            "sku", "nombre", "marca", "categoria",
-            "unidad_base", "tasa_impuesto", "activo",
-            "es_serializado", "tiene_vencimiento", "precio",
-            "stock", "ubicacion",  # Incluir el campo de ubicación aquí
+            "sku", "nombre",
+            "marca", "categoria",
+            "unidad_base", "tasa_impuesto",
+            "activo", "es_serializado", "tiene_vencimiento",
+            "precio",
+            "stock",  # este sigue estando en el modelo
         ]
         widgets = {
             "sku": forms.TextInput(attrs={"placeholder": "SKU o código interno"}),
@@ -99,15 +118,12 @@ class ProductoForm(forms.ModelForm):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
 
-        # Orden amigable en los selects
         self.fields["marca"].queryset = Marca.objects.all().order_by("nombre")
         self.fields["categoria"].queryset = CategoriaProducto.objects.all().order_by("nombre")
         self.fields["unidad_base"].queryset = UnidadMedida.objects.all().order_by("codigo")
-        # Solo tasas activas (si usas el campo 'activo')
         self.fields["tasa_impuesto"].queryset = TasaImpuesto.objects.filter(activo=True).order_by("nombre")
-        self.fields["ubicacion"].queryset = Ubicacion.objects.all().order_by("codigo")  # Ordenar las ubicaciones
 
-        # Pequeños estilos genéricos (si usas tu CSS, serán inputs normales)
+        # estilos
         for name, field in self.fields.items():
             if not isinstance(field.widget, forms.CheckboxInput):
                 field.widget.attrs.setdefault("class", "form-control")
@@ -116,44 +132,36 @@ class ProductoForm(forms.ModelForm):
 
     def clean_sku(self):
         sku = (self.cleaned_data.get("sku") or "").strip()
-        return sku.upper()  # normalizamos para evitar duplicados por mayúsc/minúsc
+        return sku.upper()
 
     def clean_nombre(self):
         return (self.cleaned_data.get("nombre") or "").strip()
 
-    def clean(self):
-        cd = super().clean()
-        # Ejemplo: no restringimos que sea serializado y con vencimiento a la vez,
-        # pero aquí podrías advertir o validar reglas de negocio si quisieras.
-        # if cd.get("es_serializado") and cd.get("tiene_vencimiento"):
-        #     self.add_error("tiene_vencimiento", "No combine serie y vencimiento (regla de negocio).")
-        return cd
-
     def save(self, commit=True):
         obj = super().save(commit=False)
-        # normalización SKU (opcional si ya lo tienes)
         obj.sku = (obj.sku or "").strip().upper()
-
-        # asegura entero ≥ 0
         if "stock" in self.cleaned_data and self.cleaned_data["stock"] is not None:
             obj.stock = max(0, int(self.cleaned_data["stock"]))
-
         if commit:
             obj.save()
         return obj
 
+
+# =========================================================
+#  Base para forms simples
+# =========================================================
 class BaseModelForm(forms.ModelForm):
-    """Pequeña utilidad para recortar espacios en CharFields."""
     def clean(self):
         cd = super().clean()
         for name, field in self.fields.items():
             if isinstance(field, forms.CharField) and cd.get(name) is not None:
-                cd[name] = " ".join(cd[name].split())  # colapsa espacios
+                cd[name] = " ".join(cd[name].split())
         return cd
 
 
-# ============== TasaImpuesto ==============
-
+# =========================================================
+#  TasaImpuesto
+# =========================================================
 class TasaImpuestoForm(BaseModelForm):
     class Meta:
         model = TasaImpuesto
@@ -167,14 +175,14 @@ class TasaImpuestoForm(BaseModelForm):
 
     def clean_porcentaje(self):
         p = self.cleaned_data.get("porcentaje")
-        # Acepta entre 0 y 1000 por seguridad (19.000 es típico)
         if p is None or p < 0 or p > 1000:
             raise forms.ValidationError("Porcentaje fuera de rango válido.")
         return p
 
 
-# ============== UnidadMedida ==============
-
+# =========================================================
+#  UnidadMedida
+# =========================================================
 class UnidadMedidaForm(BaseModelForm):
     class Meta:
         model = UnidadMedida
@@ -185,17 +193,18 @@ class UnidadMedidaForm(BaseModelForm):
 
     def clean_codigo(self):
         code = (self.cleaned_data.get("codigo") or "").strip()
-        return code.upper()  # normalizamos a mayúsculas
+        return code.upper()
 
 
-# ============== ConversionUM ==============
-
+# =========================================================
+#  ConversionUM
+# =========================================================
 class ConversionUMForm(BaseModelForm):
     class Meta:
         model = ConversionUM
         fields = ["unidad_desde", "unidad_hasta", "factor"]
         help_texts = {
-            "factor": "Factor de conversión (ej: 1000 para KG→G si defines desde=KG, hasta=G).",
+            "factor": "Factor de conversión (ej: 1000 para KG→G).",
         }
 
     def clean(self):
@@ -211,8 +220,9 @@ class ConversionUMForm(BaseModelForm):
         return cd
 
 
-# ============== Marca ==============
-
+# =========================================================
+#  Marca
+# =========================================================
 class MarcaForm(BaseModelForm):
     class Meta:
         model = Marca
@@ -222,15 +232,14 @@ class MarcaForm(BaseModelForm):
         }
 
     def clean_nombre(self):
-        # Normaliza: quita espacios adicionales y aplica "title"
         nombre = (self.cleaned_data.get("nombre") or "").strip()
-        # Si prefieres mantener mayúsculas exactas del usuario, quita la siguiente línea:
         nombre = " ".join(nombre.split())
         return nombre
 
 
-# ============== CategoriaProducto ==============
-
+# =========================================================
+#  Categoría
+# =========================================================
 class CategoriaProductoForm(BaseModelForm):
     padre = forms.ModelChoiceField(
         queryset=CategoriaProducto.objects.none(),
@@ -250,7 +259,6 @@ class CategoriaProductoForm(BaseModelForm):
         super().__init__(*args, **kwargs)
 
         qs = CategoriaProducto.objects.all().order_by("nombre")
-        # Evitar que elija a sí misma como padre al editar:
         if self.instance and self.instance.pk:
             qs = qs.exclude(pk=self.instance.pk)
         self.fields["padre"].queryset = qs
@@ -262,24 +270,23 @@ class CategoriaProductoForm(BaseModelForm):
         return (self.cleaned_data.get("codigo") or "").strip()
 
 
-
-
-
+# =========================================================
+#  Sucursal
+# =========================================================
 class SucursalForm(forms.ModelForm):
     class Meta:
         model = Sucursal
-        fields = ["codigo", "nombre", "direccion", "ciudad", "region", "pais", "activo"]
+        # ahora la sucursal SÍ tiene FK a bodega
+        fields = ["codigo", "nombre", "bodega", "direccion", "ciudad", "region", "pais", "activo"]
         labels = {
             "codigo": "Código",
             "nombre": "Nombre de la sucursal",
+            "bodega": "Bodega padre",
             "direccion": "Dirección",
             "ciudad": "Ciudad",
             "region": "Región / Estado",
             "pais": "País",
             "activo": "Activa",
-        }
-        help_texts = {
-            "codigo": "Máximo 20 caracteres. Usa un código corto y único (p. ej. SCL-01).",
         }
         widgets = {
             "codigo": forms.TextInput(attrs={
@@ -292,6 +299,7 @@ class SucursalForm(forms.ModelForm):
                 "class": "form-control",
                 "placeholder": "Nombre comercial de la sucursal",
             }),
+            "bodega": forms.Select(attrs={"class": "form-select"}),
             "direccion": forms.TextInput(attrs={
                 "class": "form-control",
                 "placeholder": "Calle, número, comuna/barrio",
@@ -316,7 +324,6 @@ class SucursalForm(forms.ModelForm):
     def clean_codigo(self):
         codigo = (self.cleaned_data.get("codigo") or "").strip().upper()
         if " " in codigo:
-            # si quieres permitir espacios, elimina esta validación
             raise ValidationError("El código no debe contener espacios.")
         return codigo
 
@@ -325,22 +332,20 @@ class SucursalForm(forms.ModelForm):
         if len(nombre) < 3:
             raise ValidationError("El nombre debe tener al menos 3 caracteres.")
         return nombre
-    
 
 
-
+# =========================================================
+#  Bodega
+# =========================================================
 class BodegaForm(forms.ModelForm):
     class Meta:
         model = Bodega
-        fields = [ "codigo", "nombre", "descripcion", "activo"]
+        fields = ["codigo", "nombre", "descripcion", "activo"]
         labels = {
             "codigo": "Código de bodega",
             "nombre": "Nombre de la bodega",
             "descripcion": "Descripción",
             "activo": "Activa",
-        }
-        help_texts = {
-            "codigo": "Código corto y único dentro de la sucursal. Ej: BOD-01",
         }
         widgets = {
             "codigo": forms.TextInput(attrs={
@@ -366,8 +371,11 @@ class BodegaForm(forms.ModelForm):
         if len(nombre) < 3:
             raise ValidationError("El nombre debe tener al menos 3 caracteres.")
         return nombre
-    
 
+
+# =========================================================
+#  TipoUbicacion
+# =========================================================
 class TipoUbicacionForm(forms.ModelForm):
     class Meta:
         model = TipoUbicacion
@@ -378,48 +386,52 @@ class TipoUbicacionForm(forms.ModelForm):
         }
 
 
-class UbicacionForm(forms.ModelForm):
+# =========================================================
+#  Ubicaciones NUEVAS
+# =========================================================
+class UbicacionBodegaForm(forms.ModelForm):
     class Meta:
-        model = Ubicacion
-        fields = ["area", "tipo", "codigo", "nombre", "pickeable", "almacenable"]
+        model = UbicacionBodega
+        fields = ["bodega", "codigo", "nombre", "area", "tipo", "pickeable", "almacenable", "activo"]
         widgets = {
-            "codigo": forms.TextInput(attrs={"placeholder": "Ej: R01-A2-B3"}),
-            "nombre": forms.TextInput(attrs={"placeholder": "Nombre visible (opcional)"}),
+            "bodega": forms.Select(attrs={"class": "form-select"}),
+            "codigo": forms.TextInput(attrs={"placeholder": "Ej: PAS-01-N2", "class": "form-control"}),
+            "nombre": forms.TextInput(attrs={"placeholder": "Nombre visible (opcional)", "class": "form-control"}),
+            "area": forms.TextInput(attrs={"placeholder": "Zona / Pasillo / Sector", "class": "form-control"}),
+            "tipo": forms.Select(attrs={"class": "form-select"}),
+            "pickeable": forms.CheckboxInput(attrs={"class": "form-check-input"}),
+            "almacenable": forms.CheckboxInput(attrs={"class": "form-check-input"}),
+            "activo": forms.CheckboxInput(attrs={"class": "form-check-input"}),
         }
 
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
+    def clean_codigo(self):
+        codigo = (self.cleaned_data.get("codigo") or "").strip()
+        return codigo.upper()
 
-        # Filtrar los tipos de ubicación según el área
-        if self.instance and self.instance.pk:
-            area = self.instance.area
-        else:
-            area = None
-        
-        # Si existe el área, filtra los tipos por esa área
-        if area:
-            self.fields["tipo"].queryset = TipoUbicacion.objects.filter(area=area).order_by("codigo")
-        else:
-            self.fields["tipo"].queryset = TipoUbicacion.objects.none()
 
-        # Etiquetas personalizadas
-        self.fields["tipo"].label_from_instance = lambda obj: (
-            f"{obj.codigo} — {obj.descripcion}"
-        )
+class UbicacionSucursalForm(forms.ModelForm):
+    class Meta:
+        model = UbicacionSucursal
+        fields = ["sucursal", "codigo", "nombre", "area", "tipo", "pickeable", "almacenable", "activo"]
+        widgets = {
+            "sucursal": forms.Select(attrs={"class": "form-select"}),
+            "codigo": forms.TextInput(attrs={"placeholder": "Ej: ANDEN-01", "class": "form-control"}),
+            "nombre": forms.TextInput(attrs={"placeholder": "Nombre visible (opcional)", "class": "form-control"}),
+            "area": forms.TextInput(attrs={"placeholder": "Zona / Sector", "class": "form-control"}),
+            "tipo": forms.Select(attrs={"class": "form-select"}),
+            "pickeable": forms.CheckboxInput(attrs={"class": "form-check-input"}),
+            "almacenable": forms.CheckboxInput(attrs={"class": "form-check-input"}),
+            "activo": forms.CheckboxInput(attrs={"class": "form-check-input"}),
+        }
 
-    def clean(self):
-        cd = super().clean()
-        area = cd.get("area")
-        codigo = (cd.get("codigo") or "").strip()
+    def clean_codigo(self):
+        codigo = (self.cleaned_data.get("codigo") or "").strip()
+        return codigo.upper()
 
-        if area and codigo:
-            # Verificar si ya existe una ubicación con el mismo código en el área
-            if Ubicacion.objects.filter(area=area, codigo__iexact=codigo) \
-                                .exclude(pk=self.instance.pk if self.instance.pk else None).exists():
-                self.add_error("codigo", "Ya existe una ubicación con ese código en esta área.")
-        
-        return cd
 
+# =========================================================
+#  Lotes
+# =========================================================
 class LoteProductoForm(forms.ModelForm):
     class Meta:
         model = LoteProducto
@@ -439,7 +451,6 @@ class LoteProductoForm(forms.ModelForm):
 
     def clean(self):
         cd = super().clean()
-        # Validación de unicidad amigable al usuario (refleja uq_producto_lote)
         prod = cd.get("producto")
         codigo = (cd.get("codigo_lote") or "").strip()
         if prod and codigo:
@@ -451,6 +462,9 @@ class LoteProductoForm(forms.ModelForm):
         return cd
 
 
+# =========================================================
+#  Series
+# =========================================================
 class SerieProductoForm(forms.ModelForm):
     class Meta:
         model = SerieProducto
@@ -460,14 +474,12 @@ class SerieProductoForm(forms.ModelForm):
         }
 
     def __init__(self, *args, **kwargs):
-        # Filtra el campo 'lote' según el producto elegido (instance o POST)
         super().__init__(*args, **kwargs)
 
         producto = None
         if self.instance and self.instance.pk:
             producto = self.instance.producto
         else:
-            # Si viene en POST/GET (útil en modales dependientes)
             pid = self.data.get("producto") or self.initial.get("producto")
             if pid:
                 try:
@@ -487,7 +499,6 @@ class SerieProductoForm(forms.ModelForm):
 
     def clean(self):
         cd = super().clean()
-        # Validación de unicidad amigable (refleja uq_producto_numero_serie)
         prod = cd.get("producto")
         ns = (cd.get("numero_serie") or "").strip()
         if prod and ns:
@@ -496,8 +507,8 @@ class SerieProductoForm(forms.ModelForm):
                 qs = qs.exclude(pk=self.instance.pk)
             if qs.exists():
                 self.add_error("numero_serie", "Ya existe una serie con ese número para el producto seleccionado.")
-        # Si se selecciona lote, debe pertenecer al mismo producto
+
         lote = cd.get("lote")
-        if lote and prod and LoteProducto.producto_id != prod.id:
+        if lote and prod and lote.producto_id != prod.id:
             self.add_error("lote", "El lote seleccionado no pertenece a este producto.")
         return cd
