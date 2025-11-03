@@ -56,14 +56,18 @@ urlpatterns = [
     path("sucursales/", views.SucursalListView.as_view(), name="sucursal-list"),
     path("sucursales/agregar/", views.SucursalCreateView.as_view(), name="sucursal-create"),
     path("sucursales/<int:pk>/editar/", views.SucursalUpdateView.as_view(), name="sucursal-edit"),
-    path("sucursales/<int:pk>/eliminar/", views.SucursalDeleteView.as_view(), name="sucursal-delete"),
+  
+    path("sucursales/<int:pk>/dispositivos/", views.sucursal_dispositivos, name="sucursal-dispositivos"),
      #path("sucursales/<int:pk>/", views.SucursalDetailView.as_view(), name="sucursal-detail"),
+    path("sucursales/<int:pk>/dispositivos/", views.sucursal_dispositivos, name="sucursal-dispositivos"),
+    path("ajax/ubicaciones-por-producto-sucursal/", views.ajax_ubicaciones_por_producto_sucursal, name="ajax-ubicaciones-por-producto-sucursal"),
+    path("sucursales/<int:pk>/delete-json/", views.sucursal_delete_json, name="sucursal-delete-json"),
 
      # Bodegas CRUD
     path("bodegas/", views.BodegaListView.as_view(), name="bodega-list"),
     path("bodegas/agregar/", views.BodegaCreateView.as_view(), name="bodega-create"),
     path("bodegas/<int:pk>/editar/", views.BodegaUpdateView.as_view(), name="bodega-edit"),
-    path("bodegas/<int:pk>/eliminar/", views.BodegaDeleteView.as_view(), name="bodega-delete"),
+    path('bodegas/<int:pk>/eliminar/', views.bodega_delete, name='bodega-delete'),
     path("bodegas/<int:pk>/", views.BodegaDetailView.as_view(), name="bodega-detail"),
 
 
@@ -142,6 +146,7 @@ urlpatterns = [
 
 
 
+    path('bodegas/<int:bodega_id>/agregar-sucursal/', views.bodega_agregar_sucursal, name='bodega-agregar-sucursal'),
 
 
 
@@ -151,7 +156,8 @@ urlpatterns = [
 
 
 
-
+    path("bodegas/<int:bodega_id>/productos/", views.bodega_productos, name="bodega-productos"),
+    path("ajax/ubicaciones-por-producto/", views.ajax_ubicaciones_por_producto, name="ajax_ubicaciones_por_producto"),
 
 
 

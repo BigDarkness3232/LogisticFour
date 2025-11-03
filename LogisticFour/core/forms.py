@@ -337,6 +337,7 @@ class SucursalForm(forms.ModelForm):
 # =========================================================
 #  Bodega
 # =========================================================
+
 class BodegaForm(forms.ModelForm):
     class Meta:
         model = Bodega
@@ -347,23 +348,63 @@ class BodegaForm(forms.ModelForm):
             "descripcion": "Descripción",
             "activo": "Activa",
         }
+        help_texts = {
+            "codigo": "Identificador único visible (puedes usar letras, números y guiones).",
+            "nombre": "Nombre público de la bodega.",
+            "descripcion": "Campo opcional.",
+        }
         widgets = {
-            "codigo": forms.TextInput(attrs={
-                "class": "form-control", "maxlength": "20", "placeholder": "Ej: BOD-01",
-            }),
-            "nombre": forms.TextInput(attrs={
-                "class": "form-control", "placeholder": "Nombre visible de la bodega",
-            }),
-            "descripcion": forms.Textarea(attrs={
-                "class": "form-control", "rows": 3, "placeholder": "Opcional",
-            }),
-            "activo": forms.CheckboxInput(attrs={"class": "form-check-input"}),
+            "codigo": forms.TextInput(
+                attrs={
+                    "class": "in form-control",
+                    "maxlength": "20",
+                    "placeholder": "Ej: BOD-01",
+                    "autocomplete": "off",
+                    "spellcheck": "false",
+                }
+            ),
+            "nombre": forms.TextInput(
+                attrs={
+                    "class": "in form-control",
+                    "placeholder": "Nombre visible de la bodega",
+                    "autocomplete": "off",
+                }
+            ),
+            "descripcion": forms.Textarea(
+                attrs={
+                    "class": "ta form-control",
+                    "rows": 4,
+                    "placeholder": "Opcional",
+                }
+            ),
+            "activo": forms.CheckboxInput(attrs={"class": "chk form-check-input"}),
         }
 
+    # ---- Normalización en memoria para que el usuario lo vea igual al reenviar ----
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        # Autofocus en el primer campo
+        self.fields["codigo"].widget.attrs.setdefault("autofocus", "autofocus")
+
+    # ---- Validaciones ----
     def clean_codigo(self):
         codigo = (self.cleaned_data.get("codigo") or "").strip().upper()
+
         if " " in codigo:
             raise ValidationError("El código no debe contener espacios.")
+
+        # Sólo letras, números, guion y guion bajo
+        import re
+        if not re.fullmatch(r"[A-Z0-9\-_]+", codigo):
+            raise ValidationError("Use solo letras, números, guion (-) o guion bajo (_).")
+
+        # Unicidad case-insensitive (excluyendo el propio registro en edición)
+        qs = Bodega.objects.filter(codigo__iexact=codigo)
+        if self.instance.pk:
+            qs = qs.exclude(pk=self.instance.pk)
+        if qs.exists():
+            raise ValidationError("Ya existe una bodega con este código.")
+
         return codigo
 
     def clean_nombre(self):
@@ -372,7 +413,15 @@ class BodegaForm(forms.ModelForm):
             raise ValidationError("El nombre debe tener al menos 3 caracteres.")
         return nombre
 
-
+    # ---- Persistencia con normalización adicional si hiciera falta ----
+    def save(self, commit=True):
+        obj = super().save(commit=False)
+        # Aseguramos formato consistente
+        obj.codigo = (obj.codigo or "").strip().upper()
+        obj.nombre = (obj.nombre or "").strip()
+        if commit:
+            obj.save()
+        return obj
 # =========================================================
 #  TipoUbicacion
 # =========================================================
