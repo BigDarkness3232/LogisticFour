@@ -167,7 +167,7 @@
   }
 
   .lx-actions {
-    min-width: 150px;
+    min-width: 190px;
   }
 
   .lx-acts {
@@ -193,7 +193,6 @@
     white-space: nowrap;
   }
 
-  /* botón de acciones arreglado */
   .lx-act svg {
     width: 15px;
     height: 15px;
@@ -204,12 +203,8 @@
 
   .lx-act.pri {
     background: var(--pri);
-    color: #fff;           /* icono blanco */
+    color: #fff;
     border-color: var(--pri);
-  }
-
-  .lx-act.pri:hover {
-    background: #000;
   }
 
   .lx-act:hover {
@@ -344,7 +339,6 @@
   <div class="lx-head">
     <h1>Sucursales</h1>
     <div>
-      {# Django no soporta paréntesis en el if, lo separamos así: #}
       {% if request.user.is_authenticated and request.user.is_superuser %}
         <a class="lx-btn" href="{% url 'sucursal-create' %}">
           <span aria-hidden="true">＋</span>
@@ -426,6 +420,11 @@
                 <svg aria-hidden="true"><use href="#icon-eye"></use></svg>
                 <span>Ver</span>
               </button>
+              <button type="button"
+                      class="lx-act"
+                      onclick="showOnMap('{{ s.direccion|default:'' }} {{ s.ciudad|default:'' }} {{ s.region|default:'' }}')">
+                Ver en mapa
+              </button>
               <a class="lx-act" href="{% url 'sucursal-edit' s.pk %}">Editar</a>
             </div>
           </td>
@@ -478,8 +477,7 @@
                   <small>Nota</small>
                   <span class="muted">
                     El stock total se calcula desde las filas de <code>Stock</code>
-                    asociadas a las ubicaciones de esta sucursal. Si ves 0,
-                    revisa que la sucursal tenga ubicaciones distintas a la bodega.
+                    asociadas a las ubicaciones de esta sucursal.
                   </span>
                 </div>
               </div>
@@ -515,6 +513,24 @@
   </div>
   {% endif %}
 </div>
+
+{# ===== MODAL DEL MAPA ===== #}
+<div id="mapModal"
+     style="position:fixed;inset:0;display:none;align-items:center;justify-content:center;background:rgba(0,0,0,.3);z-index:9999;">
+  <div style="background:#fff;border-radius:14px;overflow:hidden;min-width:60vw;max-width:80vw;min-height:60vh;display:flex;flex-direction:column;">
+    <div style="padding:14px 18px;border-bottom:1px solid #e5e7eb;display:flex;justify-content:space-between;align-items:center;">
+      <strong>Ubicación en mapa</strong>
+      <button type="button" onclick="closeMapModal()" style="border:0;background:transparent;font-size:18px;line-height:1;cursor:pointer">×</button>
+    </div>
+    <div id="map" style="width:100%;flex:1 1 auto;min-height:380px;background:#ddd"></div>
+    <div id="mapAddr" style="padding:8px 14px;border-top:1px solid #e5e7eb;font-size:13px;color:#374151">—</div>
+  </div>
+</div>
+
+<!-- Leaflet CSS (sin integrity) -->
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+<!-- Leaflet JS -->
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 
 <script src="{% static 'core/js/barcode_scanner.js' %}"></script>
 <script>
@@ -596,5 +612,71 @@
       }
     });
   })();
+
+  // ===== MAPA =====
+  let _leafletMap = null;
+  let _leafletMarker = null;
+
+  function openMapModal() {
+    document.getElementById('mapModal').style.display = 'flex';
+  }
+  function closeMapModal() {
+    document.getElementById('mapModal').style.display = 'none';
+  }
+
+  async function showOnMap(rawAddress) {
+    if (!rawAddress || !rawAddress.trim()) {
+      alert("Esta sucursal no tiene dirección.");
+      return;
+    }
+
+    const addr = rawAddress.trim();
+    openMapModal();
+    document.getElementById('mapAddr').textContent = addr;
+
+    // usamos tu endpoint de Django
+    const url = `/api/geocode/?q=${encodeURIComponent(addr)}`;
+    try {
+      const resp = await fetch(url);
+      const data = await resp.json();
+
+      if (!resp.ok) {
+        alert("No se pudo cargar el mapa (geocoding falló).");
+        return;
+      }
+
+      const lat = parseFloat(data.lat);
+      const lon = parseFloat(data.lon);
+
+      if (isNaN(lat) || isNaN(lon)) {
+        alert("Geocoding sin coordenadas.");
+        return;
+      }
+
+      if (!_leafletMap) {
+        _leafletMap = L.map('map').setView([lat, lon], 15);
+        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+          maxZoom: 19,
+          attribution: '&copy; OpenStreetMap contributors'
+        }).addTo(_leafletMap);
+      } else {
+        _leafletMap.setView([lat, lon], 15);
+      }
+
+      if (_leafletMarker) {
+        _leafletMarker.setLatLng([lat, lon]);
+      } else {
+        _leafletMarker = L.marker([lat, lon]).addTo(_leafletMap);
+      }
+
+      setTimeout(() => {
+        _leafletMap.invalidateSize();
+      }, 200);
+
+    } catch (err) {
+      console.error(err);
+      alert("No se pudo cargar el mapa.");
+    }
+  }
 </script>
 {% endblock %}

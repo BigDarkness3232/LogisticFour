@@ -54,7 +54,7 @@
     color: var(--pri-ink);
     border-radius: 999px;
     border: 1px solid rgba(15,23,42,.08);
-    padding: 8.5px 14px 8px;
+    padding: 7.5px 13px 7px;
     font-weight: 600;
     display: inline-flex;
     align-items: center;
@@ -62,6 +62,7 @@
     text-decoration: none;
     cursor: pointer;
     transition: transform .12s ease, box-shadow .12s ease;
+    font-size: .78rem;
   }
 
   .btn-primary:hover {
@@ -84,11 +85,12 @@
   .filter-input {
     flex: 1 1 280px;
     min-width: 220px;
-    padding: 9px 11px;
+    padding: 8px 11px;
     border: 1px solid rgba(148,163,184,.35);
     border-radius: 10px;
     background: #f8fafc;
     transition: border .12s ease, box-shadow .12s ease;
+    font-size: .8rem;
   }
 
   .filter-input:focus {
@@ -103,11 +105,12 @@
     color: #fff;
     border: none;
     border-radius: 10px;
-    padding: 9px 14px 8px;
+    padding: 8px 12px 7px;
     display: inline-flex;
     gap: 5px;
     align-items: center;
     cursor: pointer;
+    font-size: .78rem;
   }
 
   .btn-ghost {
@@ -115,11 +118,12 @@
     color: #0f172a;
     border: 1px solid var(--line);
     border-radius: 10px;
-    padding: 8.5px 13px;
+    padding: 7.5px 11px;
     display: inline-flex;
     gap: 4px;
     align-items: center;
     text-decoration: none;
+    font-size: .78rem;
   }
 
   .table-wrap {
@@ -143,14 +147,15 @@
     background: var(--head);
     z-index: 1;
     text-align: left;
-    padding: 10px 12px;
+    padding: 9px 10px;
     font-weight: 700;
     border-bottom: 1px solid var(--line);
     color: #0f172a;
+    font-size: .75rem;
   }
 
   .data-table tbody td {
-    padding: 12px;
+    padding: 10px 10px;
     border-bottom: 1px solid var(--line);
   }
 
@@ -159,15 +164,15 @@
   }
 
   .mono {
-    font-family: ui-monospace, SFMono-Regular, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+    font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Courier New", monospace;
   }
 
   .badge {
     display: inline-flex;
     align-items: center;
     gap: 5px;
-    padding: 4px 9px 4px;
-    font-size: .72rem;
+    padding: 3px 7px 3px;
+    font-size: .68rem;
     border-radius: 999px;
     border: 1px solid rgba(148,163,184,.4);
     background: #f8fafc;
@@ -187,13 +192,13 @@
 
   .col-actions {
     text-align: right;
-    min-width: 230px;
+    min-width: 210px;
     white-space: nowrap;
   }
 
   .acts {
     display: flex;
-    gap: 7px;
+    gap: 5px;
     flex-wrap: wrap;
     justify-content: flex-end;
   }
@@ -201,14 +206,15 @@
   .act {
     display: inline-flex;
     align-items: center;
-    gap: 5px;
-    padding: 7px 10px 6px;
+    gap: 4px;
+    padding: 5.5px 9px 5px;
     border-radius: 999px;
     border: 1px solid rgba(148,163,184,.4);
     background: #fff;
     color: #0f172a;
     text-decoration: none;
-    font-size: .78rem;
+    font-size: .7rem;
+    line-height: 1;
     transition: background .1s ease;
   }
 
@@ -228,56 +234,60 @@
     background: #fef2f2;
   }
 
-  .expand-row td {
-    padding: 0 !important;
-    background: #f9fafb;
+  /* paypal modal */
+  .pp-backdrop {
+    position: fixed;
+    inset: 0;
+    background: rgba(15,23,42,.35);
+    display: none;
+    align-items: center;
+    justify-content: center;
+    z-index: 2000;
   }
-
-  .expand-wrap {
-    border-top: 1px dashed rgba(148,163,184,.4);
+  .pp-modal {
+    background: #fff;
+    border-radius: 14px;
+    width: min(460px, 95vw);
+    box-shadow: 0 20px 40px rgba(15,23,42,.14);
+    overflow: hidden;
   }
-
-  .expand-inner {
+  .pp-head {
+    padding: 12px 15px;
+    border-bottom: 1px solid #e5e7eb;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+  }
+  .pp-body {
+    padding: 12px 15px 10px;
     display: grid;
     gap: 10px;
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-    padding: 12px 14px 14px;
-    max-height: 0;
-    overflow: hidden;
-    opacity: 0;
-    transition: max-height .35s ease, opacity .25s ease;
   }
-
-  .expand-wrap.open .expand-inner {
-    opacity: 1;
-  }
-
-  .kv {
+  .pp-field {
     display: grid;
     gap: 3px;
   }
-
-  .kv small {
-    color: var(--muted);
+  .pp-field label {
+    font-size: .72rem;
+    color: #475569;
+  }
+  .pp-field input,
+  .pp-field select {
+    border: 1px solid #e2e8f0;
+    border-radius: 9px;
+    padding: 6px 8px;
+    font-size: .78rem;
+  }
+  .pp-footer {
+    padding: 10px 15px 12px;
+    border-top: 1px solid #e2e8f0;
   }
 
-  .muted {
-    color: var(--muted);
-  }
-
-  /* icons */
-  .icon-sm {
-    width: 16px;
-    height: 16px;
-  }
-
-  /* animations */
   @keyframes fadeIn {
     from { opacity: 0; transform: translateY(3px); }
     to   { opacity: 1; transform: translateY(0); }
   }
 
-  /* responsive */
   @media (max-width: 870px) {
     .page-head { flex-direction: column; align-items: flex-start; }
     .col-actions { text-align: left; }
@@ -305,20 +315,12 @@
       color: var(--muted);
       margin-right: 5px;
     }
-    .expand-inner { grid-template-columns: 1fr; }
     .acts { justify-content: flex-start; }
     .filter-card { flex-direction: column; align-items: stretch; }
   }
 </style>
 
-<!-- mini-sprite para icono ojo -->
-<svg style="position:absolute;width:0;height:0;overflow:hidden" aria-hidden="true">
-<symbol id="icon-eye" viewBox="0 0 24 24">
-  <path fill="currentColor" d="M12 4.5c5.04 0 8.83 3.7 9.9 5.09.2.26.2.63 0 .9-1.07 1.38-4.86 5.01-9.9 5.01S3.17 11.87 2.1 10.49a.73.73 0 0 1 0-.9C3.17 8.21 6.96 4.5 12 4.5Zm0 2c-3.47 0-6.46 2.38-7.83 4.02 1.37 1.64 4.36 4.02 7.83 4.02 3.47 0 6.46-2.38 7.83-4.02C18.46 8.88 15.47 6.5 12 6.5Zm0 2.3a2.2 2.2 0 1 1 0 4.4 2.2 2.2 0 0 1 0-4.4Z" />
-</symbol>
-
-</svg>
-
+<!-- CONTENIDO -->
 <div class="bodega-page">
   <header class="page-head">
     <div>
@@ -326,188 +328,129 @@
       <p class="page-sub">Listado general de bodegas con sus sucursales, ubicaciones y stock agregado.</p>
     </div>
     <div class="page-actions">
-      {% if request.user.is_authenticated %}
-        {% if request.user.is_superuser or request.user.perfil.rol == 'ADMIN' %}
-          <a class="btn-primary" href="{% url 'bodega-create' %}">
-            <span aria-hidden="true">＋</span>
-            Crear bodega
-          </a>
-        {% endif %}
+      {% if request.user.is_superuser or request.user.perfil.rol == 'ADMIN' %}
+        <a class="btn-primary" href="{% url 'bodega-create' %}">
+          ＋ Crear bodega
+        </a>
       {% endif %}
     </div>
   </header>
 
-  <form method="get" class="filter-card" role="search">
-    <input
-      type="text"
-      name="q"
-      class="filter-input"
-      value="{{ q }}"
-      placeholder="Buscar por código, nombre, descripción o sucursal…" />
-    <button class="btn-filter" type="submit">
-      <span aria-hidden="true">🔍</span> Buscar
-    </button>
-    <a class="btn-ghost" href="{% url 'bodega-list' %}">
-      Limpiar
-    </a>
+  <form method="get" class="filter-card">
+    <input type="text" name="q" class="filter-input" value="{{ q }}" placeholder="Buscar por código, nombre, descripción o sucursal…">
+    <button class="btn-filter" type="submit">🔍 Buscar</button>
+    <a class="btn-ghost" href="{% url 'bodega-list' %}">Limpiar</a>
   </form>
 
   <div class="table-wrap">
     <table class="data-table">
       <thead>
       <tr>
-        <th>Código</th>
-        <th>Nombre</th>
-        <th>Descripción</th>
-        <th>Sucursales</th>
-        <th>Ubicaciones</th>
-        <th>Productos</th>
-        <th>Stock total</th>
-        <th>Activo</th>
-        <th class="col-actions">Acciones</th>
+        <th>Código</th><th>Nombre</th><th>Descripción</th><th>Sucursales</th>
+        <th>Ubicaciones</th><th>Productos</th><th>Stock total</th><th>Activo</th><th>Acciones</th>
       </tr>
       </thead>
-      <tbody id="rows-bod">
+      <tbody>
       {% for b in bodegas %}
-        <tr>
-          <td data-label="Código"><span class="mono">{{ b.codigo }}</span></td>
-          <td data-label="Nombre"><strong>{{ b.nombre }}</strong></td>
-          <td data-label="Descripción">{{ b.descripcion|default:"—"|truncatechars:55 }}</td>
-          <td data-label="Sucursales">{{ b.sucursales_count|default:0 }}</td>
-          <td data-label="Ubicaciones">{{ b.ubicaciones_count|default:0 }}</td>
-          <td data-label="Productos">{{ b.productos_count|default:0 }}</td>
-          <td data-label="Stock total"><strong>{{ b.total_stock|default:0 }}</strong></td>
-          <td data-label="Activo">
-            {% if b.activo %}
-              <span class="badge ok">Sí</span>
-            {% else %}
-              <span class="badge no">No</span>
-            {% endif %}
-          </td>
-          <td class="col-actions" data-label="Acciones">
-            <div class="acts">
-              <button type="button"
-                      class="act primary"
-                      data-target="b{{ b.pk }}"
-                      aria-controls="b{{ b.pk }}"
-                      aria-expanded="false">
-                <svg class="icon-sm" aria-hidden="true"><use href="#icon-eye"></use></svg>
-                Ver
-              </button>
-              <a href="{% url 'bodega-edit' b.pk %}" class="act">Editar</a>
-              <a href="{% url 'bodega-delete' b.pk %}" class="act danger"
-                 onclick="return confirm('¿Eliminar esta bodega?')">
-                Eliminar
-              </a>
-            </div>
-          </td>
-        </tr>
-        <tr id="b{{ b.pk }}" class="expand-row">
-          <td colspan="9">
-            <div class="expand-wrap" data-expand>
-              <div class="expand-inner">
-                <div class="kv">
-                  <small>Sucursales asociadas</small>
-                  {% if b.sucursales.all %}
-                    <ul style="margin:0;padding-left:1rem">
-                      {% for s in b.sucursales.all %}
-                        <li>{{ s.codigo }} — {{ s.nombre }}</li>
-                      {% endfor %}
-                    </ul>
-                  {% else %}
-                    <span class="muted">Sin sucursales.</span>
-                  {% endif %}
-                </div>
-                <div class="kv">
-                  <small>Ubicaciones de la bodega</small>
-                  {% if b.ubicaciones.all %}
-                    <ul style="margin:0;padding-left:1rem">
-                      {% for u in b.ubicaciones.all %}
-                        <li>
-                          {{ u.codigo }}
-                          {% if u.nombre %} — {{ u.nombre }}{% endif %}
-                          {% if u.stock_total %} (stock: {{ u.stock_total|floatformat:2 }}){% endif %}
-                        </li>
-                      {% endfor %}
-                    </ul>
-                  {% else %}
-                    <span class="muted">No hay ubicaciones registradas.</span>
-                  {% endif %}
-                </div>
-              </div>
-            </div>
-          </td>
-        </tr>
+      <tr>
+        <td class="mono">{{ b.codigo }}</td>
+        <td><strong>{{ b.nombre }}</strong></td>
+        <td>{{ b.descripcion|default:"—"|truncatechars:55 }}</td>
+        <td>{{ b.sucursales_count|default:0 }}</td>
+        <td>{{ b.ubicaciones_count|default:0 }}</td>
+        <td>{{ b.productos_count|default:0 }}</td>
+        <td><strong>{{ b.total_stock|default:0 }}</strong></td>
+        <td>
+          {% if b.activo %}<span class="badge ok">Sí</span>{% else %}<span class="badge no">No</span>{% endif %}
+        </td>
+        <td class="col-actions">
+          <div class="acts">
+            <button type="button" class="act primary" data-target="b{{ b.pk }}">👁 Ver</button>
+            <button type="button" class="act" onclick="openPaypalModal({{ b.id }}, '{{ b.nombre|escapejs }}')">💳 Stock</button>
+            <a href="{% url 'bodega-edit' b.pk %}" class="act">✎</a>
+            <a href="{% url 'bodega-delete' b.pk %}" class="act danger" onclick="return confirm('¿Eliminar esta bodega?')">🗑</a>
+          </div>
+        </td>
+      </tr>
       {% empty %}
-        <tr>
-          <td colspan="9" style="padding:22px;text-align:center;color:var(--muted)">
-            No hay bodegas aún.
-          </td>
-        </tr>
+      <tr><td colspan="9" style="text-align:center;color:var(--muted);padding:20px;">No hay bodegas aún.</td></tr>
       {% endfor %}
       </tbody>
     </table>
   </div>
-
-  {% if is_paginated %}
-    <nav style="display:flex;justify-content:center;gap:8px;flex-wrap:wrap;margin-top:14px">
-      {% if page_obj.has_previous %}
-        <a class="btn-ghost" href="?page={{ page_obj.previous_page_number }}{% if q %}&q={{ q }}{% endif %}">← Anterior</a>
-      {% else %}
-        <span class="btn-ghost" aria-disabled="true" style="opacity:.55;pointer-events:none">← Anterior</span>
-      {% endif %}
-
-      <span class="btn-primary" style="pointer-events:none">
-        Página {{ page_obj.number }} de {{ page_obj.paginator.num_pages }}
-      </span>
-
-      {% if page_obj.has_next %}
-        <a class="btn-ghost" href="?page={{ page_obj.next_page_number }}{% if q %}&q={{ q }}{% endif %}">Siguiente →</a>
-      {% else %}
-        <span class="btn-ghost" aria-disabled="true" style="opacity:.55;pointer-events:none">Siguiente →</span>
-      {% endif %}
-    </nav>
-  {% endif %}
 </div>
 
+<!-- MODAL PAYPAL -->
+<div id="paypalBackdrop" class="pp-backdrop">
+  <div class="pp-modal">
+    <div class="pp-head">
+      <strong id="pp-title">Comprar stock</strong>
+      <button type="button" onclick="closePaypalModal()" style="border:0;background:transparent;font-size:18px;cursor:pointer">×</button>
+    </div>
+    <div class="pp-body">
+      <input type="hidden" id="pp-bodega-id" value="">
+      <div class="pp-field">
+        <label>Producto</label>
+        <select id="pp-producto">
+          {% for p in productos %}
+            <option value="{{ p.id }}">{{ p.sku }} — {{ p.nombre }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="pp-field">
+        <label>Cantidad</label>
+        <input id="pp-cantidad" type="number" min="1" step="1" value="1">
+      </div>
+      <div class="pp-field">
+        <label>Monto (USD)</label>
+        <input id="pp-monto" type="number" min="1" step="0.01" value="5.00">
+      </div>
+      <small class="muted">Al aprobar el pago se registrará en el sistema y se sumará el stock a la bodega.</small>
+    </div>
+    <div class="pp-footer">
+      <div id="paypal-button-container"></div>
+    </div>
+  </div>
+</div>
+
+<script src="https://www.paypal.com/sdk/js?client-id=AcJh5Q-9moAqbK1_ri8GBhkmOjloGpEXxlfb_IC6MCRGzUyrh5p5IyGqS9GPUhVg7UlO63FQiSeDm2uN&currency=USD"></script>
 <script>
-(function(){
-  const tbody = document.getElementById('rows-bod');
-  if (!tbody) return;
+  const csrfToken = "{{ csrf_token }}";
+  const ppBackdrop = document.getElementById('paypalBackdrop');
+  const bodegaInput = document.getElementById('pp-bodega-id');
+  const ppTitle = document.getElementById('pp-title');
 
-  function closeAll() {
-    tbody.querySelectorAll('.act.primary[aria-expanded="true"]').forEach(btn => {
-      btn.setAttribute('aria-expanded', 'false');
-    });
-    tbody.querySelectorAll('.expand-wrap').forEach(wrap => {
-      const inner = wrap.querySelector('.expand-inner');
-      if (inner) {
-        inner.style.maxHeight = '0px';
-        inner.style.opacity = '0';
-      }
-      wrap.classList.remove('open');
-    });
+  function openPaypalModal(bodegaId, nombre){
+    bodegaInput.value = bodegaId;
+    ppTitle.textContent = "Comprar stock para: " + nombre;
+    ppBackdrop.style.display = "flex";
   }
+  function closePaypalModal(){ ppBackdrop.style.display = "none"; }
 
-  tbody.addEventListener('click', (ev) => {
-    const btn = ev.target.closest('.act.primary');
-    if (!btn) return;
-    const id = btn.getAttribute('data-target');
-    const row = document.getElementById(id);
-    if (!row) return;
-
-    const wrap = row.querySelector('[data-expand]');
-    const inner = wrap ? wrap.querySelector('.expand-inner') : null;
-    const isOpen = btn.getAttribute('aria-expanded') === 'true';
-
-    closeAll();
-    if (!isOpen && wrap && inner) {
-      btn.setAttribute('aria-expanded', 'true');
-      wrap.classList.add('open');
-      inner.style.maxHeight = inner.scrollHeight + 'px';
-      inner.style.opacity = '1';
-    }
-  });
-})();
+  paypal.Buttons({
+    style:{layout:'vertical',color:'gold',shape:'rect',label:'paypal'},
+    createOrder:(data,actions)=>{
+      const monto=document.getElementById('pp-monto').value||"1.00";
+      return actions.order.create({purchase_units:[{amount:{value:monto}}]});
+    },
+    onApprove:(data,actions)=>{
+      return actions.order.capture().then(()=>{
+        const bodegaId=bodegaInput.value;
+        const productoId=document.getElementById('pp-producto').value;
+        const cantidad=document.getElementById('pp-cantidad').value;
+        const monto=document.getElementById('pp-monto').value;
+        fetch("{% url 'paypal-stock-in' %}",{
+          method:"POST",
+          headers:{"Content-Type":"application/json","X-CSRFToken":csrfToken},
+          body:JSON.stringify({bodega_id:bodegaId,producto_id:productoId,cantidad:cantidad,paypal_id:data.orderID,monto_usd:monto})
+        }).then(r=>r.json()).then(resp=>{
+          if(resp.ok){alert("Pago aprobado y stock registrado.");location.reload();}
+          else{alert("Pago aprobado en PayPal pero no se pudo registrar en Django.");}
+        }).catch(()=>alert("Error al registrar en Django."));
+      });
+    },
+    onCancel:()=>alert("Pago cancelado."),
+    onError:()=>alert("Error con PayPal.")
+  }).render('#paypal-button-container');
 </script>
 {% endblock %}

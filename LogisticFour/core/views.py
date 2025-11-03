@@ -1,4 +1,5 @@
 ﻿import io
+import json
 import segno
 
 from django.shortcuts import render, redirect, get_object_or_404
@@ -647,7 +648,6 @@ class BodegaListView(LoginRequiredMixin, ListView):
     paginate_by = 20
 
     def get_paginate_by(self, queryset):
-        """Permite ?page_size= (1..100)."""
         try:
             size = int(self.request.GET.get("page_size", self.paginate_by))
         except (TypeError, ValueError):
@@ -659,21 +659,7 @@ class BodegaListView(LoginRequiredMixin, ListView):
 
         qs = (
             Bodega.objects
-            .prefetch_related(
-                "sucursales",                # relaciÃ³n inversa
-                "ubicaciones",        # ubicaciones directas
-                "ubicaciones__stocks",  # stocks en ubicaciones
-            )
-            .annotate(
-                total_stock=Coalesce(
-                    Sum("ubicaciones__stocks__cantidad_disponible"),
-                    Value(0, output_field=DecimalField(max_digits=20, decimal_places=6)),
-                ),
-                sucursales_count=Count("sucursales", distinct=True),
-                ubicaciones_count=Count("ubicaciones", distinct=True),
-                productos_count=Count("ubicaciones__stocks__producto", distinct=True),
-            )
-            .only("id", "codigo", "nombre", "descripcion", "activo")
+            .prefetch_related("ubicaciones", "sucursales")
             .order_by(Lower("codigo").asc())
         )
 
@@ -682,37 +668,55 @@ class BodegaListView(LoginRequiredMixin, ListView):
                 Q(codigo__icontains=q) |
                 Q(nombre__icontains=q) |
                 Q(descripcion__icontains=q) |
-                Q(sucursales__codigo__icontains=q) |
                 Q(sucursales__nombre__icontains=q)
-            )
+            ).distinct()
 
-        return qs.distinct()
+        return qs
 
     def get_context_data(self, **kwargs):
         ctx = super().get_context_data(**kwargs)
-        q = (self.request.GET.get("q") or "").strip()
-        qs = self.get_queryset()
 
-        ctx["q"] = q
-        ctx["has_filters"] = bool(q)
-        ctx["total"] = qs.count()
-        ctx["page_size"] = self.get_paginate_by(qs)
-        # Precalcular stock_total por ubicaciÃ³n para usarlo en el template
-        try:
-            for b in qs:
-                for u in getattr(b, "ubicaciones", []).all():
-                    total = 0
-                    for st in getattr(u, "stocks", []).all():
-                        try:
-                            total += float(st.cantidad_disponible or 0)
-                        except Exception:
-                            total += 0
-                    u.stock_total = total
-        except Exception:
-            # Si algo falla, seguimos sin romper la pÃ¡gina
-            pass
+        page_obj = ctx["page_obj"]
+        bodegas_page = list(page_obj.object_list)
 
-        ctx["bodegas"] = qs
+        # todas las ubicaciones de las bodegas de esta página
+        ubi_ids = []
+        for b in bodegas_page:
+            for u in b.ubicaciones.all():
+                ubi_ids.append(u.id)
+
+        # traemos el stock de esas ubicaciones
+        stock_qs = (
+            Stock.objects
+            .filter(ubicacion_bodega_id__in=ubi_ids)
+            .select_related("producto", "ubicacion_bodega")
+        )
+
+        # indexar por id de ubicacion
+        stock_por_ubi = {}
+        for s in stock_qs:
+            stock_por_ubi.setdefault(s.ubicacion_bodega_id, []).append(s)
+
+        # inyectar a cada bodega
+        for b in bodegas_page:
+            detalle = []
+            for u in b.ubicaciones.all():
+                detalle.extend(stock_por_ubi.get(u.id, []))
+
+            b.productos_con_stock = detalle
+            b.total_stock = sum(d.cantidad_disponible for d in detalle)
+            b.sucursales_count = b.sucursales.count()
+            b.ubicaciones_count = b.ubicaciones.count()
+            b.productos_count = len({d.producto_id for d in detalle})
+
+        # para el <select> del modal
+        ctx["productos"] = (
+            Producto.objects
+            .only("id", "sku", "nombre")
+            .order_by("nombre")
+        )
+
+        ctx["q"] = (self.request.GET.get("q") or "").strip()
         return ctx
 
 
@@ -2911,5 +2915,129 @@ def sucursal_a_bodega(request):
 
 
 
+<<<<<<< HEAD
 def movimientos_index(request):
     return render(request, "core/Movimientos/movimientos_index.html")
+=======
+
+
+import requests
+from django.http import JsonResponse
+from django.views.decorators.http import require_GET
+
+
+
+@require_GET
+def geocode(request):
+    q = (request.GET.get("q") or "").strip()
+    if not q:
+        return JsonResponse({"error": "missing query"}, status=400)
+
+    url = "https://nominatim.openstreetmap.org/search"
+    params = {
+        "format": "json",
+        "limit": 1,
+        "q": q,
+        "countrycodes": "cl",
+    }
+    headers = {
+        # Nominatim pide User-Agent
+        "User-Agent": "LogisticFour/1.0 (https://example.com)"
+    }
+
+    try:
+        r = requests.get(url, params=params, headers=headers, timeout=5)
+        r.raise_for_status()
+    except requests.RequestException as e:
+        return JsonResponse({"error": "upstream_error", "detail": str(e)}, status=502)
+
+    data = r.json()
+    if not data:
+        return JsonResponse({"error": "not_found"}, status=404)
+
+    item = data[0]
+    return JsonResponse({
+        "lat": item["lat"],
+        "lon": item["lon"],
+        "display_name": item.get("display_name", q),
+    })
+    
+
+
+@require_POST
+@login_required
+def paypal_stock_in(request):
+    """
+    Recibe el POST desde el JS de PayPal (onApprove) y suma stock
+    en alguna ubicación de la bodega.
+
+    Espera JSON:
+    {
+      "bodega_id": 3,
+      "producto_id": 12,
+      "cantidad": "5",
+      "paypal_id": "PAYID-...",
+      "monto_usd": "10.00"
+    }
+    """
+    # 1) leer JSON
+    try:
+        data = json.loads(request.body.decode("utf-8"))
+    except Exception:
+        return JsonResponse({"ok": False, "error": "JSON inválido"}, status=400)
+
+    bodega_id = data.get("bodega_id")
+    producto_id = data.get("producto_id")
+    cantidad = data.get("cantidad")
+    paypal_id = data.get("paypal_id")
+    monto_usd = data.get("monto_usd")
+
+    if not bodega_id or not producto_id or not cantidad:
+        return JsonResponse({"ok": False, "error": "Faltan datos"}, status=400)
+
+    # 2) cantidad válida
+    try:
+        cant = Decimal(str(cantidad))
+        if cant <= 0:
+            raise ValueError
+    except Exception:
+        return JsonResponse({"ok": False, "error": "Cantidad inválida"}, status=400)
+
+    # 3) objetos
+    try:
+        bodega = Bodega.objects.get(pk=bodega_id)
+        producto = Producto.objects.get(pk=producto_id)
+    except (Bodega.DoesNotExist, Producto.DoesNotExist):
+        return JsonResponse({"ok": False, "error": "Bodega o producto no existen"}, status=404)
+
+    # 4) conseguir una ubicación de esa bodega
+    #    si no tiene, le creamos una por defecto
+    ubi = bodega.ubicaciones.filter(activo=True).order_by("id").first()
+    if not ubi:
+        ubi = UbicacionBodega.objects.create(
+            bodega=bodega,
+            codigo="AUTO-PP",
+            nombre="Ubicación generada por PayPal",
+            activo=True,
+        )
+
+    # 5) crear/actualizar el stock en ESA ubicación
+    stock_obj, created = Stock.objects.get_or_create(
+        producto=producto,
+        ubicacion_bodega=ubi,
+        defaults={"cantidad_disponible": 0}
+    )
+
+    # sumamos usando F para evitar condiciones de carrera
+    Stock.objects.filter(pk=stock_obj.pk).update(
+        cantidad_disponible=F("cantidad_disponible") + cant
+    )
+    stock_obj.refresh_from_db()
+
+    # 6) responder al JS
+    return JsonResponse({
+        "ok": True,
+        "nuevo_stock": str(stock_obj.cantidad_disponible),
+        "msg": "Stock agregado correctamente",
+    })
+>>>>>>> a9bea30153ad0c486716358a88c0ed300891279e
