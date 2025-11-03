@@ -53,13 +53,6 @@
       </div>
     {% endif %}
 
-    <div class="form-body">
-      <div class="form-grid">
-        <div class="field {% if form.sucursal.errors %}invalid{% endif %}">
-          <label for="{{ form.sucursal.id_for_label }}">Sucursal</label>
-          {{ form.sucursal }}
-          {% for e in form.sucursal.errors %}<div class="err">{{ e }}</div>{% endfor %}
-        </div>
 
         <div class="field {% if form.codigo.errors %}invalid{% endif %}">
           <label for="{{ form.codigo.id_for_label }}">Código</label>

@@ -1,80 +1,89 @@
-import io
-import segno
+﻿# =============================================
+#  LIBRERÍAS ESTÁNDAR DE PYTHON
+# =============================================
+import json
+import logging
+from datetime import timezone
 
-from django.shortcuts import render, redirect, get_object_or_404
+# =============================================
+#  LIBRERÍAS DE DJANGO
+# =============================================
+from django import forms
+from django.conf import settings
+from django.contrib import messages
 from django.contrib.auth import authenticate, login, logout
 from django.contrib.auth.decorators import login_required, user_passes_test
-from django.urls import reverse, NoReverseMatch
-from django.contrib import messages
 from django.contrib.auth.forms import UserCreationForm
+from django.contrib.auth.mixins import LoginRequiredMixin, UserPassesTestMixin
 from django.contrib.auth.models import User, Group
-from django.db import transaction
-from django import forms
-from core.forms import *
-from core.models import *
-from django.http import HttpResponse, Http404
-from django.conf import settings
-from django.views.generic import ListView, CreateView, UpdateView, DeleteView, DetailView
-from django.contrib.auth.mixins import LoginRequiredMixin  # agrega PermissionRequiredMixin si ya manejas permisos
 from django.contrib.messages.views import SuccessMessageMixin
-from django.urls import reverse_lazy
-from django.db.models import Q, Sum, F, Value, DecimalField
-from django.db.models.functions import Coalesce
-from django.shortcuts import redirect
-from django.contrib import messages
 from django.core.paginator import Paginator
-from core.forms import SignupUserForm, UsuarioPerfilForm
-from core.models import UsuarioPerfil
-from django.contrib.auth.mixins import UserPassesTestMixin
+from django.db import IntegrityError, transaction
+from django.db.models import (
+    Q, Sum, F, Value, Count, DecimalField, ExpressionWrapper
+)
+from django.db.models.functions import Coalesce, Lower
+from django.http import (
+    HttpResponse, Http404, JsonResponse,
+    HttpResponseBadRequest, HttpResponseRedirect
+)
+from django.shortcuts import render, redirect, get_object_or_404
+from django.urls import reverse, reverse_lazy, NoReverseMatch
 from django.views import View
-from django.db.models.functions import Lower
-from django.db.models import Count
+from django.views.decorators.http import require_POST, require_GET
+from django.views.generic import (
+    ListView, CreateView, UpdateView,
+    DeleteView, DetailView
+)
 
-
-
-
+# =============================================
+#  MÓDULOS DEL PROYECTO (CORE)
+# =============================================
+from core.forms import *
+from core.forms import SignupUserForm, UsuarioPerfilForm
+from core.models import *
+from core.models import Producto, UsuarioPerfil
+from core.utils import ensure_ubicacion_sucursal    
 
 # -------------------- Vistas principales --------------------
 def dashboard(request):
     return render(request, "core/dashboard.html")
 
-
+@login_required
 def products(request):
     q = (request.GET.get("q") or "").strip()
 
     queryset = (
-        Producto.objects
-        .select_related("marca", "categoria")  # quita/ajusta si no tienes estas FKs
+        Producto.objects.select_related("marca", "categoria", "unidad_base", "tasa_impuesto")
+        .annotate(
+            proveedores_count=Count("usuarios_proveedor", distinct=True),
+            lotes_count=Count("lotes", distinct=True),
+            series_count=Count("series", distinct=True),
+            total_stock=Coalesce(
+                Sum("stocks__cantidad_disponible"),
+                Value(0, output_field=DecimalField(max_digits=20, decimal_places=6)),
+            ),
+        )
+        .order_by("nombre", "sku")
     )
 
     if q:
-        # puedes dividir por espacios y encadenar filtros para “contener todos los términos”
         terms = [t for t in q.replace("-", " ").split() if t]
         for t in terms:
             queryset = queryset.filter(
-                Q(sku__icontains=t) |
-                Q(nombre__icontains=t) |
-                Q(marca__nombre__icontains=t) |
-                Q(categoria__nombre__icontains=t)
+                Q(sku__icontains=t)
+                | Q(nombre__icontains=t)
+                | Q(marca__nombre__icontains=t)
+                | Q(categoria__nombre__icontains=t)
             )
 
-    # Opcional: contadores (borra estas 3 líneas si no tienes esas relaciones)
-    queryset = queryset.annotate(
-        proveedores_count=Count("proveedores", distinct=True),
-        lotes_count=Count("lotes", distinct=True),
-        series_count=Count("series", distinct=True),
-    )
-
-    queryset = queryset.order_by("nombre", "sku")
-
-    # Paginación
-    paginator = Paginator(queryset, 20)  # 20 por página
+    paginator = Paginator(queryset, 20)
     page_number = request.GET.get("page")
     page_obj = paginator.get_page(page_number)
 
     return render(
         request,
-        "core/products.html",  # tu template
+        "core/products.html",
         {
             "q": q,
             "productos": page_obj.object_list,
@@ -83,19 +92,28 @@ def products(request):
         },
     )
 
-
-
-
-
-
 @login_required
 def category(request, slug):
     return render(request, "core/category.html", {"category_name": slug.replace("-", " ").title()})
 
+
 @login_required
 def product_add(request):
-    return render(request, "core/product_add.html")
+    """
+    versión nueva: el form de producto YA NO trae campo ubicacion.
+    así que solo creamos el producto y listo.
+    si quieres stock inicial por ubicación, hazlo en otra vista.
+    """
+    if request.method == "POST":
+        form = ProductoForm(request.POST)
+        if form.is_valid():
+            producto = form.save()
+            messages.success(request, "Producto creado.")
+            return redirect("products")
+    else:
+        form = ProductoForm()
 
+    return render(request, "core/product_add.html", {"form": form})
 
 # -------------------- Login Helpers --------------------
 def _redirect_url_by_role(perfil):
@@ -112,7 +130,7 @@ def _redirect_url_by_role(perfil):
 
 # -------------------- Login / Logout --------------------
 def login_view(request):
-    # Si ya está logueado, redirige según su rol
+    # Si ya estÃ¡ logueado, redirige segÃºn su rol
     if request.user.is_authenticated:
         perfil = getattr(request.user, 'perfil', None)
         return redirect(_redirect_url_by_role(perfil))
@@ -136,7 +154,7 @@ def login_view(request):
             return redirect(next_url or _redirect_url_by_role(perfil))
         else:
             return render(request, 'accounts/login.html', {
-                'error': 'Usuario o contraseña incorrectos',
+                'error': 'Usuario o contraseÃ±a incorrectos',
                 'next': next_url,
             })
 
@@ -176,7 +194,7 @@ class SignupUserForm(UserCreationForm):
 class UsuarioPerfilForm(forms.ModelForm):
     class Meta:
         model = UsuarioPerfil
-        fields = ("telefono",)  # añade más campos si quieres capturarlos al alta
+        fields = ("telefono",)  # aÃ±ade mÃ¡s campos si quieres capturarlos al alta
 
 
 def _is_admin(user: User) -> bool:
@@ -194,7 +212,7 @@ def _is_admin(user: User) -> bool:
     
 def _sync_user_groups_by_profile(user: User):
     """
-    Sincroniza el Group del usuario según su perfil.rol.
+    Sincroniza el Group del usuario segÃºn su perfil.rol.
     """
     try:
         perfil = user.perfil
@@ -212,7 +230,7 @@ def admin_required(view_func):
     """Decorador para views basadas en funciones que redirige con mensaje si no es admin."""
     def _wrapped(request, *args, **kwargs):
         if not _is_admin(request.user):
-            messages.error(request, "No tienes permisos para realizar esa acción.")
+            messages.error(request, "No tienes permisos para realizar esa acciÃ³n.")
             return redirect('dashboard')
         return view_func(request, *args, **kwargs)
     return _wrapped
@@ -233,13 +251,13 @@ def signup(request):
             perfil.save()
 
             login(request, user)
-            messages.success(request, "✅ Usuario creado correctamente.")
+            messages.success(request, "âœ… Usuario creado correctamente.")
             try:
                 return redirect(reverse("usuario-list"))
             except NoReverseMatch:
                 return redirect("dashboard")
         else:
-            messages.error(request, "❌ Revisa los errores del formulario.")
+            messages.error(request, "âŒ Revisa los errores del formulario.")
     else:
         user_form = SignupUserForm()
         perfil_form = UsuarioPerfilForm()
@@ -265,16 +283,16 @@ def user_create(request):
             for field, value in perfil_form.cleaned_data.items():
                 setattr(perfil, field, value)
 
-            # si vino role por query y no se cambió en el form, respétalo
+            # si vino role por query y no se cambiÃ³ en el form, respÃ©talo
             if preset_role and not perfil_form.cleaned_data.get("rol"):
                 perfil.rol = preset_role
 
             perfil.save()
             _sync_user_groups_by_profile(user)
 
-            messages.success(request, "✅ Usuario creado correctamente.")
+            messages.success(request, "âœ… Usuario creado correctamente.")
             return redirect("usuario-list")
-        messages.error(request, "❌ Revisa los errores del formulario.")
+        messages.error(request, "âŒ Revisa los errores del formulario.")
     else:
         user_form = SignupUserForm()
         # inicializa el rol si viene por query
@@ -293,7 +311,7 @@ def user_create(request):
 def user_edit(request, user_id: int):
     obj = get_object_or_404(User.objects.select_related("perfil"), pk=user_id)
 
-    # Evitar que un admin se desactive/elimine a sí mismo por accidente (opcional)
+    # Evitar que un admin se desactive/elimine a sÃ­ mismo por accidente (opcional)
     editing_self = (request.user.pk == obj.pk)
 
     # Asegurar que tenga perfil
@@ -304,17 +322,17 @@ def user_edit(request, user_id: int):
         pform = UsuarioPerfilEditForm(request.POST, instance=perfil)
 
         if uform.is_valid() and pform.is_valid():
-            # No permitir que un usuario se desactive a sí mismo (opcional, seguridad)
+            # No permitir que un usuario se desactive a sÃ­ mismo (opcional, seguridad)
             if editing_self and not uform.cleaned_data.get("is_active", True):
                 messages.error(request, "No puedes desactivar tu propio usuario.")
             else:
                 uform.save()
                 pform.save()
                 _sync_user_groups_by_profile(obj)
-                messages.success(request, "✅ Usuario actualizado.")
+                messages.success(request, "âœ… Usuario actualizado.")
                 return redirect("usuario-list")
         else:
-            messages.error(request, "❌ Revisa los errores del formulario.")
+            messages.error(request, "âŒ Revisa los errores del formulario.")
     else:
         uform = UserEditForm(instance=obj)
         pform = UsuarioPerfilEditForm(instance=perfil)
@@ -330,7 +348,7 @@ def user_edit(request, user_id: int):
 def user_delete(request, user_id: int):
     obj = get_object_or_404(User, pk=user_id)
 
-    # Reglas de seguridad útiles:
+    # Reglas de seguridad Ãºtiles:
     if request.user.pk == obj.pk:
         messages.error(request, "No puedes eliminar tu propio usuario.")
         return redirect("usuario-list")
@@ -340,43 +358,16 @@ def user_delete(request, user_id: int):
 
     if request.method == "POST":
         obj.delete()
-        messages.success(request, "🗑️ Usuario eliminado.")
+        messages.success(request, "ðŸ—‘ï¸ Usuario eliminado.")
         return redirect("usuario-list")
 
     return render(request, "accounts/user_confirm_delete.html", {"obj": obj})
-
-
-
-
-
-
-
-
-
-
-
-
-
-from django.contrib.auth.decorators import login_required
-from django.contrib.auth.models import User
-from django.core.paginator import Paginator
-from django.db.models import Q
-from django.http import JsonResponse
-from django.shortcuts import get_object_or_404, render
-from django.views.decorators.http import require_POST
-from django.contrib.auth.decorators import login_required
-
-        
-from .models import UsuarioPerfil          
-
-
-
 
 @admin_required
 @login_required
 def user_list(request):
     """
-    Listado con búsqueda y filtro por rol.
+    Listado con bÃºsqueda y filtro por rol.
     Template: accounts/user_list.html
     """
     q = (request.GET.get("q") or "").strip()
@@ -417,7 +408,7 @@ def user_list(request):
 @require_POST
 def usuario_set_rol(request, user_id: int):
     """
-    Cambia el rol (perfil.rol) de un usuario vía fetch POST JSON.
+    Cambia el rol (perfil.rol) de un usuario vÃ­a fetch POST JSON.
     Espera: {"rol": "<CODE>"}   (donde CODE es uno de UsuarioPerfil.Rol.choices)
     Responde: {"ok": true, "rol_label": "<Etiqueta>"}  o {"ok": false, "error": "..."}
     """
@@ -429,10 +420,10 @@ def usuario_set_rol(request, user_id: int):
         if not code:
             return JsonResponse({"ok": False, "error": "Rol no especificado."}, status=400)
 
-        # Validar que el code esté en choices
+        # Validar que el code estÃ© en choices
         valid_map = dict(UsuarioPerfil.Rol.choices)   # {code: label}
         if code not in valid_map:
-            return JsonResponse({"ok": False, "error": "Código de rol inválido."}, status=400)
+            return JsonResponse({"ok": False, "error": "CÃ³digo de rol invÃ¡lido."}, status=400)
 
         target = get_object_or_404(User, pk=user_id)
 
@@ -452,38 +443,20 @@ def usuario_set_rol(request, user_id: int):
     except Exception as e:
         return JsonResponse({"ok": False, "error": str(e)}, status=400)
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 # -------------------- CRUD Sucursal / Bodega --------------------
 class AdminOnlyMixin(UserPassesTestMixin):
-    """Mixin para CBV que deja pasar sólo a ADMIN."""
+    """Mixin para CBV que deja pasar sÃ³lo a ADMIN."""
     def test_func(self):
         return _is_admin(self.request.user)
     
     def handle_no_permission(self):
         # Redirige a dashboard con mensaje en lugar de mostrar 403
-        messages.error(self.request, "No tienes permisos para realizar esa acción.")
+        messages.error(self.request, "No tienes permisos para realizar esa acciÃ³n.")
         return redirect('dashboard')
 
 
 class BodegaPermissionMixin(UserPassesTestMixin):
-    """Permite acceso si es ADMIN o BODEGUERO (validación por objeto aparte)."""
+    """Permite acceso si es ADMIN o BODEGUERO (validaciÃ³n por objeto aparte)."""
     def test_func(self):
         try:
             perfil = getattr(self.request.user, 'perfil', None)
@@ -498,7 +471,7 @@ class BodegaPermissionMixin(UserPassesTestMixin):
             return False
 
     def handle_no_permission(self):
-        messages.error(self.request, "No tienes permisos para realizar esa acción.")
+        messages.error(self.request, "No tienes permisos para realizar esa acciÃ³n.")
         return redirect('dashboard')
 
 
@@ -506,24 +479,21 @@ def admin_required(view_func):
     """Decorador para views basadas en funciones que redirige con mensaje si no es admin."""
     def _wrapped(request, *args, **kwargs):
         if not _is_admin(request.user):
-            messages.error(request, "No tienes permisos para realizar esa acción.")
+            messages.error(request, "No tienes permisos para realizar esa acciÃ³n.")
             return redirect('dashboard')
         return view_func(request, *args, **kwargs)
     return _wrapped
-
-
-from django.db.models import Prefetch
-
-
 
 class SucursalListView(LoginRequiredMixin, ListView):
     model = Sucursal
     template_name = "core/sucursal_list.html"
     context_object_name = "sucursales"
-    paginate_by = 20  # valor por defecto
+    paginate_by = 20  # por defecto
 
     def get_paginate_by(self, queryset):
-        """Permite ?page_size= en la URL (máx 100)."""
+        """
+        Permite ?page_size= en la URL (mÃ¡x 100).
+        """
         try:
             size = int(self.request.GET.get("page_size", self.paginate_by))
         except (TypeError, ValueError):
@@ -533,23 +503,43 @@ class SucursalListView(LoginRequiredMixin, ListView):
     def get_queryset(self):
         q = (self.request.GET.get("q") or "").strip()
 
-        # Prefetch para obtener productos relacionados con la sucursal
-        productos_prefetch = Prefetch(
-            "productos", queryset=Producto.objects.prefetch_related("stock_ubicaciones")  # Traemos productos con su stock_ubicaciones
-        )
-
+        # OJO con los related_name que tÃº dejaste en tus modelos:
+        #   Sucursal  -> ubicaciones_sucursal   (FK en Ubicacion)
+        #   Ubicacion -> stocks_ubicacion       (FK en Stock)
+        #
+        # Entonces el stock total por sucursal se puede sacar asÃ­:
         qs = (
             Sucursal.objects
-            .prefetch_related(productos_prefetch)  # Traemos los productos relacionados con la sucursal
-            .only("id", "codigo", "nombre", "ciudad", "activo")
+            .select_related("bodega")  # para mostrar cÃ³digo/nombre de la bodega
+            .prefetch_related(
+                "ubicaciones",            # lista de ubicaciones de esa sucursal
+                "ubicaciones__stocks",  # stocks por ubicación
+            )
+            .annotate(
+                # suma de todas las cantidades en ESE sucursal
+                total_stock=Coalesce(
+                    Sum("ubicaciones__stocks__cantidad_disponible"),
+                    Value(0, output_field=DecimalField(max_digits=20, decimal_places=6))
+                ),
+                # cuÃ¡ntas ubicaciones tiene esa sucursal
+                ubicaciones_count=Count("ubicaciones", distinct=True),
+                # cuÃ¡ntos productos tiene linkeados por M2M
+                productos_count=Count("productos", distinct=True),
+            )
+            .only("id", "codigo", "nombre", "ciudad", "region", "pais", "activo", "bodega__codigo", "bodega__nombre")
             .order_by(Lower("codigo").asc())
         )
+
         if q:
             qs = qs.filter(
                 Q(codigo__icontains=q) |
                 Q(nombre__icontains=q) |
-                Q(ciudad__icontains=q)
+                Q(ciudad__icontains=q) |
+                Q(region__icontains=q) |
+                Q(bodega__codigo__icontains=q) |
+                Q(bodega__nombre__icontains=q)
             )
+
         return qs
 
     def get_context_data(self, **kwargs):
@@ -559,27 +549,7 @@ class SucursalListView(LoginRequiredMixin, ListView):
         ctx["has_filters"] = bool(q)
         ctx["total"] = self.get_queryset().count()
         ctx["page_size"] = self.get_paginate_by(self.get_queryset())
-
-        # Aquí añadimos el stock total de productos en cada sucursal
-        sucursales = self.get_queryset()
-        for sucursal in sucursales:
-            # Sumamos el stock de todos los productos en la sucursal
-            total_stock = sum(stock_ubicacion.stock for producto in sucursal.productos.all() for stock_ubicacion in producto.stock_ubicaciones.all())
-            sucursal.total_stock = total_stock
-
-        ctx["sucursales"] = sucursales
         return ctx
-    
-
-
-
-
-
-
-
-
-
-
 
 class SucursalCreateView(LoginRequiredMixin, AdminOnlyMixin, SuccessMessageMixin, CreateView):
     model = Sucursal
@@ -610,11 +580,6 @@ class SucursalDeleteView(LoginRequiredMixin, AdminOnlyMixin, SuccessMessageMixin
         messages.success(request, "Sucursal eliminada correctamente.")
         return super().delete(request, *args, **kwargs)
 
-
-
-
-
-
 class BodegaListView(LoginRequiredMixin, ListView):
     model = Bodega
     template_name = "core/bodega_list.html"
@@ -622,7 +587,6 @@ class BodegaListView(LoginRequiredMixin, ListView):
     paginate_by = 20
 
     def get_paginate_by(self, queryset):
-        """Permite ?page_size= (1..100)."""
         try:
             size = int(self.request.GET.get("page_size", self.paginate_by))
         except (TypeError, ValueError):
@@ -634,48 +598,65 @@ class BodegaListView(LoginRequiredMixin, ListView):
 
         qs = (
             Bodega.objects
-            .prefetch_related("productos")  # Prefetch relacionados con productos
-            .only("id", "codigo", "nombre", "descripcion", "activo")
-            .order_by("codigo")
+            .prefetch_related("ubicaciones", "sucursales")
+            .order_by(Lower("codigo").asc())
         )
 
         if q:
             qs = qs.filter(
                 Q(codigo__icontains=q) |
                 Q(nombre__icontains=q) |
-                Q(descripcion__icontains=q)
-            )
+                Q(descripcion__icontains=q) |
+                Q(sucursales__nombre__icontains=q)
+            ).distinct()
+
         return qs
 
     def get_context_data(self, **kwargs):
         ctx = super().get_context_data(**kwargs)
-        q = (self.request.GET.get("q") or "").strip()
-        base_qs = self.get_queryset()
-        ctx["q"] = q
-        ctx["has_filters"] = bool(q)
-        ctx["total"] = base_qs.count()
-        ctx["page_size"] = self.get_paginate_by(base_qs)
 
-        # Añadir el stock total de productos en cada bodega
-        bodegas = self.get_queryset()
-        for bodega in bodegas:
-            # Calcular el stock total de productos de la bodega
-            total_stock = 0
-            if bodega.productos:  # Verificamos que la bodega tenga un producto asociado
-                total_stock += bodega.productos.stock  # Accedemos directamente al stock del producto
-            bodega.total_stock = total_stock
+        page_obj = ctx["page_obj"]
+        bodegas_page = list(page_obj.object_list)
 
-        ctx["bodegas"] = bodegas
+        # todas las ubicaciones de las bodegas de esta página
+        ubi_ids = []
+        for b in bodegas_page:
+            for u in b.ubicaciones.all():
+                ubi_ids.append(u.id)
+
+        # traemos el stock de esas ubicaciones
+        stock_qs = (
+            Stock.objects
+            .filter(ubicacion_bodega_id__in=ubi_ids)
+            .select_related("producto", "ubicacion_bodega")
+        )
+
+        # indexar por id de ubicacion
+        stock_por_ubi = {}
+        for s in stock_qs:
+            stock_por_ubi.setdefault(s.ubicacion_bodega_id, []).append(s)
+
+        # inyectar a cada bodega
+        for b in bodegas_page:
+            detalle = []
+            for u in b.ubicaciones.all():
+                detalle.extend(stock_por_ubi.get(u.id, []))
+
+            b.productos_con_stock = detalle
+            b.total_stock = sum(d.cantidad_disponible for d in detalle)
+            b.sucursales_count = b.sucursales.count()
+            b.ubicaciones_count = b.ubicaciones.count()
+            b.productos_count = len({d.producto_id for d in detalle})
+
+        # para el <select> del modal
+        ctx["productos"] = (
+            Producto.objects
+            .only("id", "sku", "nombre")
+            .order_by("nombre")
+        )
+
+        ctx["q"] = (self.request.GET.get("q") or "").strip()
         return ctx
-
-
-
-
-
-
-
-
-
 
 class BodegaCreateView(LoginRequiredMixin, BodegaPermissionMixin, SuccessMessageMixin, CreateView):
     model = Bodega
@@ -691,7 +672,7 @@ class BodegaCreateView(LoginRequiredMixin, BodegaPermissionMixin, SuccessMessage
         form = super().get_form(form_class)
         perfil = getattr(self.request.user, "perfil", None)
 
-        # Superusuario o ADMIN: sin restricción
+        # Superusuario o ADMIN: sin restricciÃ³n
         if self.request.user.is_superuser or (perfil and perfil.rol == UsuarioPerfil.Rol.ADMIN):
             return form
 
@@ -704,7 +685,7 @@ class BodegaCreateView(LoginRequiredMixin, BodegaPermissionMixin, SuccessMessage
         return form
 
     def form_valid(self, form):
-        """Fuerza la sucursal del BODEGUERO en el servidor (anti-manipulación)."""
+        """Fuerza la sucursal del BODEGUERO en el servidor (anti-manipulaciÃ³n)."""
         perfil = getattr(self.request.user, "perfil", None)
         if not self.request.user.is_superuser and perfil and perfil.rol == UsuarioPerfil.Rol.BODEGUERO:
             if getattr(perfil, "sucursal", None):
@@ -749,7 +730,6 @@ class BodegaUpdateView(LoginRequiredMixin, BodegaPermissionMixin, SuccessMessage
                 form.fields["sucursal"].queryset = Sucursal.objects.none()
         return form
 
-
 class BodegaDeleteView(LoginRequiredMixin, BodegaPermissionMixin, SuccessMessageMixin, DeleteView):
     model = Bodega
     template_name = "core/bodega_confirm_delete.html"
@@ -777,25 +757,52 @@ class BodegaDetailView(LoginRequiredMixin, DetailView):
 
 #Area de productos
 
-
 class ProductsListView(LoginRequiredMixin, ListView):
     model = Producto
-    template_name = "core/products.html"     # tu listado
+    template_name = "core/products.html"
     context_object_name = "productos"
     paginate_by = 20
 
-def get_queryset(self):
-    return (
-        Producto.objects
-        .select_related("marca", "categoria", "unidad_base", "tasa_impuesto")
-        .annotate(
-            lotes_count=Count("lotes", distinct=True),
-            series_count=Count("series", distinct=True),
-            proveedores_count=Count("productousuarioproveedor", distinct=True),  # si corresponde
-        )
-        .order_by("nombre")
-    )
+    def get_queryset(self):
+        q = (self.request.GET.get("q") or "").strip()
 
+        qs = (
+            Producto.objects
+            .select_related("marca", "categoria", "unidad_base")
+            # para que no haga N+1 al mostrar la primera ubicaciÃ³n
+            .prefetch_related(
+                "stocks_producto",
+                "stocks_producto__ubicacion",
+                "stocks_producto__ubicacion__bodega",
+                "stocks_producto__ubicacion__sucursal",
+            )
+            .annotate(
+                # stock real = suma de las filas de Stock de ese producto
+                total_stock=Coalesce(
+                    Sum("stocks_producto__cantidad_disponible"),
+                    Value(0, output_field=DecimalField(max_digits=20, decimal_places=6))
+                ),
+                proveedores_count=Count("usuarios_proveedor", distinct=True),
+                lotes_count=Count("lotes", distinct=True),
+                series_count=Count("series", distinct=True),
+            )
+            .order_by("nombre")
+        )
+
+        if q:
+            qs = qs.filter(
+                Q(sku__icontains=q)
+                | Q(nombre__icontains=q)
+                | Q(marca__nombre__icontains=q)
+                | Q(categoria__nombre__icontains=q)
+            )
+
+        return qs
+
+    def get_context_data(self, **kwargs):
+        ctx = super().get_context_data(**kwargs)
+        ctx["q"] = (self.request.GET.get("q") or "").strip()
+        return ctx
 
 
 
@@ -812,7 +819,7 @@ class ProductCreateView(LoginRequiredMixin, SuccessMessageMixin, CreateView):
 class ProductUpdateView(LoginRequiredMixin, SuccessMessageMixin, UpdateView):
     model = Producto
     form_class = ProductoForm
-    template_name = "core/product_add.html"  # fallback si entras directo
+    template_name = "core/product_add.html"
     success_message = "Producto actualizado correctamente."
 
     def form_valid(self, form):
@@ -824,7 +831,6 @@ class ProductUpdateView(LoginRequiredMixin, SuccessMessageMixin, UpdateView):
 
     def get_success_url(self):
         return reverse_lazy("products")
-
 
 class ProductDeleteView(LoginRequiredMixin, DeleteView):
     model = Producto
@@ -841,120 +847,145 @@ class ProductDetailView(LoginRequiredMixin, DetailView):
     template_name = "core/product_detail.html"
     context_object_name = "producto"
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-class UbicacionListView(ListView):
-    model = Ubicacion
-    template_name = "core/ubicacion_list.html"
+# ----------------------
+# CRUD Ubicacion (pÃ¡ginas)
+# ----------------------
+class UbicacionBodegaListView(LoginRequiredMixin, ListView):
+    model = UbicacionBodega
+    template_name = "core/ubicacion_bodega_list.html"
     context_object_name = "ubicaciones"
     paginate_by = 20
 
     def get_queryset(self):
         q = (self.request.GET.get("q") or "").strip()
+        bodega_id = (self.request.GET.get("bodega") or "").strip()
+
         qs = (
-            Ubicacion.objects
-            .prefetch_related("bodegas")  # Prefetch para cargar las bodegas asociadas a cada ubicación
-            .only("id", "codigo", "nombre", "area", "activo")
-            .order_by("codigo")
+            UbicacionBodega.objects.select_related("bodega", "tipo")
+            .annotate(
+                total_stock=Coalesce(
+                    Sum("stocks__cantidad_disponible"),
+                    Value(0, output_field=DecimalField(max_digits=20, decimal_places=6)),
+                )
+            )
+            .order_by("bodega__codigo", "codigo")
         )
 
         if q:
-            qs = qs.filter(
-                Q(codigo__icontains=q) |
-                Q(nombre__icontains=q) |
-                Q(area__icontains=q)
-            )
+            qs = qs.filter(Q(codigo__icontains=q) | Q(nombre__icontains=q) | Q(area__icontains=q))
+
+        if bodega_id:
+            qs = qs.filter(bodega_id=bodega_id)
+
         return qs
 
     def get_context_data(self, **kwargs):
         ctx = super().get_context_data(**kwargs)
-        q = (self.request.GET.get("q") or "").strip()
-        base_qs = self.get_queryset()
-        ctx["q"] = q
-        ctx["has_filters"] = bool(q)
-        ctx["total"] = base_qs.count()
-        ctx["page_size"] = self.get_paginate_by(base_qs)
-
-        # Agregar información adicional si es necesario
-        ubicaciones = self.get_queryset()
-        for ubicacion in ubicaciones:
-            # Aquí podrías agregar cualquier cálculo adicional si es necesario
-            pass
-
-        ctx["ubicaciones"] = ubicaciones
+        ctx["bodegas"] = Bodega.objects.all().order_by("codigo")
+        ctx["q"] = (self.request.GET.get("q") or "").strip()
+        ctx["f_bodega"] = (self.request.GET.get("bodega") or "").strip()
         return ctx
-    
 
 
+class UbicacionSucursalListView(LoginRequiredMixin, ListView):
+    model = UbicacionSucursal
+    template_name = "core/ubicacion_sucursal_list.html"
+    context_object_name = "ubicaciones"
+    paginate_by = 20
+
+    def get_queryset(self):
+        q = (self.request.GET.get("q") or "").strip()
+        sucursal_id = (self.request.GET.get("sucursal") or "").strip()
+
+        qs = (
+            UbicacionSucursal.objects.select_related("sucursal", "tipo")
+            .annotate(
+                total_stock=Coalesce(
+                    Sum("stocks__cantidad_disponible"),
+                    Value(0, output_field=DecimalField(max_digits=20, decimal_places=6)),
+                )
+            )
+            .order_by("sucursal__codigo", "codigo")
+        )
+
+        if q:
+            qs = qs.filter(Q(codigo__icontains=q) | Q(nombre__icontains=q) | Q(area__icontains=q))
+
+        if sucursal_id:
+            qs = qs.filter(sucursal_id=sucursal_id)
+
+        return qs
+
+    def get_context_data(self, **kwargs):
+        ctx = super().get_context_data(**kwargs)
+        ctx["sucursales"] = Sucursal.objects.all().order_by("codigo")
+        ctx["q"] = (self.request.GET.get("q") or "").strip()
+        ctx["f_sucursal"] = (self.request.GET.get("sucursal") or "").strip()
+        return ctx
 
 
-
-# ----------------------
-# CRUD Ubicacion (páginas)
-# ----------------------
-class UbicacionCreateView(LoginRequiredMixin, SuccessMessageMixin, CreateView):
-    model = Ubicacion
-    form_class = UbicacionForm
+class UbicacionBodegaCreateView(LoginRequiredMixin, SuccessMessageMixin, CreateView):
+    model = UbicacionBodega
+    form_class = UbicacionBodegaForm
     template_name = "core/ubicacion_form.html"
-    success_message = "Ubicación creada."
-    success_url = reverse_lazy("ubicacion-list")
+    success_message = "Ubicación de bodega creada."
+    success_url = reverse_lazy("ubicacion-bodega-list")
 
 
-class UbicacionUpdateView(LoginRequiredMixin, SuccessMessageMixin, UpdateView):
-    model = Ubicacion
-    form_class = UbicacionForm
+class UbicacionBodegaUpdateView(LoginRequiredMixin, SuccessMessageMixin, UpdateView):
+    model = UbicacionBodega
+    form_class = UbicacionBodegaForm
     template_name = "core/ubicacion_form.html"
-    success_message = "Ubicación actualizada."
-    success_url = reverse_lazy("ubicacion-list")
+    success_message = "Ubicación de bodega actualizada."
+    success_url = reverse_lazy("ubicacion-bodega-list")
 
 
-class UbicacionDeleteView(LoginRequiredMixin, DeleteView):
-    model = Ubicacion
+class UbicacionBodegaDeleteView(LoginRequiredMixin, DeleteView):
+    model = UbicacionBodega
     template_name = "core/confirm_delete.html"
-    success_url = reverse_lazy("ubicacion-list")
+    success_url = reverse_lazy("ubicacion-bodega-list")
 
     def delete(self, request, *args, **kwargs):
         messages.success(request, "Ubicación eliminada.")
         return super().delete(request, *args, **kwargs)
 
 
+class UbicacionSucursalCreateView(LoginRequiredMixin, SuccessMessageMixin, CreateView):
+    model = UbicacionSucursal
+    form_class = UbicacionSucursalForm
+    template_name = "core/ubicacion_form.html"
+    success_message = "Ubicación de sucursal creada."
+    success_url = reverse_lazy("ubicacion-sucursal-list")
+
+
+class UbicacionSucursalUpdateView(LoginRequiredMixin, SuccessMessageMixin, UpdateView):
+    model = UbicacionSucursal
+    form_class = UbicacionSucursalForm
+    template_name = "core/ubicacion_form.html"
+    success_message = "Ubicación de sucursal actualizada."
+    success_url = reverse_lazy("ubicacion-sucursal-list")
+
+
+class UbicacionSucursalDeleteView(LoginRequiredMixin, DeleteView):
+    model = UbicacionSucursal
+    template_name = "core/confirm_delete.html"
+    success_url = reverse_lazy("ubicacion-sucursal-list")
+
+    def delete(self, request, *args, **kwargs):
+        messages.success(request, "Ubicación eliminada.")
+        return super().delete(request, *args, **kwargs)
+
 # ------------------------------------
 #   TipoUbicacion con modal
 # ------------------------------------
-# Los modales usan <dialog> y cargan estas vistas que devuelven la página completa,
+# Los modales usan <dialog> y cargan estas vistas que devuelven la pÃ¡gina completa,
 # pero con templates chicos pensados para presentarse en un modal.
-
-
 
 class TipoUbicacionCreateModal(LoginRequiredMixin, SuccessMessageMixin, CreateView):
     model = TipoUbicacion
     form_class = TipoUbicacionForm
     template_name = "core/partials/tipo_form_modal.html"
-    success_message = "Tipo de ubicación creado."
+    success_message = "Tipo de ubicaciÃ³n creado."
 
     def get_success_url(self):
         return self.request.GET.get("next") or reverse_lazy("bodega-list")
@@ -964,7 +995,7 @@ class TipoUbicacionUpdateModal(LoginRequiredMixin, SuccessMessageMixin, UpdateVi
     model = TipoUbicacion
     form_class = TipoUbicacionForm
     template_name = "core/partials/tipo_form_modal.html"
-    success_message = "Tipo de ubicación actualizado."
+    success_message = "Tipo de ubicaciÃ³n actualizado."
 
     def get_success_url(self):
         return self.request.GET.get("next") or reverse_lazy("bodega-list")
@@ -976,7 +1007,7 @@ class TipoUbicacionDeleteModal(LoginRequiredMixin, DeleteView):
     success_url = reverse_lazy("bodega-list")
 
     def delete(self, request, *args, **kwargs):
-        messages.success(request, "Tipo de ubicación eliminado.")
+        messages.success(request, "Tipo de ubicaciÃ³n eliminado.")
         return super().delete(request, *args, **kwargs)
 
 # ======================
@@ -1011,7 +1042,6 @@ class MarcaDeleteModal(LoginRequiredMixin, DeleteView):
         messages.success(request, "Marca eliminada.")
         return super().delete(request, *args, **kwargs)
 
-
 # ======================
 # Unidad de Medida
 # ======================
@@ -1043,7 +1073,6 @@ class UnidadMedidaDeleteModal(LoginRequiredMixin, DeleteView):
     def delete(self, request, *args, **kwargs):
         messages.success(request, "Unidad de medida eliminada.")
         return super().delete(request, *args, **kwargs)
-
 
 # ======================
 # Tasa de Impuesto
@@ -1077,15 +1106,14 @@ class TasaImpuestoDeleteModal(LoginRequiredMixin, DeleteView):
         messages.success(request, "Tasa de impuesto eliminada.")
         return super().delete(request, *args, **kwargs)
 
-
 # ======================
-# Categoría de Producto
+# CategorÃ­a de Producto
 # ======================
 class CategoriaProductoCreateModal(LoginRequiredMixin, SuccessMessageMixin, CreateView):
     model = CategoriaProducto
     form_class = CategoriaProductoForm
     template_name = "core/partials/categoria_form_modal.html"
-    success_message = "Categoría creada."
+    success_message = "CategorÃ­a creada."
 
     def get_success_url(self):
         return self.request.GET.get("next") or reverse_lazy("products")
@@ -1095,7 +1123,7 @@ class CategoriaProductoUpdateModal(LoginRequiredMixin, SuccessMessageMixin, Upda
     model = CategoriaProducto
     form_class = CategoriaProductoForm
     template_name = "core/partials/categoria_form_modal.html"
-    success_message = "Categoría actualizada."
+    success_message = "CategorÃ­a actualizada."
 
     def get_success_url(self):
         return self.request.GET.get("next") or reverse_lazy("products")
@@ -1107,11 +1135,9 @@ class CategoriaProductoDeleteModal(LoginRequiredMixin, DeleteView):
     success_url = reverse_lazy("products")
 
     def delete(self, request, *args, **kwargs):
-        messages.success(request, "Categoría eliminada.")
+        messages.success(request, "CategorÃ­a eliminada.")
         return super().delete(request, *args, **kwargs)
     
-
-
 # ===== LoteProducto (modales) =====
 class LoteCreateModal(LoginRequiredMixin, SuccessMessageMixin, CreateView):
     model = LoteProducto
@@ -1135,8 +1161,7 @@ class LoteDeleteModal(LoginRequiredMixin, SuccessMessageMixin, DeleteView):
     model = LoteProducto
     template_name = "core/partials/confirm_delete_modal.html"
     success_message = "Lote eliminado."
-    # messages en DeleteView requieren manejo en form_valid o post_delete signal; si usas messages en template, puedes mostrar el texto allí.
-
+    # messages en DeleteView requieren manejo en form_valid o post_delete signal; si usas messages en template, puedes mostrar el texto allÃ­.
 
 # ===== SerieProducto (modales) =====
 class SerieCreateModal(LoginRequiredMixin, SuccessMessageMixin, CreateView):
@@ -1162,12 +1187,6 @@ class SerieDeleteModal(LoginRequiredMixin, SuccessMessageMixin, DeleteView):
     template_name = "core/partials/confirm_delete_modal.html"
     success_message = "Serie eliminada."
 
-
-
-
-
-
-
 def test_scanner(request):
     return render(request, "core/test_scanner.html")
 
@@ -1189,43 +1208,44 @@ def products(request):
         "q": (request.GET.get("q") or "").strip(),
     })
 
-
-
-
-
-
-
-
-
-
+@login_required
 def productos_por_bodega(request, bodega_id):
-    logger.debug("Iniciando la vista productos_por_bodega.")
-
-    # Obtener la bodega específica por el ID proporcionado
     try:
         bodega = Bodega.objects.get(id=bodega_id)
-        logger.debug(f"Bodega encontrada: {bodega.nombre}")
     except Bodega.DoesNotExist:
-        logger.error(f"Bodega con ID {bodega_id} no encontrada.")
         return render(request, "core/error.html", {"error": "Bodega no encontrada."})
 
-    # Filtrar las ubicaciones asociadas a esa bodega
-    ubicaciones_en_bodega = Ubicacion.objects.filter(bodegas__ubicacion=bodega.ubicacion)
-    
-    # Si no se encuentran ubicaciones asociadas a esa bodega, loguear el error
+    # ubicaciones de esa bodega
+    ubicaciones_en_bodega = bodega.ubicaciones.all()
+
     if not ubicaciones_en_bodega:
-        logger.warning(f"No se encontraron ubicaciones para la bodega {bodega.nombre}.")
-        return render(request, "core/error.html", {"error": "No se encontraron ubicaciones asociadas a esta bodega."})
+        return render(
+            request,
+            "core/error.html",
+            {"error": "No se encontraron ubicaciones asociadas a esta bodega."},
+        )
 
-    # Mostrar las ubicaciones y productos asociados
-    productos = Producto.objects.filter(ubicacion__in=ubicaciones_en_bodega)
+    # productos que tienen stock en alguna de esas ubicaciones
+    productos = (
+        Producto.objects.filter(stocks__ubicacion_bodega__bodega=bodega)
+        .distinct()
+        .annotate(
+            stock_total=Coalesce(
+                Sum("stocks__cantidad_disponible"),
+                Value(0, output_field=DecimalField(max_digits=20, decimal_places=6)),
+            )
+        )
+    )
 
-    return render(request, "core/productos_por_bodega.html", {
-        "bodega": bodega,
-        "ubicaciones_en_bodega": ubicaciones_en_bodega,
-        "productos": productos,
-    })
-
+    return render(
+        request,
+        "core/productos_por_bodega.html",
+        {
+            "bodega": bodega,
+            "ubicaciones_en_bodega": ubicaciones_en_bodega,
+            "productos": productos,
+        },
+    )
 
 
 @login_required
@@ -1267,76 +1287,6 @@ def product_list(request):
         },
     )
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-from core.models import Producto            # o el app donde tengas Producto
-
-
-
-
-
-
-
-from django.contrib import messages
-from django.contrib.auth.decorators import login_required
-from django.db import transaction
-from django.db.models import Sum, Value, DecimalField, F
-from django.db.models.functions import Coalesce
-from django.http import JsonResponse, HttpResponseBadRequest, HttpResponseRedirect
-from django.shortcuts import get_object_or_404, redirect, render
-from django.urls import reverse
-
-# Ajusta estos imports a tus modelos reales
-from .models import Producto
-
-
-
-from django.db.models import Sum, Value, DecimalField, ExpressionWrapper
-
-
-
-
-
 # ---------- Utilidades comunes ----------
 
 def _is_fetch(request):
@@ -1357,8 +1307,8 @@ def _json_or_redirect(request, ok: bool, msg: str, redirect_to: str = None, extr
     return redirect(redirect_to or request.META.get("HTTP_REFERER", "/"))
 from decimal import Decimal
 
-# === Config: pon aquí el nombre real del campo de reserva en Producto (si existe)
-RESERVA_FIELD = "reserva"   # ej. "reservado" si tu modelo lo llama así
+# === Config: pon aquÃ­ el nombre real del campo de reserva en Producto (si existe)
+RESERVA_FIELD = "reserva"   # ej. "reservado" si tu modelo lo llama asÃ­
 
 
 def _get_reserva(producto):
@@ -1374,9 +1324,9 @@ def _set_reserva(producto, value):
 
 def _recalcular_total_producto(producto):
     """
-    Versión sin tabla Stock.
+    VersiÃ³n sin tabla Stock.
     Asegura que 'stock' y 'reserva' existan y sean decimales >= 0.
-    Útil como 'normalizador' tras operaciones.
+    Ãštil como 'normalizador' tras operaciones.
     """
     disponible = Decimal(getattr(producto, "stock", 0) or 0)
     reservado  = _get_reserva(producto)
@@ -1398,9 +1348,9 @@ def _recalcular_total_producto(producto):
 
 class _ProductoStockProxy:
     """
-    Proxy de compatibilidad para código legacy que esperaba un objeto Stock.
+    Proxy de compatibilidad para cÃ³digo legacy que esperaba un objeto Stock.
     Lee/escribe directamente en Producto.stock y Producto.<RESERVA_FIELD>.
-    Tiene un método .save(update_fields=...) para imitar la API.
+    Tiene un mÃ©todo .save(update_fields=...) para imitar la API.
     """
     def __init__(self, producto):
         self._p = producto
@@ -1453,13 +1403,13 @@ class _ProductoStockProxy:
 def _get_or_create_stock(producto, ubicacion_id: int | None = None):
     """
     Compatibilidad sin tabla Stock:
-    Ignora la ubicación y devuelve un proxy ligado al Producto.
-    Así tu código legacy (que hacía .cantidad_disponible += x; .save()) sigue funcionando.
+    Ignora la ubicaciÃ³n y devuelve un proxy ligado al Producto.
+    AsÃ­ tu cÃ³digo legacy (que hacÃ­a .cantidad_disponible += x; .save()) sigue funcionando.
     """
     return _ProductoStockProxy(producto)
 
 
-# ====== Helpers “nuevos” para operar stock directamente en Producto ======
+# ====== Helpers â€œnuevosâ€ para operar stock directamente en Producto ======
 
 def ajustar_stock(producto, delta_disponible=0, delta_reservado=0, guardar=True):
     """
@@ -1508,13 +1458,26 @@ def set_stock(producto, disponible=None, reservado=None, guardar=True):
         producto.save(update_fields=update_fields)
     return producto
 
-# ---------- Consulta: ver stock por producto (tu lógica, con pequeños ajustes) ----------
+# ---------- Consulta: ver stock por producto (tu lÃ³gica, con pequeÃ±os ajustes) ----------
 from django.db.models import Sum, F
 
-from django.db.models import Sum, F
+
+
+from django.db.models import (
+    Sum, Value, DecimalField, F, Case, When, CharField
+)
+from django.db.models.functions import Coalesce
+
 
 @login_required
 def stock_por_producto(request):
+    """
+    Consulta de stock por SKU.
+    Muestra:
+      - totales globales
+      - desglose por sucursal (si viene de ubicacion_sucursal)
+      - desglose por bodega (si viene de ubicacion_bodega)
+    """
     sku = (request.GET.get("sku") or "").strip().upper()
     producto = None
     totales = None
@@ -1522,36 +1485,91 @@ def stock_por_producto(request):
 
     if sku:
         try:
-            producto = Producto.objects.select_related("marca", "categoria").get(sku=sku)
+            producto = (
+                Producto.objects
+                .select_related("marca", "categoria")
+                .get(sku=sku)
+            )
 
-            disponible = getattr(producto, "stock", 0) or 0
-            reservado = getattr(producto, "reserva", 0) or 0  # Si tienes otro campo para reservas, ajústalo
+            # 1) TOTAL GLOBAL DEL PRODUCTO
+            agg = (
+                Stock.objects
+                .filter(producto=producto)
+                .aggregate(
+                    total_disponible=Coalesce(
+                        Sum("cantidad_disponible"),
+                        Value(0, output_field=DecimalField(max_digits=20, decimal_places=6))
+                    )
+                )
+            )
+            disponible = agg["total_disponible"] or 0
+
             totales = {
                 "total_disponible": disponible,
-                "total_reservado": reservado,
-                "total_neto": (disponible - reservado),
+                # como no tienes reservas en Stock, el neto es igual al disponible
+                "total_neto": disponible,
             }
 
-            resumen_sucursales = StockUbicacion.objects.filter(producto=producto).values(
-                "ubicacion__bodegas__codigo",  # Accedemos correctamente a Bodega a través de Ubicacion
-                "ubicacion__bodegas__nombre",  # Nombre de la bodega
-            ).annotate(
-                total_disponible=Sum("stock"),
-                total_reservado=Sum("stock"),  # Si tienes un campo reservado, ajústalo aquí
-                total_neto=F("total_disponible") - F("total_reservado"),
+            # 2) DESGLOSE POR ORIGEN DE LA UBICACIÓN
+            # Creamos columnas "virtuales" para poder agrupar aunque haya
+            # registros que vienen SOLO de bodega o SOLO de sucursal
+            resumen_sucursales = (
+                Stock.objects
+                .filter(producto=producto)
+                .annotate(
+                    # si viene de sucursal
+                    sucursal_codigo=Case(
+                        When(ubicacion_sucursal__isnull=False,
+                             then=F("ubicacion_sucursal__sucursal__codigo")),
+                        default=Value("", output_field=CharField()),
+                    ),
+                    sucursal_nombre=Case(
+                        When(ubicacion_sucursal__isnull=False,
+                             then=F("ubicacion_sucursal__sucursal__nombre")),
+                        default=Value("", output_field=CharField()),
+                    ),
+                    # si viene de bodega
+                    bodega_codigo=Case(
+                        When(ubicacion_bodega__isnull=False,
+                             then=F("ubicacion_bodega__bodega__codigo")),
+                        default=Value("", output_field=CharField()),
+                    ),
+                    bodega_nombre=Case(
+                        When(ubicacion_bodega__isnull=False,
+                             then=F("ubicacion_bodega__bodega__nombre")),
+                        default=Value("", output_field=CharField()),
+                    ),
+                )
+                .values(
+                    "sucursal_codigo",
+                    "sucursal_nombre",
+                    "bodega_codigo",
+                    "bodega_nombre",
+                )
+                .annotate(
+                    total_disponible=Coalesce(
+                        Sum("cantidad_disponible"),
+                        Value(0, output_field=DecimalField(max_digits=20, decimal_places=6))
+                    ),
+                    # neto = disponible, porque no hay reservas en el modelo
+                    total_neto=F("total_disponible"),
+                )
+                .order_by("sucursal_codigo", "bodega_codigo")
             )
 
         except Producto.DoesNotExist:
             messages.error(request, f"No se encontró ningún producto con SKU '{sku}'.")
 
-    return render(request, "core/stock_producto.html", {
-        "sku": sku,
-        "producto": producto,
-        "totales": totales,
-        "resumen_sucursales": resumen_sucursales,
-    })
-
-
+    return render(
+        request,
+        "core/stock_producto.html",
+        {
+            "sku": sku,
+            "producto": producto,
+            "totales": totales,
+            "resumen_sucursales": resumen_sucursales,
+        },
+    )
 
 
 
@@ -1560,10 +1578,6 @@ def stock_por_producto(request):
 @login_required
 @transaction.atomic
 def stock_ajuste(request):
-    """
-    Suma/resta stock del producto. Si se envía ubicacion (opcional), ajusta ese registro.
-    POST: producto_id, cantidad (+/-), motivo, nota, [ubicacion]
-    """
     if request.method != "POST":
         return HttpResponseBadRequest("Método no permitido")
 
@@ -1572,48 +1586,36 @@ def stock_ajuste(request):
     except (TypeError, ValueError):
         return _json_or_redirect(request, False, "Producto inválido.")
 
-    cantidad = request.POST.get("cantidad")
-    motivo = (request.POST.get("motivo") or "").strip()
-    nota = (request.POST.get("nota") or "").strip()
-    ubicacion_id = request.POST.get("ubicacion")  # opcional
-
     try:
-        cantidad = float(cantidad)
+        cantidad = float(request.POST.get("cantidad"))
     except (TypeError, ValueError):
         return _json_or_redirect(request, False, "Cantidad inválida.")
 
-    if cantidad == 0:
-        return _json_or_redirect(request, False, "La cantidad no puede ser 0.")
-
+    ubicacion_id = request.POST.get("ubicacion")  # puede ser de bodega o de sucursal
     producto = get_object_or_404(Producto, pk=pid)
-    stock = _get_or_create_stock(producto, ubicacion_id if ubicacion_id else None)
 
-    # Aplica ajuste sobre cantidad_disponible (permite negativos)
-    stock.cantidad_disponible = F("cantidad_disponible") + cantidad
-    stock.save(update_fields=["cantidad_disponible"])
-    stock.refresh_from_db(fields=["cantidad_disponible"])
+    if ubicacion_id:
+        stock, _, _, _ = _get_or_create_stock(producto, int(ubicacion_id))
+        stock.cantidad_disponible = F("cantidad_disponible") + Decimal(cantidad)
+        stock.save(update_fields=["cantidad_disponible"])
+    else:
+        # sin ubicación → directo al producto
+        producto.stock = max(0, int((producto.stock or 0) + cantidad))
+        producto.save(update_fields=["stock"])
 
-    # (Opcional) registrar movimiento en bitácora si tienes un modelo de Movimientos
-
-    # Recalcular total del Producto
-    _recalcular_total_producto(producto)
+    _recalcular_stock_global(producto)
 
     return _json_or_redirect(
         request,
         True,
         f"Ajuste aplicado: {cantidad:+g} {producto.sku}",
         redirect_to=reverse("products"),
-        extra={"stock_disponible": float(stock.cantidad_disponible), "producto_stock": float(producto.stock)}
     )
 
 
 @login_required
 @transaction.atomic
 def stock_entrada(request):
-    """
-    Entrada (recepción) de stock. Si se envía ubicacion (opcional), suma allí.
-    POST: producto_id, cantidad (>0), doc_ref, nota, [ubicacion]
-    """
     if request.method != "POST":
         return HttpResponseBadRequest("Método no permitido")
 
@@ -1622,33 +1624,32 @@ def stock_entrada(request):
     except (TypeError, ValueError):
         return _json_or_redirect(request, False, "Producto inválido.")
 
-    cantidad = request.POST.get("cantidad")
-    doc_ref = (request.POST.get("doc_ref") or "").strip()
-    nota = (request.POST.get("nota") or "").strip()
-    ubicacion_id = request.POST.get("ubicacion")  # opcional
-
     try:
-        cantidad = float(cantidad)
+        cantidad = float(request.POST.get("cantidad"))
     except (TypeError, ValueError):
         return _json_or_redirect(request, False, "Cantidad inválida.")
 
     if cantidad <= 0:
         return _json_or_redirect(request, False, "La cantidad debe ser mayor a 0.")
 
+    ubicacion_id = request.POST.get("ubicacion")
     producto = get_object_or_404(Producto, pk=pid)
-    stock = _get_or_create_stock(producto, ubicacion_id if ubicacion_id else None)
 
-    stock.cantidad_disponible = F("cantidad_disponible") + cantidad
-    stock.save(update_fields=["cantidad_disponible"])
-    stock.refresh_from_db(fields=["cantidad_disponible"])
+    if ubicacion_id:
+        stock, _, _, _ = _get_or_create_stock(producto, int(ubicacion_id))
+        stock.cantidad_disponible = F("cantidad_disponible") + Decimal(cantidad)
+        stock.save(update_fields=["cantidad_disponible"])
+    else:
+        producto.stock = max(0, int((producto.stock or 0) + cantidad))
+        producto.save(update_fields=["stock"])
 
-    _recalcular_total_producto(producto)
+    _recalcular_stock_global(producto)
 
     return _json_or_redirect(
-        request, True,
+        request,
+        True,
         f"Entrada registrada (+{cantidad:g}) para {producto.sku}",
         redirect_to=reverse("products"),
-        extra={"stock_disponible": float(stock.cantidad_disponible), "producto_stock": float(producto.stock)}
     )
 
 
@@ -1656,8 +1657,7 @@ def stock_entrada(request):
 @transaction.atomic
 def stock_transferir(request):
     """
-    Transfiere stock entre ubicaciones del mismo producto.
-    POST: producto_id, origen, destino, cantidad, [nota]
+    Transfiere stock entre ubicaciones (pueden ser de tablas distintas).
     """
     if request.method != "POST":
         return HttpResponseBadRequest("Método no permitido")
@@ -1667,7 +1667,7 @@ def stock_transferir(request):
         origen = int(request.POST.get("origen"))
         destino = int(request.POST.get("destino"))
     except (TypeError, ValueError):
-        return _json_or_redirect(request, False, "Parámetros de transferencia inválidos.")
+        return _json_or_redirect(request, False, "Parámetros inválidos.")
 
     if origen == destino:
         return _json_or_redirect(request, False, "Origen y destino no pueden ser iguales.")
@@ -1680,46 +1680,36 @@ def stock_transferir(request):
     if cantidad <= 0:
         return _json_or_redirect(request, False, "La cantidad debe ser mayor a 0.")
 
-    nota = (request.POST.get("nota") or "").strip()
-
     producto = get_object_or_404(Producto, pk=pid)
 
-    # Valida que existan ubicaciones si tu modelo lo requiere
-    # get_object_or_404(Ubicacion, pk=origen)
-    # get_object_or_404(Ubicacion, pk=destino)
+    stock_origen, _, _, _ = _get_or_create_stock(producto, origen)
+    stock_destino, _, _, _ = _get_or_create_stock(producto, destino)
 
-    stock_origen = _get_or_create_stock(producto, origen)
-    stock_destino = _get_or_create_stock(producto, destino)
-
-    # Verifica disponibilidad en origen
+    # necesitamos el valor real
     stock_origen.refresh_from_db()
+
     if stock_origen.cantidad_disponible < cantidad:
         return _json_or_redirect(request, False, "Stock insuficiente en origen.")
 
-    # Aplica movimientos
-    stock_origen.cantidad_disponible = F("cantidad_disponible") - cantidad
+    stock_origen.cantidad_disponible = Decimal(stock_origen.cantidad_disponible) - Decimal(cantidad)
     stock_origen.save(update_fields=["cantidad_disponible"])
-    stock_destino.cantidad_disponible = F("cantidad_disponible") + cantidad
+
+    stock_destino.cantidad_disponible = Decimal(stock_destino.cantidad_disponible) + Decimal(cantidad)
     stock_destino.save(update_fields=["cantidad_disponible"])
 
-    # No cambia el total del producto; aun así lo recalculamos por consistencia
-    _recalcular_total_producto(producto)
+    _recalcular_stock_global(producto)
 
     return _json_or_redirect(
-        request, True,
+        request,
+        True,
         f"Transferidos {cantidad:g} de {producto.sku}",
         redirect_to=reverse("products"),
-        extra={"producto_stock": float(producto.stock)}
     )
 
 
 @login_required
 @transaction.atomic
 def stock_recuento(request):
-    """
-    Recuento: fija la cantidad real (por ubicación opcional).
-    POST: producto_id, cantidad_real, [nota], [ubicacion]
-    """
     if request.method != "POST":
         return HttpResponseBadRequest("Método no permitido")
 
@@ -1733,290 +1723,1187 @@ def stock_recuento(request):
     except (TypeError, ValueError):
         return _json_or_redirect(request, False, "Cantidad inválida.")
 
-    nota = (request.POST.get("nota") or "").strip()
-    ubicacion_id = request.POST.get("ubicacion")  # opcional
-
+    ubicacion_id = request.POST.get("ubicacion")
     producto = get_object_or_404(Producto, pk=pid)
-    stock = _get_or_create_stock(producto, ubicacion_id if ubicacion_id else None)
 
-    stock.cantidad_disponible = cantidad_real
-    stock.save(update_fields=["cantidad_disponible"])
+    if ubicacion_id:
+        stock, _, _, _ = _get_or_create_stock(producto, int(ubicacion_id))
+        stock.cantidad_disponible = Decimal(cantidad_real)
+        stock.save(update_fields=["cantidad_disponible"])
+    else:
+        producto.stock = max(0, int(cantidad_real))
+        producto.save(update_fields=["stock"])
 
-    _recalcular_total_producto(producto)
+    _recalcular_stock_global(producto)
 
     return _json_or_redirect(
-        request, True,
+        request,
+        True,
         f"Recuento guardado ({cantidad_real:g}) para {producto.sku}",
         redirect_to=reverse("products"),
-        extra={"stock_disponible": float(stock.cantidad_disponible), "producto_stock": float(producto.stock)}
     )
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-import logging
-from django.shortcuts import render
-from .models import Producto, Bodega, Sucursal, StockUbicacion
-
-# Configurar el logger
-logger = logging.getLogger(__name__)
-
-import logging
-from django.shortcuts import render
-from .models import Producto, Bodega, Sucursal, StockUbicacion
-
 # Configurar el logger
 logger = logging.getLogger(__name__)
 
 
+def _recalcular_stock_global(producto: Producto) -> None:
+    """
+    Suma TODO el stock por ubicaciones y lo deja en producto.stock.
+    Evita el error de 'mixed types' forzando DecimalField.
+    """
+    agg = (
+        Stock.objects
+        .filter(producto=producto)
+        .aggregate(
+            total=Coalesce(
+                Sum("cantidad_disponible"),
+                Value(0, output_field=DecimalField(max_digits=20, decimal_places=6)),
+            )
+        )
+    )
+    total = agg["total"] or 0
+    producto.stock = int(total)
+    producto.save(update_fields=["stock"])
 
 
+@require_GET
+def ajax_sucursales_y_productos(request):
+    bodega_id = request.GET.get("bodega_id")
+    if not bodega_id:
+        return JsonResponse({"error": "Falta bodega_id"}, status=400)
 
+    try:
+        bodega = Bodega.objects.get(pk=bodega_id)
+    except Bodega.DoesNotExist:
+        return JsonResponse({"error": "Bodega no encontrada"}, status=404)
+
+    sucursales = list(
+        bodega.sucursales.all()
+        .order_by("codigo")
+        .values("id", "codigo", "nombre")
+    )
+
+    productos = (
+        Producto.objects.filter(stocks__ubicacion_bodega__bodega=bodega)
+        .annotate(
+            stock_total=Coalesce(
+                Sum("stocks__cantidad_disponible"),
+                Value(0, output_field=DecimalField(max_digits=20, decimal_places=6)),
+            )
+        )
+        .values("id", "sku", "nombre", "stock_total")
+        .distinct()
+    )
+
+    return JsonResponse({"sucursales": sucursales, "productos": list(productos)})
+
+
+def _resolver_ubicacion(pk: int):
+    """
+    Recibe un PK y trata de adivinar si es una ubicacion de bodega o de sucursal.
+    Devuelve ('bodega', obj) o ('sucursal', obj).
+    Lanza Http404 si no existe.
+    """
+    try:
+        ub_bod = UbicacionBodega.objects.get(pk=pk)
+        return "bodega", ub_bod
+    except UbicacionBodega.DoesNotExist:
+        pass
+    try:
+        ub_suc = UbicacionSucursal.objects.get(pk=pk)
+        return "sucursal", ub_suc
+    except UbicacionSucursal.DoesNotExist:
+        raise Http404("Ubicación no encontrada")
+
+
+def _get_or_create_stock(producto: Producto, ubicacion_pk: int | None = None):
+    """
+    Devuelve (stock, creado, tipo, ubicacion_instance)
+    - si viene ubicacion_pk, intenta en bodega, luego sucursal
+    - si NO viene ubicacion_pk → trabajamos solo en producto.stock (compat)
+    """
+    if ubicacion_pk is None:
+        # modo compat: no hay ubicación → operamos en el campo producto.stock
+        # devolvemos un "fake" con la misma API que Stock
+        class _Proxy:
+            def __init__(self, prod):
+                self._p = prod
+
+            @property
+            def cantidad_disponible(self):
+                return Decimal(self._p.stock or 0)
+
+            @cantidad_disponible.setter
+            def cantidad_disponible(self, val):
+                self._p.stock = int(Decimal(val or 0))
+                self._p.save(update_fields=["stock"])
+
+            def save(self, update_fields=None):
+                self._p.save(update_fields=["stock"])
+
+        return _Proxy(producto), False, "producto", producto
+
+    tipo, ubi = _resolver_ubicacion(ubicacion_pk)
+    if tipo == "bodega":
+        stock, created = Stock.objects.get_or_create(
+            producto=producto,
+            ubicacion_bodega=ubi,
+            defaults={"cantidad_disponible": 0},
+        )
+        return stock, created, tipo, ubi
+    else:
+        stock, created = Stock.objects.get_or_create(
+            producto=producto,
+            ubicacion_sucursal=ubi,
+            defaults={"cantidad_disponible": 0},
+        )
+        return stock, created, tipo, ubi
+
+
+def _recalcular_stock_global(producto: Producto) -> None:
+    """
+    Suma TODO el stock por ubicaciones (bodega + sucursal) y lo deja en producto.stock.
+    """
+    agg = (
+        Stock.objects.filter(producto=producto)
+        .aggregate(
+            total=Coalesce(
+                Sum("cantidad_disponible"),
+                Value(0, output_field=DecimalField(max_digits=20, decimal_places=6)),
+            )
+        )
+    )
+    total = agg["total"] or 0
+    producto.stock = int(total)
+    producto.save(update_fields=["stock"])
+
+@login_required
 def bodega_a_sucursal(request):
-    logger.debug("Iniciando la vista bodega_a_sucursal.")
-
-    # Obtener todas las bodegas, sucursales y productos disponibles para el movimiento
-    bodegas = Bodega.objects.all()
-    sucursales = Sucursal.objects.all()
-    productos = Producto.objects.all()
+    bodegas = (
+        Bodega.objects.prefetch_related("sucursales", "ubicaciones").order_by("codigo")
+    )
 
     if request.method == "POST":
-        logger.debug("Formulario recibido, procesando datos.")
-
-        # Obtener los datos del formulario
         bodega_id = request.POST.get("bodega")
         sucursal_id = request.POST.get("sucursal")
         producto_id = request.POST.get("producto")
-        cantidad = request.POST.get("cantidad")
+        cantidad_raw = request.POST.get("cantidad")
 
-        logger.debug(f"Datos del formulario - Bodega ID: {bodega_id}, Sucursal ID: {sucursal_id}, Producto ID: {producto_id}, Cantidad: {cantidad}")
+        print("[MOV] POST →", {
+            "bodega": bodega_id,
+            "sucursal": sucursal_id,
+            "producto": producto_id,
+            "cantidad": cantidad_raw,
+        })
 
-        try:
-            cantidad = int(cantidad)
-        except ValueError:
-            logger.error(f"Cantidad inválida: {cantidad}")
-            return render(request, "Movimientos/bodega_a_sucursal.html", {
-                "bodegas": bodegas, "sucursales": sucursales, "productos": productos, "error": "La cantidad proporcionada no es válida. Debe ser un número entero."
-            })
-
-        # Obtener las instancias necesarias
-        try:
-            bodega = Bodega.objects.get(id=bodega_id)
-            sucursal = Sucursal.objects.get(id=sucursal_id)
-            producto = Producto.objects.get(id=producto_id)
-            logger.debug(f"Bodega: {bodega}, Sucursal: {sucursal}, Producto: {producto}")
-        except Bodega.DoesNotExist:
-            logger.error(f"Bodega con ID {bodega_id} no encontrada.")
-            return render(request, "Movimientos/bodega_a_sucursal.html", {
-                "bodegas": bodegas, "sucursales": sucursales, "productos": productos, "error": f"Bodega con ID {bodega_id} no encontrada."
-            })
-        except Sucursal.DoesNotExist:
-            logger.error(f"Sucursal con ID {sucursal_id} no encontrada.")
-            return render(request, "Movimientos/bodega_a_sucursal.html", {
-                "bodegas": bodegas, "sucursales": sucursales, "productos": productos, "error": f"Sucursal con ID {sucursal_id} no encontrada."
-            })
-        except Producto.DoesNotExist:
-            logger.error(f"Producto con ID {producto_id} no encontrado.")
-            return render(request, "Movimientos/bodega_a_sucursal.html", {
-                "bodegas": bodegas, "sucursales": sucursales, "productos": productos, "error": f"Producto con ID {producto_id} no encontrado."
-            })
-
-        # Verificar si la bodega tiene una ubicación asignada
-        if not bodega.ubicacion:
-            logger.error(f"La bodega con ID {bodega.id} no tiene una ubicación asignada.")
-            return render(request, "Movimientos/bodega_a_sucursal.html", {
-                "bodegas": bodegas, "sucursales": sucursales, "productos": productos, "error": "La bodega no tiene una ubicación asignada. Por favor, asigna una ubicación a la bodega."
-            })
-
-        ubicacion_bodega = bodega.ubicacion
-
-        # Obtener el stock del producto en la bodega (StockUbicacion)
-        stock_bodega = StockUbicacion.objects.filter(producto=producto, ubicacion=ubicacion_bodega).first()
-
-        # Asegurarse de que tenemos el stock de la bodega
-        if stock_bodega:
-            logger.debug(f"Stock en bodega encontrado: {stock_bodega.stock} unidades.")
-        else:
-            logger.warning(f"No se encontró stock para el producto {producto.nombre} en la bodega {bodega.nombre}. Creando stock por defecto.")
-            # Si no existe stock en la bodega, crear uno automáticamente
-            stock_bodega = StockUbicacion.objects.create(producto=producto, ubicacion=ubicacion_bodega, stock=0)
-            logger.debug(f"Nuevo stock creado para el producto {producto.nombre} en la bodega {bodega.nombre}: {stock_bodega.stock} unidades.")
-
-        # Verificar que haya stock suficiente para mover
-        if stock_bodega.stock >= cantidad:
-            logger.info(f"Realizando el movimiento de {cantidad} unidades del producto {producto.nombre} de la bodega {bodega.nombre} a la sucursal {sucursal.nombre}.")
-            
-            # Restar el stock en la bodega
-            stock_bodega.stock -= cantidad
-            stock_bodega.save()
-
-            # Asegurarse de que la sucursal tenga una ubicación
-            if not sucursal.ubicacion:
-                logger.error(f"La sucursal con ID {sucursal.id} no tiene una ubicación asignada.")
-                return render(request, "Movimientos/bodega_a_sucursal.html", {
-                    "bodegas": bodegas, "sucursales": sucursales, "productos": productos, "error": "La sucursal no tiene una ubicación asignada. Por favor, asigna una ubicación a la sucursal."
-                })
-
-            # Crear o actualizar el stock en la sucursal
-            stock_sucursal, created = StockUbicacion.objects.get_or_create(
-                producto=producto, 
-                ubicacion=sucursal.ubicacion  # Aquí se asigna la ubicación de la sucursal
+        if not all([bodega_id, sucursal_id, producto_id, cantidad_raw]):
+            return render(
+                request,
+                "core/Movimientos/bodega_a_sucursal.html",
+                {"bodegas": bodegas, "error": "Faltan datos en el formulario."},
             )
 
-            # Actualizar el stock en la sucursal
-            stock_sucursal.stock += cantidad
-            stock_sucursal.save()
+        # validar cantidad
+        try:
+            cantidad = int(cantidad_raw)
+        except (ValueError, TypeError):
+            return render(
+                request,
+                "core/Movimientos/bodega_a_sucursal.html",
+                {"bodegas": bodegas, "error": "La cantidad debe ser un número entero."},
+            )
 
-            logger.info(f"Movimiento realizado exitosamente. Nuevo stock en bodega: {stock_bodega.stock}, Nuevo stock en sucursal: {stock_sucursal.stock}")
-            return render(request, "Movimientos/bodega_a_sucursal.html", {
-                "bodegas": bodegas, "sucursales": sucursales, "productos": productos, "success": f"Movimiento realizado exitosamente de {cantidad} unidades de {producto.nombre} a la sucursal {sucursal.nombre}."
-            })
+        if cantidad <= 0:
+            return render(
+                request,
+                "core/Movimientos/bodega_a_sucursal.html",
+                {"bodegas": bodegas, "error": "La cantidad debe ser mayor que 0."},
+            )
+
+        # instancias base
+        try:
+            bodega = Bodega.objects.get(pk=bodega_id)
+        except Bodega.DoesNotExist:
+            return render(
+                request,
+                "core/Movimientos/bodega_a_sucursal.html",
+                {"bodegas": bodegas, "error": "La bodega seleccionada no existe."},
+            )
+
+        try:
+            sucursal = Sucursal.objects.get(pk=sucursal_id, bodega=bodega)
+        except Sucursal.DoesNotExist:
+            return render(
+                request,
+                "core/Movimientos/bodega_a_sucursal.html",
+                {"bodegas": bodegas, "error": "La sucursal no pertenece a esa bodega."},
+            )
+
+        try:
+            producto = Producto.objects.get(pk=producto_id)
+        except Producto.DoesNotExist:
+            return render(
+                request,
+                "core/Movimientos/bodega_a_sucursal.html",
+                {"bodegas": bodegas, "error": "El producto seleccionado no existe."},
+            )
+
+        ubi_origen = bodega.ubicaciones.first()
+        ubi_destino = sucursal.ubicaciones.first()
+
+        if not ubi_origen or not ubi_destino:
+            return render(
+                request,
+                "core/Movimientos/bodega_a_sucursal.html",
+                {"bodegas": bodegas, "error": "Faltan ubicaciones en bodega o sucursal."},
+            )
+
+        print(f"[MOV] mover {cantidad} de {producto.sku} "
+              f"ORIGEN BOD({bodega.id})/ubi:{ubi_origen.id} "
+              f"→ DEST SUC({sucursal.id})/ubi:{ubi_destino.id}")
+
+        with transaction.atomic():
+            # 1) ORIGEN (bodega)
+            stock_origen = (
+                Stock.objects
+                .select_for_update()
+                .filter(producto=producto, ubicacion_bodega=ubi_origen)
+                .first()
+            )
+            if not stock_origen:
+                stock_origen = Stock.objects.create(
+                    producto=producto,
+                    ubicacion_bodega=ubi_origen,
+                    cantidad_disponible=Decimal("0"),
+                )
+                print("[MOV] stock_origen creado:", stock_origen.id)
+
+            print("[MOV] stock_origen ANTES:", stock_origen.id, stock_origen.cantidad_disponible)
+
+            if stock_origen.cantidad_disponible < cantidad:
+                return render(
+                    request,
+                    "core/Movimientos/bodega_a_sucursal.html",
+                    {
+                        "bodegas": bodegas,
+                        "error": (
+                            f"No hay stock suficiente en la bodega. Disponible: "
+                            f"{stock_origen.cantidad_disponible}."
+                        ),
+                    },
+                )
+
+            # 2) DESTINO (sucursal)
+            stock_destino = (
+                Stock.objects
+                .select_for_update()
+                .filter(producto=producto, ubicacion_sucursal=ubi_destino)
+                .first()
+            )
+
+            # 🔥 CASO PROBLEMÁTICO:
+            # hay un stock que tiene ambas FK llenas y además es el mismo que el de origen
+            if stock_destino and stock_destino.id == stock_origen.id:
+                print("[WARN] origen y destino son la MISMA fila con 2 FK → la saneo")
+                # esta fila debe representar la BODEGA, así que le quitamos la sucursal
+                stock_origen.ubicacion_sucursal = None
+                stock_origen.save(update_fields=["ubicacion_sucursal"])
+                print("[FIX] limpié la sucursal de la fila origen:", stock_origen.id)
+                # ahora sí puedo crear la fila de destino sin romper UNIQUE
+                stock_destino = Stock.objects.create(
+                    producto=producto,
+                    ubicacion_sucursal=ubi_destino,
+                    cantidad_disponible=Decimal("0"),
+                )
+                print("[FIX] fila de destino creada:", stock_destino.id)
+
+            elif not stock_destino:
+                # no existía stock en esa sucursal → lo creo
+                stock_destino = Stock.objects.create(
+                    producto=producto,
+                    ubicacion_sucursal=ubi_destino,
+                    cantidad_disponible=Decimal("0"),
+                )
+                print("[MOV] stock_destino creado:", stock_destino.id)
+
+            print("[MOV] stock_destino ANTES:", stock_destino.id, stock_destino.cantidad_disponible)
+
+            # 3) aplicar movimiento
+            stock_origen.cantidad_disponible = (
+                stock_origen.cantidad_disponible - Decimal(cantidad)
+            )
+            stock_origen.save(update_fields=["cantidad_disponible"])
+
+            stock_destino.cantidad_disponible = (
+                stock_destino.cantidad_disponible + Decimal(cantidad)
+            )
+            stock_destino.save(update_fields=["cantidad_disponible"])
+
+            print("[MOV] stock_origen DESPUÉS:", stock_origen.id, stock_origen.cantidad_disponible)
+            print("[MOV] stock_destino DESPUÉS:", stock_destino.id, stock_destino.cantidad_disponible)
+
+        # 4) recalcular stock global
+        total_prod = (
+            Stock.objects
+            .filter(producto=producto)
+            .aggregate(
+                t=Coalesce(
+                    Sum("cantidad_disponible"),
+                    Value(0, output_field=DecimalField(max_digits=20, decimal_places=6)),
+                )
+            )["t"]
+        ) or 0
+        producto.stock = int(total_prod)
+        producto.save(update_fields=["stock"])
+        print(f"[MOV] stock global de {producto.sku} = {producto.stock}")
+
+        sucursales_de_bodega = bodega.sucursales.all().order_by("codigo")
+        productos_de_bodega = (
+            Producto.objects.filter(stocks__ubicacion_bodega__bodega=bodega)
+            .annotate(
+                stock_total=Coalesce(
+                    Sum("stocks__cantidad_disponible"),
+                    Value(0, output_field=DecimalField(max_digits=20, decimal_places=6)),
+                )
+            )
+            .distinct()
+        )
+
+        return render(
+            request,
+            "core/Movimientos/bodega_a_sucursal.html",
+            {
+                "bodegas": bodegas,
+                "sucursales": sucursales_de_bodega,
+                "productos": productos_de_bodega,
+                "success": (
+                    f"Movimiento realizado: {cantidad} de {producto.nombre} → {sucursal.nombre}."
+                ),
+                "bodega_sel": bodega.id,
+            },
+        )
+
+    return render(request, "core/Movimientos/bodega_a_sucursal.html", {"bodegas": bodegas})
+
+
+
+
+
+from .utils import ensure_ubicacion_sucursal
+
+
+
+@login_required
+def sucursal_a_sucursal(request):
+    # 1) siempre cargamos todas las sucursales para el select de ORIGEN
+    sucursales = (
+        Sucursal.objects
+        .prefetch_related("ubicaciones")
+        .order_by("nombre")
+    )
+
+    # 2) la sucursal de origen puede venir por GET (cuando solo cambias el select)
+    #    o por POST (cuando ya mandas el formulario)
+    suc_origen_id = request.GET.get("sucursal_origen") or request.POST.get("sucursal_origen")
+
+    sucursales_destino = None      # se llena cuando hay origen
+    productos_de_origen = None     # se llena cuando hay origen
+    suc_origen = None
+
+    # ============================
+    #   PRE-CARGA POR ORIGEN
+    # ============================
+    if suc_origen_id:
+        try:
+            suc_origen = Sucursal.objects.get(pk=suc_origen_id)
+        except Sucursal.DoesNotExist:
+            suc_origen = None
         else:
-            logger.warning(f"No hay suficiente stock en la bodega para realizar el movimiento.")
-            return render(request, "Movimientos/bodega_a_sucursal.html", {
-                "bodegas": bodegas, "sucursales": sucursales, "productos": productos, "error": f"No hay suficiente stock en la bodega para realizar el movimiento."
-            })
+            # si la sucursal no tiene ubicación, la creamos acá mismo
+            ensure_ubicacion_sucursal(suc_origen)
 
-    return render(request, "Movimientos/bodega_a_sucursal.html", {
-        "bodegas": bodegas, "sucursales": sucursales, "productos": productos
+            # sucursales destino = TODAS menos la de origen
+            sucursales_destino = (
+                Sucursal.objects
+                .exclude(pk=suc_origen.pk)
+                .order_by("nombre")
+            )
+
+            # productos con stock > 0 en la sucursal de origen
+            productos_de_origen = (
+                Producto.objects
+                .filter(
+                    stocks__ubicacion_sucursal__sucursal=suc_origen,
+                    stocks__cantidad_disponible__gt=0,
+                )
+                .annotate(
+                    stock_total=Coalesce(
+                        Sum("stocks__cantidad_disponible"),
+                        Value(0, output_field=DecimalField(max_digits=20, decimal_places=6)),
+                    )
+                )
+                .distinct()
+            )
+
+    # ============================
+    #   POST → mover
+    # ============================
+    if request.method == "POST":
+        suc_destino_id = request.POST.get("sucursal_destino")
+        producto_id = request.POST.get("producto")
+        cantidad_raw = request.POST.get("cantidad")
+
+        # validación rápida
+        if not all([suc_origen_id, suc_destino_id, producto_id, cantidad_raw]):
+            return render(
+                request,
+                "core/Movimientos/sucursal_a_sucursal.html",
+                {
+                    "sucursales": sucursales,
+                    "sucursal_sel": suc_origen_id,
+                    "sucursales_destino": sucursales_destino,
+                    "productos": productos_de_origen,
+                    "error": "Faltan datos en el formulario.",
+                },
+            )
+
+        if suc_origen_id == suc_destino_id:
+            return render(
+                request,
+                "core/Movimientos/sucursal_a_sucursal.html",
+                {
+                    "sucursales": sucursales,
+                    "sucursal_sel": suc_origen_id,
+                    "sucursales_destino": sucursales_destino,
+                    "productos": productos_de_origen,
+                    "error": "La sucursal de origen y destino no pueden ser la misma.",
+                },
+            )
+
+        # cantidad
+        try:
+            cantidad = int(cantidad_raw)
+        except (ValueError, TypeError):
+            cantidad = 0
+
+        if cantidad <= 0:
+            return render(
+                request,
+                "core/Movimientos/sucursal_a_sucursal.html",
+                {
+                    "sucursales": sucursales,
+                    "sucursal_sel": suc_origen_id,
+                    "sucursales_destino": sucursales_destino,
+                    "productos": productos_de_origen,
+                    "error": "La cantidad debe ser mayor que 0.",
+                },
+            )
+
+        # instancias firmes
+        suc_origen = get_object_or_404(Sucursal, pk=suc_origen_id)
+        suc_destino = get_object_or_404(Sucursal, pk=suc_destino_id)
+        producto = get_object_or_404(Producto, pk=producto_id)
+
+        # garantiza que las 2 sucursales tengan al menos 1 ubicación
+        ubi_origen = ensure_ubicacion_sucursal(suc_origen)
+        ubi_destino = ensure_ubicacion_sucursal(suc_destino)
+
+        # ============================
+        #   MOVIMIENTO ATÓMICO
+        # ============================
+        with transaction.atomic():
+            # ORIGEN
+            stock_origen = (
+                Stock.objects
+                .select_for_update()
+                .filter(producto=producto, ubicacion_sucursal=ubi_origen)
+                .first()
+            )
+
+            if not stock_origen or stock_origen.cantidad_disponible < cantidad:
+                return render(
+                    request,
+                    "core/Movimientos/sucursal_a_sucursal.html",
+                    {
+                        "sucursales": sucursales,
+                        "sucursal_sel": suc_origen_id,
+                        "sucursales_destino": sucursales_destino,
+                        "productos": productos_de_origen,
+                        "error": f"No hay stock suficiente en {suc_origen.nombre}.",
+                    },
+                )
+
+            # DESTINO
+            stock_destino, _ = (
+                Stock.objects
+                .select_for_update()
+                .get_or_create(
+                    producto=producto,
+                    ubicacion_sucursal=ubi_destino,
+                    defaults={"cantidad_disponible": Decimal("0")},
+                )
+            )
+
+            # aplicar movimiento
+            stock_origen.cantidad_disponible -= Decimal(cantidad)
+            stock_destino.cantidad_disponible += Decimal(cantidad)
+            stock_origen.save(update_fields=["cantidad_disponible"])
+            stock_destino.save(update_fields=["cantidad_disponible"])
+
+        # ============================
+        #   RECALCULAR STOCK GLOBAL
+        # ============================
+        total_prod = (
+            Stock.objects
+            .filter(producto=producto)
+            .aggregate(
+                total=Coalesce(
+                    Sum("cantidad_disponible"),
+                    Value(0, output_field=DecimalField(max_digits=20, decimal_places=6)),
+                )
+            )["total"]
+        ) or 0
+
+        producto.stock = int(total_prod)
+        producto.save(update_fields=["stock"])
+
+        # recargar combos ya filtrados por la misma sucursal de origen
+        sucursales_destino = (
+            Sucursal.objects
+            .exclude(pk=suc_origen.pk)
+            .order_by("nombre")
+        )
+        productos_de_origen = (
+            Producto.objects
+            .filter(
+                stocks__ubicacion_sucursal__sucursal=suc_origen,
+                stocks__cantidad_disponible__gt=0,
+            )
+            .annotate(
+                stock_total=Coalesce(
+                    Sum("stocks__cantidad_disponible"),
+                    Value(0, output_field=DecimalField(max_digits=20, decimal_places=6)),
+                )
+            )
+            .distinct()
+        )
+
+        return render(
+            request,
+            "core/Movimientos/sucursal_a_sucursal.html",
+            {
+                "sucursales": sucursales,
+                "sucursal_sel": suc_origen.id,
+                "sucursales_destino": sucursales_destino,
+                "productos": productos_de_origen,
+                "success": "Movimiento realizado.",
+            },
+        )
+
+    # ============================
+    #   GET inicial / sin mover
+    # ============================
+    return render(
+        request,
+        "core/Movimientos/sucursal_a_sucursal.html",
+        {
+            "sucursales": sucursales,
+            "sucursal_sel": suc_origen_id,
+            "sucursales_destino": sucursales_destino,
+            "productos": productos_de_origen,
+        },
+    )
+
+@login_required
+def bodega_a_bodega(request):
+    bodegas = (
+        Bodega.objects
+        .prefetch_related("ubicaciones")
+        .order_by("codigo")
+    )
+
+    if request.method == "POST":
+        bodega_origen_id = request.POST.get("bodega_origen")
+        bodega_destino_id = request.POST.get("bodega_destino")
+        producto_id = request.POST.get("producto")
+        cantidad_raw = request.POST.get("cantidad")
+
+        if not all([bodega_origen_id, bodega_destino_id, producto_id, cantidad_raw]):
+            return render(
+                request,
+                "core/Movimientos/bodega_a_bodega.html",
+                {"bodegas": bodegas, "error": "Faltan datos en el formulario."},
+            )
+
+        if bodega_origen_id == bodega_destino_id:
+            return render(
+                request,
+                "core/Movimientos/bodega_a_bodega.html",
+                {"bodegas": bodegas, "error": "La bodega de origen y destino no pueden ser la misma."},
+            )
+
+        try:
+            cantidad = int(cantidad_raw)
+        except (ValueError, TypeError):
+            return render(
+                request,
+                "core/Movimientos/bodega_a_bodega.html",
+                {"bodegas": bodegas, "error": "La cantidad debe ser un número entero."},
+            )
+
+        if cantidad <= 0:
+            return render(
+                request,
+                "core/Movimientos/bodega_a_bodega.html",
+                {"bodegas": bodegas, "error": "La cantidad debe ser mayor que 0."},
+            )
+
+        try:
+            bodega_origen = Bodega.objects.get(pk=bodega_origen_id)
+        except Bodega.DoesNotExist:
+            return render(
+                request,
+                "core/Movimientos/bodega_a_bodega.html",
+                {"bodegas": bodegas, "error": "La bodega de origen no existe."},
+            )
+
+        try:
+            bodega_destino = Bodega.objects.get(pk=bodega_destino_id)
+        except Bodega.DoesNotExist:
+            return render(
+                request,
+                "core/Movimientos/bodega_a_bodega.html",
+                {"bodegas": bodegas, "error": "La bodega de destino no existe."},
+            )
+
+        try:
+            producto = Producto.objects.get(pk=producto_id)
+        except Producto.DoesNotExist:
+            return render(
+                request,
+                "core/Movimientos/bodega_a_bodega.html",
+                {"bodegas": bodegas, "error": "El producto seleccionado no existe."},
+            )
+
+        ubi_origen = bodega_origen.ubicaciones.first()
+        ubi_destino = bodega_destino.ubicaciones.first()
+        if not ubi_origen or not ubi_destino:
+            return render(
+                request,
+                "core/Movimientos/bodega_a_bodega.html",
+                {"bodegas": bodegas, "error": "Faltan ubicaciones en alguna bodega."},
+            )
+
+        with transaction.atomic():
+            # ORIGEN
+            stock_origen = (
+                Stock.objects
+                .select_for_update()
+                .filter(producto=producto, ubicacion_bodega=ubi_origen)
+                .first()
+            )
+            if not stock_origen:
+                stock_origen = Stock.objects.create(
+                    producto=producto,
+                    ubicacion_bodega=ubi_origen,
+                    cantidad_disponible=Decimal("0"),
+                )
+
+            if stock_origen.cantidad_disponible < cantidad:
+                return render(
+                    request,
+                    "core/Movimientos/bodega_a_bodega.html",
+                    {
+                        "bodegas": bodegas,
+                        "error": f"No hay stock suficiente en la bodega de origen. Disponible: {stock_origen.cantidad_disponible}.",
+                    },
+                )
+
+            # DESTINO
+            stock_destino = (
+                Stock.objects
+                .select_for_update()
+                .filter(producto=producto, ubicacion_bodega=ubi_destino)
+                .first()
+            )
+
+            if stock_destino and stock_destino.id == stock_origen.id:
+                # lo saneamos: esta fila será la de origen
+                stock_origen.ubicacion_sucursal = None
+                stock_origen.save(update_fields=["ubicacion_sucursal"])
+                stock_destino = Stock.objects.create(
+                    producto=producto,
+                    ubicacion_bodega=ubi_destino,
+                    cantidad_disponible=Decimal("0"),
+                )
+            elif not stock_destino:
+                stock_destino = Stock.objects.create(
+                    producto=producto,
+                    ubicacion_bodega=ubi_destino,
+                    cantidad_disponible=Decimal("0"),
+                )
+
+            # aplicar
+            stock_origen.cantidad_disponible = stock_origen.cantidad_disponible - Decimal(cantidad)
+            stock_origen.save(update_fields=["cantidad_disponible"])
+
+            stock_destino.cantidad_disponible = stock_destino.cantidad_disponible + Decimal(cantidad)
+            stock_destino.save(update_fields=["cantidad_disponible"])
+
+        # recalcular global
+        total_prod = (
+            Stock.objects
+            .filter(producto=producto)
+            .aggregate(
+                t=Coalesce(
+                    Sum("cantidad_disponible"),
+                    Value(0, output_field=DecimalField(max_digits=20, decimal_places=6)),
+                )
+            )["t"]
+        ) or 0
+        producto.stock = int(total_prod)
+        producto.save(update_fields=["stock"])
+
+        productos_de_origen = (
+            Producto.objects.filter(stocks__ubicacion_bodega__bodega=bodega_origen)
+            .annotate(
+                stock_total=Coalesce(
+                    Sum("stocks__cantidad_disponible"),
+                    Value(0, output_field=DecimalField(max_digits=20, decimal_places=6)),
+                )
+            )
+            .distinct()
+        )
+
+        return render(
+            request,
+            "core/Movimientos/bodega_a_bodega.html",
+            {
+                "bodegas": bodegas,
+                "productos": productos_de_origen,
+                "success": f"Movimiento realizado: {cantidad} de {producto.nombre} → {bodega_destino.nombre}.",
+                "bodega_sel": bodega_origen.id,
+            },
+        )
+
+    return render(request, "core/Movimientos/bodega_a_bodega.html", {"bodegas": bodegas})
+
+
+
+
+
+
+@login_required
+def sucursal_a_bodega(request):
+    # necesitamos bodegas porque la sucursal igual cuelga de una
+    bodegas = (
+        Bodega.objects
+        .prefetch_related("sucursales", "ubicaciones")
+        .order_by("codigo")
+    )
+
+    if request.method == "POST":
+        sucursal_id = request.POST.get("sucursal")
+        bodega_id = request.POST.get("bodega")
+        producto_id = request.POST.get("producto")
+        cantidad_raw = request.POST.get("cantidad")
+
+        if not all([sucursal_id, bodega_id, producto_id, cantidad_raw]):
+            return render(
+                request,
+                "core/Movimientos/sucursal_a_bodega.html",
+                {"bodegas": bodegas, "error": "Faltan datos en el formulario."},
+            )
+
+        try:
+            cantidad = int(cantidad_raw)
+        except (ValueError, TypeError):
+            return render(
+                request,
+                "core/Movimientos/sucursal_a_bodega.html",
+                {"bodegas": bodegas, "error": "La cantidad debe ser un número entero."},
+            )
+        if cantidad <= 0:
+            return render(
+                request,
+                "core/Movimientos/sucursal_a_bodega.html",
+                {"bodegas": bodegas, "error": "La cantidad debe ser mayor que 0."},
+            )
+
+        # instancias
+        try:
+            bodega = Bodega.objects.get(pk=bodega_id)
+        except Bodega.DoesNotExist:
+            return render(
+                request,
+                "core/Movimientos/sucursal_a_bodega.html",
+                {"bodegas": bodegas, "error": "La bodega seleccionada no existe."},
+            )
+
+        try:
+            sucursal = Sucursal.objects.get(pk=sucursal_id, bodega=bodega)
+        except Sucursal.DoesNotExist:
+            return render(
+                request,
+                "core/Movimientos/sucursal_a_bodega.html",
+                {"bodegas": bodegas, "error": "La sucursal no pertenece a esa bodega."},
+            )
+
+        try:
+            producto = Producto.objects.get(pk=producto_id)
+        except Producto.DoesNotExist:
+            return render(
+                request,
+                "core/Movimientos/sucursal_a_bodega.html",
+                {"bodegas": bodegas, "error": "El producto seleccionado no existe."},
+            )
+
+        ubi_origen = sucursal.ubicaciones.first()
+        ubi_destino = bodega.ubicaciones.first()
+        if not ubi_origen or not ubi_destino:
+            return render(
+                request,
+                "core/Movimientos/sucursal_a_bodega.html",
+                {"bodegas": bodegas, "error": "Faltan ubicaciones en bodega o sucursal."},
+            )
+
+        with transaction.atomic():
+            # ORIGEN: sucursal
+            stock_origen = (
+                Stock.objects
+                .select_for_update()
+                .filter(producto=producto, ubicacion_sucursal=ubi_origen)
+                .first()
+            )
+            if not stock_origen:
+                stock_origen = Stock.objects.create(
+                    producto=producto,
+                    ubicacion_sucursal=ubi_origen,
+                    cantidad_disponible=Decimal("0"),
+                )
+
+            if stock_origen.cantidad_disponible < cantidad:
+                return render(
+                    request,
+                    "core/Movimientos/sucursal_a_bodega.html",
+                    {
+                        "bodegas": bodegas,
+                        "error": f"No hay stock suficiente en la sucursal. Disponible: {stock_origen.cantidad_disponible}.",
+                    },
+                )
+
+            # DESTINO: bodega
+            stock_destino = (
+                Stock.objects
+                .select_for_update()
+                .filter(producto=producto, ubicacion_bodega=ubi_destino)
+                .first()
+            )
+
+            # caso raro
+            if stock_destino and stock_destino.id == stock_origen.id:
+                # esta fila la dejamos como sucursal (origen)
+                stock_origen.ubicacion_bodega = None
+                stock_origen.save(update_fields=["ubicacion_bodega"])
+                stock_destino = Stock.objects.create(
+                    producto=producto,
+                    ubicacion_bodega=ubi_destino,
+                    cantidad_disponible=Decimal("0"),
+                )
+            elif not stock_destino:
+                stock_destino = Stock.objects.create(
+                    producto=producto,
+                    ubicacion_bodega=ubi_destino,
+                    cantidad_disponible=Decimal("0"),
+                )
+
+            # aplicar
+            stock_origen.cantidad_disponible = stock_origen.cantidad_disponible - Decimal(cantidad)
+            stock_origen.save(update_fields=["cantidad_disponible"])
+
+            stock_destino.cantidad_disponible = stock_destino.cantidad_disponible + Decimal(cantidad)
+            stock_destino.save(update_fields=["cantidad_disponible"])
+
+        # recalcular global
+        total_prod = (
+            Stock.objects
+            .filter(producto=producto)
+            .aggregate(
+                t=Coalesce(
+                    Sum("cantidad_disponible"),
+                    Value(0, output_field=DecimalField(max_digits=20, decimal_places=6)),
+                )
+            )["t"]
+        ) or 0
+        producto.stock = int(total_prod)
+        producto.save(update_fields=["stock"])
+
+        sucursales_de_bodega = bodega.sucursales.all().order_by("codigo")
+        productos_de_sucursal = (
+            Producto.objects.filter(stocks__ubicacion_sucursal__sucursal=sucursal)
+            .annotate(
+                stock_total=Coalesce(
+                    Sum("stocks__cantidad_disponible"),
+                    Value(0, output_field=DecimalField(max_digits=20, decimal_places=6)),
+                )
+            )
+            .distinct()
+        )
+
+        return render(
+            request,
+            "core/Movimientos/sucursal_a_bodega.html",
+            {
+                "bodegas": bodegas,
+                "sucursales": sucursales_de_bodega,
+                "productos": productos_de_sucursal,
+                "success": f"Movimiento realizado: {cantidad} de {producto.nombre} → {bodega.nombre}.",
+                "bodega_sel": bodega.id,
+            },
+        )
+
+    return render(request, "core/Movimientos/sucursal_a_bodega.html", {"bodegas": bodegas})
+
+
+
+def movimientos_index(request):
+    return render(request, "core/Movimientos/movimientos_index.html")
+
+
+import requests
+from django.http import JsonResponse
+from django.views.decorators.http import require_GET
+
+
+
+@require_GET
+def geocode(request):
+    q = (request.GET.get("q") or "").strip()
+    if not q:
+        return JsonResponse({"error": "missing query"}, status=400)
+
+    url = "https://nominatim.openstreetmap.org/search"
+    params = {
+        "format": "json",
+        "limit": 1,
+        "q": q,
+        "countrycodes": "cl",
+    }
+    headers = {
+        # Nominatim pide User-Agent
+        "User-Agent": "LogisticFour/1.0 (https://example.com)"
+    }
+
+    try:
+        r = requests.get(url, params=params, headers=headers, timeout=5)
+        r.raise_for_status()
+    except requests.RequestException as e:
+        return JsonResponse({"error": "upstream_error", "detail": str(e)}, status=502)
+
+    data = r.json()
+    if not data:
+        return JsonResponse({"error": "not_found"}, status=404)
+
+    item = data[0]
+    return JsonResponse({
+        "lat": item["lat"],
+        "lon": item["lon"],
+        "display_name": item.get("display_name", q),
     })
+    
+from django.utils import timezone
+@require_POST
+@login_required
+@transaction.atomic
+def paypal_stock_in(request):
+    """
+    Llega desde el JS de PayPal cuando el pago fue APROBADO.
+    Hace TODO automático y si algo falla devuelve el error en JSON.
+    """
+    try:
+        # -------------------------------------------------
+        # 1) leer JSON
+        # -------------------------------------------------
+        try:
+            data = json.loads(request.body.decode("utf-8"))
+        except Exception as e:
+            return JsonResponse({"ok": False, "error": f"JSON inválido: {e}"}, status=400)
 
+        bodega_id = data.get("bodega_id")
+        producto_id = data.get("producto_id")
+        cantidad_raw = data.get("cantidad")
+        paypal_id = data.get("paypal_id") or "SIN-ID"
+        monto_usd_raw = data.get("monto_usd") or "0"
 
+        if not bodega_id or not producto_id or not cantidad_raw:
+            return JsonResponse({"ok": False, "error": "Faltan datos"}, status=400)
 
+        # -------------------------------------------------
+        # 2) cantidad válida
+        # -------------------------------------------------
+        try:
+            cantidad = Decimal(str(cantidad_raw))
+            if cantidad <= 0:
+                raise ValueError
+        except Exception:
+            return JsonResponse({"ok": False, "error": "Cantidad inválida"}, status=400)
 
+        # -------------------------------------------------
+        # 3) buscar bodega y producto
+        # -------------------------------------------------
+        try:
+            bodega = Bodega.objects.get(pk=bodega_id)
+            producto = Producto.objects.get(pk=producto_id)
+        except Bodega.DoesNotExist:
+            return JsonResponse({"ok": False, "error": "Bodega no encontrada"}, status=404)
+        except Producto.DoesNotExist:
+            return JsonResponse({"ok": False, "error": "Producto no encontrado"}, status=404)
 
+        # -------------------------------------------------
+        # 4) asegurar UNA ubicación en esa bodega
+        # -------------------------------------------------
+        ubi = bodega.ubicaciones.filter(activo=True).order_by("id").first()
+        if not ubi:
+            ubi = UbicacionBodega.objects.create(
+                bodega=bodega,
+                codigo="AUTO-PP",
+                nombre="Ubicación generada por PayPal",
+                activo=True,
+            )
 
+        # -------------------------------------------------
+        # 5) sumar stock en ESA ubicación
+        # -------------------------------------------------
+        stock_obj, created = Stock.objects.get_or_create(
+            producto=producto,
+            ubicacion_bodega=ubi,
+            defaults={"cantidad_disponible": Decimal("0")}
+        )
+        Stock.objects.filter(pk=stock_obj.pk).update(
+            cantidad_disponible=F("cantidad_disponible") + cantidad
+        )
+        stock_obj.refresh_from_db()
 
+        # -------------------------------------------------
+        # 6) usuario proveedor PayPal (rol = PROVEEDOR)
+        # -------------------------------------------------
+        proveedor_user, _ = User.objects.get_or_create(
+            username="paypal_proveedor",
+            defaults={
+                "first_name": "Proveedor",
+                "last_name": "PayPal",
+                "email": "paypal@example.com",
+            },
+        )
+        UsuarioPerfil.objects.get_or_create(
+            usuario=proveedor_user,
+            defaults={"rol": UsuarioPerfil.Rol.PROVEEDOR},
+        )
 
+        # -------------------------------------------------
+        # 7) unidad de medida segura
+        # -------------------------------------------------
+        um = getattr(producto, "unidad_base", None)
+        if not um:
+            # intentamos agarrar una existente
+            um = UnidadMedida.objects.first()
+        if not um:
+            # si no hay ninguna en la bd, creamos una por defecto
+            um, _ = UnidadMedida.objects.get_or_create(
+                codigo="UN-PP",
+                defaults={"descripcion": "Unidad por PayPal"},
+            )
 
-from .models import Bodega, Sucursal, Producto, StockUbicacion
-import logging
+        # -------------------------------------------------
+        # 8) crear ORDEN DE COMPRA
+        # -------------------------------------------------
+        numero_orden = f"OC-PAYPAL-{timezone.now().strftime('%Y%m%d%H%M%S')}"
+        oc = OrdenCompra.objects.create(
+            proveedor=proveedor_user,
+            tasa_impuesto=None,
+            bodega=bodega,
+            numero_orden=numero_orden,
+            estado="COMPLETED",
+            fecha_esperada=timezone.now().date(),
+            creado_por=request.user,
+        )
 
-# Configurar el logger
-logger = logging.getLogger(__name__)
+        # monto
+        try:
+            monto_usd = Decimal(str(monto_usd_raw))
+        except Exception:
+            monto_usd = Decimal("0")
 
+        LineaOrdenCompra.objects.create(
+            orden_compra=oc,
+            producto=producto,
+            descripcion=f"Compra PayPal #{paypal_id}",
+            cantidad_pedida=cantidad,
+            unidad=um,
+            precio=monto_usd,
+        )
 
-# Configurar el logger
-logger = logging.getLogger(__name__)
+        # -------------------------------------------------
+        # 9) crear RECEPCIÓN
+        # -------------------------------------------------
+        rec = RecepcionMercaderia.objects.create(
+            orden_compra=oc,
+            bodega=bodega,
+            numero_recepcion=f"RC-PAYPAL-{timezone.now().strftime('%Y%m%d%H%M%S')}",
+            estado="CLOSED",
+            recibido_por=request.user,
+        )
+        LineaRecepcionMercaderia.objects.create(
+            recepcion=rec,
+            producto=producto,
+            cantidad_recibida=cantidad,
+            unidad=um,
+        )
 
-def movimiento_simple_view(request):
-    if request.method == "POST":
-        # Obtener los valores del formulario
-        bodega = Bodega.objects.get(id=request.POST['bodega'])
-        sucursal = Sucursal.objects.get(id=request.POST['sucursal'])
-        producto = Producto.objects.get(id=request.POST['producto'])
-        cantidad = int(request.POST['cantidad'])
+        # -------------------------------------------------
+        # 10) crear FACTURA (cuidando el unique)
+        # -------------------------------------------------
+        base_numero_factura = f"FP-PAYPAL-{paypal_id}"
+        try:
+            FacturaProveedor.objects.create(
+                proveedor=proveedor_user,
+                numero_factura=base_numero_factura,
+                monto_total=monto_usd,
+                fecha_factura=timezone.now().date(),
+                estado="PAID",
+            )
+        except IntegrityError:
+            # si ya existía una factura con ese número, le metemos sufijo de tiempo
+            FacturaProveedor.objects.create(
+                proveedor=proveedor_user,
+                numero_factura=f"{base_numero_factura}-{timezone.now().strftime('%H%M%S')}",
+                monto_total=monto_usd,
+                fecha_factura=timezone.now().date(),
+                estado="PAID",
+            )
 
-        # Verificar si el producto tiene stock suficiente en la bodega
-        stock_bodega = StockUbicacion.objects.filter(producto=producto, ubicacion=bodega.ubicacion).first()
-
-        if stock_bodega:
-            if stock_bodega.stock >= cantidad:
-                # Restar el stock de la bodega
-                stock_bodega.stock -= cantidad
-                stock_bodega.save()
-
-                # Obtener o crear el stock en la sucursal
-                stock_sucursal, created = StockUbicacion.objects.get_or_create(producto=producto, ubicacion=sucursal.ubicacion)
-                stock_sucursal.stock += cantidad
-                stock_sucursal.save()
-
-                return render(request, "Movimientos/bodega_a_sucursal.html", {
-                    'success': "Movimiento realizado correctamente",
-                    'bodegas': Bodega.objects.all(),
-                    'sucursales': Sucursal.objects.all(),
-                    'productos': Producto.objects.all(),
-                })
-            else:
-                return render(request, "Movimientos/bodega_a_sucursal.html", {
-                    'error': "No hay suficiente stock disponible en la bodega.",
-                    'bodegas': Bodega.objects.all(),
-                    'sucursales': Sucursal.objects.all(),
-                    'productos': Producto.objects.all(),
-                })
-        else:
-            return render(request, "Movimientos/bodega_a_sucursal.html", {
-                'error': "No se encontró stock para este producto en la bodega.",
-                'bodegas': Bodega.objects.all(),
-                'sucursales': Sucursal.objects.all(),
-                'productos': Producto.objects.all(),
-            })
-
-    if request.method == "POST":
-        # Obtener los valores del formulario
-        bodega = Bodega.objects.get(id=request.POST['bodega'])
-        sucursal = Sucursal.objects.get(id=request.POST['sucursal'])
-        producto = Producto.objects.get(id=request.POST['producto'])
-        cantidad = int(request.POST['cantidad'])
-
-        # Verificar si el producto tiene stock en la bodega
-        if producto.stock >= cantidad:
-            logger.debug(f"Stock encontrado: {producto.stock} unidades disponibles para el producto {producto.nombre} en la bodega {bodega.nombre}")
-
-            # Realizar el movimiento de productos
-            producto.stock -= cantidad  # Reducir el stock del producto en la bodega
-            producto.save()
-
-            # Verificar si hay stock suficiente en la sucursal
-            stock_sucursal, created = StockUbicacion.objects.get_or_create(producto=producto, ubicacion=sucursal.ubicacion)
-
-            # Actualizar el stock en la sucursal
-            stock_sucursal.stock += cantidad
-            stock_sucursal.save()
-
-            logger.info(f"Movimiento realizado: {cantidad} unidades de {producto.nombre} movidas de la bodega {bodega.nombre} a la sucursal {sucursal.nombre}. Nuevo stock en bodega: {producto.stock}, Nuevo stock en sucursal: {stock_sucursal.stock}")
-
-            success = "Movimiento realizado correctamente"
-        else:
-            logger.warning(f"No hay suficiente stock para el producto {producto.nombre} en la bodega {bodega.nombre}. Stock disponible: {producto.stock}, cantidad solicitada: {cantidad}")
-            error = "No hay suficiente stock disponible para el producto"
-
-        return render(request, "Movimientos/bodega_a_sucursal.html", {
-            'success': success if 'success' in locals() else None,
-            'error': error if 'error' in locals() else None,
-            'bodegas': Bodega.objects.all(),
-            'sucursales': Sucursal.objects.all(),
-            'productos': Producto.objects.all(),
+        # -------------------------------------------------
+        # LISTO
+        # -------------------------------------------------
+        return JsonResponse({
+            "ok": True,
+            "msg": "Pago registrado y stock sumado.",
+            "nuevo_stock": str(stock_obj.cantidad_disponible),
+            "orden": oc.numero_orden,
         })
+
+    except Exception as e:
+        # 👇 esto es para que AHORA sí veas el error real en el popup
+        return JsonResponse({"ok": False, "error": str(e)}, status=400)
+
+
+@login_required
+def paypal_ingresos_view(request):
+    ordenes = (
+        OrdenCompra.objects
+        .filter(numero_orden__startswith="OC-PAYPAL-")
+        .prefetch_related("lineas", "bodega", "proveedor")
+        .order_by("-creado_en")[:50]
+    )
+    return render(request, "core/paypal_ingresos.html", {"ordenes": ordenes})

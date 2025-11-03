@@ -1,4 +1,5 @@
 {% extends "core/base.html" %}
+{% load static %}
 {% block title %}Ubicaciones{% endblock %}
 
 {% block content %}
@@ -11,24 +12,22 @@
   .lx-head{display:flex;align-items:center;justify-content:space-between;gap:12px}
   .lx-head h1{margin:0;font-weight:800}
 
-  /* Filtros */
   .lx-filter{
     background:#fff;border:1px solid var(--line);border-radius:12px;
     padding:12px;display:flex;gap:8px;align-items:center;flex-wrap:wrap
   }
   .lx-filter .lx-input,
   .lx-filter select{
-    flex:1 1 220px;min-width:200px;padding:10px 12px;border:1px solid var(--line);
+    flex:1 1 200px;min-width:160px;padding:10px 12px;border:1px solid var(--line);
     border-radius:10px;background:#fafafa
   }
   .lx-btn{
     background:var(--pri);color:var(--pri-ink);border:0;border-radius:10px;padding:10px 14px;cursor:pointer;
     text-decoration:none; display:inline-flex; align-items:center; gap:6px
   }
-  .lx-btn[aria-disabled="true"]{opacity:.6;pointer-events:none}
   .lx-btn.ghost{background:#fff;color:#111;border:1px solid var(--line)}
+  .lx-btn[aria-disabled="true"]{opacity:.5;pointer-events:none}
 
-  /* Tabla */
   .lx-wrap{background:#fff;border:1px solid var(--line);border-radius:12px;overflow:hidden}
   .lx-table{width:100%;border-collapse:separate;border-spacing:0;font-size:14px}
   .lx-table thead th{
@@ -39,25 +38,21 @@
   .lx-table tbody tr:hover{background:#fafafa}
   .lx-actions{white-space:nowrap}
 
-  /* Badges */
   .lx-badge{display:inline-block;padding:4px 8px;font-size:12px;border-radius:999px;border:1px solid var(--line);background:#f8fafc;color:#374151}
   .lx-badge.ok{background:#e8f7ee;color:#065f46;border-color:#bfe7cb}
   .lx-badge.no{background:#fff1f0;color:#7a1d1d;border-color:#f3c3bf}
 
-  /* Acciones */
   .lx-acts{display:flex;gap:8px;flex-wrap:wrap}
   .lx-act{
     display:inline-flex;align-items:center;gap:6px;
     padding:7px 10px;border-radius:10px;font-size:13px;line-height:1;border:1px solid var(--line);
     background:var(--sec-bg);color:var(--sec-ink);text-decoration:none;cursor:pointer
   }
-  .lx-act svg{width:14px;height:14px;display:block}
   .lx-act.pri{background:var(--pri);color:var(--pri-ink);border-color:var(--pri)}
   .lx-act.danger{background:#fff;color:var(--danger);border-color:#fecaca}
   .lx-act.danger:hover{background:#fff5f5}
   .lx-act[aria-expanded="true"]{background:var(--pri);color:#fff;border-color:var(--pri)}
 
-  /* Expandible */
   .lx-expand-row td{padding:0!important;background:#fbfbfd}
   .lx-expand{border-top:1px dashed var(--line)}
   .lx-expand__inner{
@@ -70,7 +65,6 @@
   .lx-kv{display:grid;gap:2px}
   .lx-kv small{color:var(--muted)}
 
-  /* Responsive: tabla → cards */
   @media (max-width:760px){
     .lx-table thead{display:none}
     .lx-table{display:block}
@@ -92,28 +86,30 @@
 <div class="lx-page">
   <div class="lx-head">
     <h1>Ubicaciones</h1>
-    <a class="lx-btn" href="{% url 'ubicacion-create' %}">➕ Crear ubicación</a>
-    <a class="btnx" href="{% url 'tipo-create' %}?next={{ request.get_full_path|urlencode }}" onclick="return openModal(this.href)">➕ tipo de Ubicacion</a>
+    <div style="display:flex;gap:8px">
+      <a class="lx-btn" href="{% url 'ubicacion-create' %}">➕ Crear ubicación</a>
+      <a class="lx-btn ghost" href="{% url 'tipo-create' %}?next={{ request.get_full_path|urlencode }}" onclick="return openModal(this.href)">➕ Tipo</a>
+    </div>
   </div>
 
   <!-- Filtros -->
-  <form method="get" class="lx-filter" role="search" aria-label="Buscar ubicaciones">
-    <input class="lx-input" type="text" name="q" value="{{ request.GET.q }}" placeholder="Buscar por código o nombre…">
+  <form method="get" class="lx-filter" role="search">
+    <input class="lx-input" type="text" name="q" value="{{ q }}" placeholder="Buscar por código, nombre o área…">
 
-    <select name="bodega">
-      <option value="">— bodega —</option>
-      {% for b in bodegas %}
-        <option value="{{ b.id }}" {% if request.GET.bodega|default:'' == b.id|stringformat:'s' %}selected{% endif %}>
-          {{ b.sucursal.codigo }} / {{ b.codigo }} — {{ b.nombre }}
+    <select name="sucursal">
+      <option value="">— sucursal —</option>
+      {% for s in sucursales %}
+        <option value="{{ s.id }}" {% if f_sucursal == s.id|stringformat:'s' %}selected{% endif %}>
+          {{ s.codigo }} — {{ s.nombre }}
         </option>
       {% endfor %}
     </select>
 
-    <select name="area">
-      <option value="">— área —</option>
-      {% for a in areas %}
-        <option value="{{ a.id }}" {% if request.GET.area|default:'' == a.id|stringformat:'s' %}selected{% endif %}>
-          {{ a.bodega.codigo }} — {{ a.codigo }} ({{ a.nombre }})
+    <select name="bodega">
+      <option value="">— bodega —</option>
+      {% for b in bodegas %}
+        <option value="{{ b.id }}" {% if f_bodega == b.id|stringformat:'s' %}selected{% endif %}>
+          {{ b.codigo }} — {{ b.nombre }}
         </option>
       {% endfor %}
     </select>
@@ -121,7 +117,7 @@
     <select name="tipo">
       <option value="">— tipo —</option>
       {% for t in tipos %}
-        <option value="{{ t.id }}" {% if request.GET.tipo|default:'' == t.id|stringformat:'s' %}selected{% endif %}>
+        <option value="{{ t.id }}" {% if f_tipo == t.id|stringformat:'s' %}selected{% endif %}>
           {{ t.codigo }}
         </option>
       {% endfor %}
@@ -129,18 +125,18 @@
 
     <select name="pickeable">
       <option value="">Pickeable</option>
-      <option value="1" {% if request.GET.pickeable == '1' %}selected{% endif %}>Sí</option>
-      <option value="0" {% if request.GET.pickeable == '0' %}selected{% endif %}>No</option>
+      <option value="1" {% if f_pickeable == '1' %}selected{% endif %}>Sí</option>
+      <option value="0" {% if f_pickeable == '0' %}selected{% endif %}>No</option>
     </select>
 
     <select name="almacenable">
       <option value="">Almacenable</option>
-      <option value="1" {% if request.GET.almacenable == '1' %}selected{% endif %}>Sí</option>
-      <option value="0" {% if request.GET.almacenable == '0' %}selected{% endif %}>No</option>
+      <option value="1" {% if f_almacenable == '1' %}selected{% endif %}>Sí</option>
+      <option value="0" {% if f_almacenable == '0' %}selected{% endif %}>No</option>
     </select>
 
     <button class="lx-btn" type="submit">Filtrar</button>
-    <a class="lx-btn ghost" href="{% url 'ubicacion-list' %}" {% if not request.GET.q and not request.GET.bodega and not request.GET.area and not request.GET.tipo and not request.GET.pickeable and not request.GET.almacenable %}aria-disabled="true"{% endif %}>Limpiar</a>
+    <a class="lx-btn ghost" href="{% url 'ubicacion-list' %}" {% if not has_filters %}aria-disabled="true"{% endif %}>Limpiar</a>
   </form>
 
   <!-- Tabla -->
@@ -148,11 +144,12 @@
     <table class="lx-table">
       <thead>
         <tr>
-          <th>Sucursal/Bodega</th>
+          <th>Sucursal / Bodega</th>
           <th>Código</th>
           <th>Nombre</th>
           <th>Área</th>
           <th>Tipo</th>
+          <th>Stock</th>
           <th>Pickeable</th>
           <th>Almacenable</th>
           <th class="lx-actions">Acciones</th>
@@ -160,72 +157,75 @@
       </thead>
       <tbody id="rows-ubi">
         {% for u in ubicaciones %}
-          <!-- Fila principal -->
-          <tr>
-            <td data-label="Sucursal/Bodega">
-              {% if u.bodega and u.bodega.sucursal %}
-                {{ u.bodega.sucursal.codigo }} / {{ u.bodega.codigo }}
-              {% else %}—{% endif %}
-            </td>
-            <td data-label="Código"><strong class="mono">{{ u.codigo }}</strong></td>
-            <td data-label="Nombre">{{ u.nombre|default:"—" }}</td>
-            <td data-label="Área">{{ u.area|default:"—" }}</td>
-            <td data-label="Tipo">{% if u.tipo %}{{ u.tipo.codigo }}{% else %}—{% endif %}</td>
-            <td data-label="Pickeable">{% if u.pickeable %}<span class="lx-badge ok">Sí</span>{% else %}<span class="lx-badge no">No</span>{% endif %}</td>
-            <td data-label="Almacenable">{% if u.almacenable %}<span class="lx-badge ok">Sí</span>{% else %}<span class="lx-badge no">No</span>{% endif %}</td>
-            <td class="lx-actions" data-label="Acciones">
-              <div class="lx-acts">
-                <button type="button" class="lx-act pri" data-target="u{{ u.pk }}" aria-controls="u{{ u.pk }}" aria-expanded="false" title="Ver detalle">
-                  <svg aria-hidden="true"><use href="#icon-eye"/></svg>
-                  Ver
-                </button>
+        <tr>
+          <td data-label="Sucursal / Bodega">
+            {% if u.sucursal %}{{ u.sucursal.codigo }}{% else %}—{% endif %}
+            /
+            {% if u.bodega %}{{ u.bodega.codigo }}{% else %}—{% endif %}
+          </td>
+          <td data-label="Código"><strong class="mono">{{ u.codigo }}</strong></td>
+          <td data-label="Nombre">{{ u.nombre|default:"—" }}</td>
+          <td data-label="Área">{{ u.area|default:"—" }}</td>
+          <td data-label="Tipo">{% if u.tipo %}{{ u.tipo.codigo }}{% else %}—{% endif %}</td>
+          <td data-label="Stock"><strong>{{ u.total_stock|default:0 }}</strong></td>
+          <td data-label="Pickeable">
+            {% if u.pickeable %}<span class="lx-badge ok">Sí</span>{% else %}<span class="lx-badge no">No</span>{% endif %}
+          </td>
+          <td data-label="Almacenable">
+            {% if u.almacenable %}<span class="lx-badge ok">Sí</span>{% else %}<span class="lx-badge no">No</span>{% endif %}
+          </td>
+          <td class="lx-actions" data-label="Acciones">
+            <div class="lx-acts">
+              <button type="button" class="lx-act pri" data-target="u{{ u.pk }}" aria-controls="u{{ u.pk }}" aria-expanded="false">
+                <svg aria-hidden="true"><use href="#icon-eye"/></svg> Ver
+              </button>
+              <a class="lx-act" href="{% url 'ubicacion-edit' u.pk %}">
+                <svg aria-hidden="true"><use href="#icon-edit"/></svg> Editar
+              </a>
+              <a class="lx-act danger" href="{% url 'ubicacion-delete' u.pk %}" onclick="return confirm('¿Eliminar la ubicación {{ u.codigo }}?')">
+                <svg aria-hidden="true"><use href="#icon-trash"/></svg> Eliminar
+              </a>
+            </div>
+          </td>
+        </tr>
 
-                {% url 'ubicacion-edit' u.pk as edit_url %}
-                {% url 'ubicacion-delete' u.pk as delete_url %}
-
-                <a class="lx-act" href="{{ edit_url }}" title="Editar">
-                  <svg aria-hidden="true"><use href="#icon-edit"/></svg>
-                  Editar
-                </a>
-                <a class="lx-act danger" href="{{ delete_url }}" title="Eliminar" onclick="return confirm('¿Eliminar la ubicación {{ u.codigo }}?')">
-                  <svg aria-hidden="true"><use href="#icon-trash"/></svg>
-                  Eliminar
-                </a>
-              </div>
-            </td>
-          </tr>
-
-          <!-- Fila expandible -->
-          <tr id="u{{ u.pk }}" class="lx-expand-row" aria-hidden="true">
-            <td colspan="8">
-              <div class="lx-expand" data-expand>
-                <div class="lx-expand__inner">
-                  <div class="lx-kv">
-                    <small>Clave</small>
-                    <div>
-                      {% if u.bodega and u.bodega.sucursal %}{{ u.bodega.sucursal.codigo }}{% else %}—{% endif %}:
-                      {% if u.bodega %}{{ u.bodega.codigo }}{% else %}—{% endif %}:
-                      {{ u.codigo }}
-                    </div>
+        <!-- Fila expandible -->
+        <tr id="u{{ u.pk }}" class="lx-expand-row" aria-hidden="true">
+          <td colspan="9">
+            <div class="lx-expand" data-expand>
+              <div class="lx-expand__inner">
+                <div class="lx-kv">
+                  <small>Clave completa</small>
+                  <div>
+                    {% if u.sucursal %}{{ u.sucursal.codigo }}{% else %}—{% endif %}
+                    /
+                    {% if u.bodega %}{{ u.bodega.codigo }}{% else %}—{% endif %}
+                    /
+                    {{ u.codigo }}
                   </div>
-                  <div class="lx-kv">
-                    <small>Descripción de tipo</small>
-                    <div>{% if u.tipo and u.tipo.descripcion %}{{ u.tipo.descripcion }}{% else %}—{% endif %}</div>
-                  </div>
-                  <div class="lx-kv">
-                    <small>Creada</small>
-                    <div>{{ u.creado_en|date:"d/m/Y H:i" }}</div>
-                  </div>
-                  <div class="lx-kv">
-                    <small>Área</small>
-                    <div>{{ u.area|default:"—" }}</div>
+                </div>
+                <div class="lx-kv">
+                  <small>Tipo</small>
+                  <div>{% if u.tipo %}{{ u.tipo.codigo }} — {{ u.tipo.descripcion }}{% else %}—{% endif %}</div>
+                </div>
+                <div class="lx-kv">
+                  <small>Stock total en esta ubicación</small>
+                  <div>{{ u.total_stock|default:0 }}</div>
+                </div>
+                <div class="lx-kv">
+                  <small>Pickeable / Almacenable</small>
+                  <div>
+                    {% if u.pickeable %}Pickeable{% else %}No pickeable{% endif %}
+                    ·
+                    {% if u.almacenable %}Almacenable{% else %}No almacenable{% endif %}
                   </div>
                 </div>
               </div>
-            </td>
-          </tr>
+            </div>
+          </td>
+        </tr>
         {% empty %}
-          <tr><td colspan="8">No hay ubicaciones.</td></tr>
+        <tr><td colspan="9">No hay ubicaciones.</td></tr>
         {% endfor %}
       </tbody>
     </table>
@@ -234,7 +234,10 @@
   {% if is_paginated %}
     <div style="display:flex;justify-content:center;gap:8px;flex-wrap:wrap">
       {% if page_obj.has_previous %}
-        <a class="lx-btn ghost" href="?page={{ page_obj.previous_page_number }}{% if request.GET.q %}&q={{ request.GET.q }}{% endif %}{% if request.GET.bodega %}&bodega={{ request.GET.bodega }}{% endif %}{% if request.GET.area %}&area={{ request.GET.area }}{% endif %}{% if request.GET.tipo %}&tipo={{ request.GET.tipo }}{% endif %}{% if request.GET.pickeable %}&pickeable={{ request.GET.pickeable }}{% endif %}{% if request.GET.almacenable %}&almacenable={{ request.GET.almacenable }}{% endif %}">← Anterior</a>
+        <a class="lx-btn ghost"
+           href="?page={{ page_obj.previous_page_number }}{% if q %}&q={{ q }}{% endif %}{% if f_sucursal %}&sucursal={{ f_sucursal }}{% endif %}{% if f_bodega %}&bodega={{ f_bodega }}{% endif %}{% if f_tipo %}&tipo={{ f_tipo }}{% endif %}{% if f_pickeable %}&pickeable={{ f_pickeable }}{% endif %}{% if f_almacenable %}&almacenable={{ f_almacenable }}{% endif %}">
+           ← Anterior
+        </a>
       {% else %}
         <span class="lx-btn ghost" aria-disabled="true">← Anterior</span>
       {% endif %}
@@ -242,7 +245,10 @@
       <span class="lx-btn" style="pointer-events:none">Página {{ page_obj.number }} de {{ page_obj.paginator.num_pages }}</span>
 
       {% if page_obj.has_next %}
-        <a class="lx-btn ghost" href="?page={{ page_obj.next_page_number }}{% if request.GET.q %}&q={{ request.GET.q }}{% endif %}{% if request.GET.bodega %}&bodega={{ request.GET.bodega }}{% endif %}{% if request.GET.area %}&area={{ request.GET.area }}{% endif %}{% if request.GET.tipo %}&tipo={{ request.GET.tipo }}{% endif %}{% if request.GET.pickeable %}&pickeable={{ request.GET.pickeable }}{% endif %}{% if request.GET.almacenable %}&almacenable={{ request.GET.almacenable }}{% endif %}">Siguiente →</a>
+        <a class="lx-btn ghost"
+           href="?page={{ page_obj.next_page_number }}{% if q %}&q={{ q }}{% endif %}{% if f_sucursal %}&sucursal={{ f_sucursal }}{% endif %}{% if f_bodega %}&bodega={{ f_bodega }}{% endif %}{% if f_tipo %}&tipo={{ f_tipo }}{% endif %}{% if f_pickeable %}&pickeable={{ f_pickeable }}{% endif %}{% if f_almacenable %}&almacenable={{ f_almacenable }}{% endif %}">
+           Siguiente →
+        </a>
       {% else %}
         <span class="lx-btn ghost" aria-disabled="true">Siguiente →</span>
       {% endif %}
@@ -256,6 +262,7 @@
   const tbody = document.getElementById('rows-ubi');
   if(!tbody) return;
 
+  // ocultar al inicio
   tbody.querySelectorAll('.lx-expand').forEach(w => {
     const inner = w.querySelector('.lx-expand__inner');
     if(inner){
@@ -298,6 +305,22 @@
     closeAll();
     if(!isOpen) openWrap(btn, wrap);
   });
+
 })();
+
+/* modal helper igual que en otras vistas */
+async function openModal(url){
+  const res = await fetch(url, { headers: {'X-Requested-With': 'fetch'} });
+  const html = await res.text();
+  const wrap = document.createElement('div');
+  wrap.innerHTML = html;
+  document.body.appendChild(wrap);
+  const dialog = wrap.querySelector('dialog');
+  if(dialog){
+    dialog.addEventListener('close', ()=> wrap.remove());
+    dialog.showModal?.();
+  }
+  return false;
+}
 </script>
 {% endblock %}

@@ -7,12 +7,22 @@
   .page-wrap { max-width: 1400px; margin-inline: auto; }
   .fade-in { animation: fadeIn .35s ease both; }
   @keyframes fadeIn { from{opacity:0;transform:translateY(4px)} to{opacity:1;transform:none} }
-  .empty { border:1px dashed var(--bs-border-color); border-radius:1rem; padding:1rem;
-           color:var(--bs-secondary-color); background:var(--bs-tertiary-bg); }
+  .empty {
+    border:1px dashed var(--bs-border-color);
+    border-radius:1rem;
+    padding:1rem;
+    color:var(--bs-secondary-color);
+    background:var(--bs-tertiary-bg);
+  }
   .btn-action{ min-width:140px }
 
   /* botón de cámara pegado al input */
-  .btn-scan{ display:inline-flex; align-items:center; justify-content:center; width:46px }
+  .btn-scan{
+    display:inline-flex;
+    align-items:center;
+    justify-content:center;
+    width:46px
+  }
   .btn-scan svg{ width:20px; height:20px }
 
   /* ==== estilos del modal del escáner ==== */
@@ -41,9 +51,18 @@
   .metric .label { font-size:.825rem; color: var(--bs-secondary-color); }
   .metric .value { font-weight: 700; font-size: clamp(1.2rem, 1.1rem + .6vw, 1.8rem); }
 
-  .card-soft { border-radius: 1rem; border: 1px solid var(--bs-border-color); box-shadow: 0 1px 0 rgba(0,0,0,.02); }
-  .sku-chip { background: var(--bs-tertiary-bg); border: 1px solid var(--bs-border-color);
-    border-radius: 999px; padding: .25rem .6rem; font-size:.85rem; }
+  .card-soft {
+    border-radius: 1rem;
+    border: 1px solid var(--bs-border-color);
+    box-shadow: 0 1px 0 rgba(0,0,0,.02);
+  }
+  .sku-chip {
+    background: var(--bs-tertiary-bg);
+    border: 1px solid var(--bs-border-color);
+    border-radius: 999px;
+    padding: .25rem .6rem;
+    font-size:.85rem;
+  }
   .table thead th { position: sticky; top: 0; background: var(--bs-body-bg); z-index: 1; }
   .td-num { text-align: right; white-space: nowrap; }
 </style>
@@ -108,199 +127,158 @@
         </div>
       </div>
 
-      <!-- Métricas globales -->
+      <!-- Métricas -->
       <div class="row g-3 mb-4 fade-in">
         <div class="col-12 col-md-4">
           <div class="metric h-100">
             <div class="label">Disponible total</div>
-            <div class="value text-success">{{ totales.total_disponible|default_if_none:0|floatformat:2 }}</div>
-          </div>
-        </div>
-        <div class="col-12 col-md-4">
-          <div class="metric h-100">
-            <div class="label">Reservado total</div>
-            <div class="value text-warning">{{ totales.total_reservado|default_if_none:0|floatformat:2 }}</div>
+            <div class="value text-success">{{ totales.total_disponible|default_if_none:0|floatformat:0 }}</div>
           </div>
         </div>
         <div class="col-12 col-md-4">
           <div class="metric h-100">
             <div class="label">Neto total</div>
             <div class="value {% if totales.total_neto|default:0 > 0 %}text-primary{% else %}text-body{% endif %}">
-              {{ totales.total_neto|default_if_none:0|floatformat:2 }}
+              {{ totales.total_neto|default_if_none:0|floatformat:0 }}
             </div>
+          </div>
+        </div>
+        <div class="col-12 col-md-4">
+          <div class="metric h-100">
+            <div class="label">Stock en ficha del producto</div>
+            <div class="value">{{ producto.stock|default:0 }}</div>
           </div>
         </div>
       </div>
 
-      <!-- Resumen por sucursal -->
-<!-- Resumen por sucursal -->
-<div class="card card-soft mb-4 fade-in">
-  <div class="card-header bg-transparent">
-    <div class="d-flex align-items-center justify-content-between">
-      <strong>Stock por Sucursal</strong>
-      <span class="text-secondary small">{{ resumen_sucursales|length }} sucursal(es)</span>
-    </div>
-  </div>
-  <div class="card-body p-0">
-    {% if resumen_sucursales %}
-      <div class="table-responsive">
-        <table class="table align-middle mb-0">
-          <thead class="border-bottom">
-            <tr>
-              <th>Sucursal</th>
-              <th class="td-num" style="width: 15%;">Disponible</th>
-              <th class="td-num" style="width: 15%;">Reservado</th>
-              <th class="td-num" style="width: 15%;">Neto</th>
-            </tr>
-          </thead>
-          <tbody>
-            {% for r in resumen_sucursales %}
-            <tr class="fade-in" style="animation-delay: {{ forloop.counter0|add:0 }}00ms;">
-              <td>
-                <span class="fw-semibold">{{ r.ubicacion__bodega__sucursal__codigo }}</span>
-                <span class="text-secondary">— {{ r.ubicacion__bodega__sucursal__nombre }}</span>
-              </td>
-              <td class="td-num">{{ r.total_disponible|floatformat:2 }}</td>
-              <td class="td-num">{{ r.total_reservado|floatformat:2 }}</td>
-              <td class="td-num fw-semibold">{{ r.total_neto|floatformat:2 }}</td>
-            </tr>
-            {% endfor %}
-          </tbody>
-        </table>
-      </div>
-    {% else %}
-      <div class="p-4 empty">No hay stock registrado por sucursal para este producto.</div>
-    {% endif %}
-  </div>
-</div>
-
-<!-- Detalle por bodega (acordeón por sucursal) -->
-<div class="card card-soft fade-in">
-  <div class="card-header bg-transparent">
-    <div class="d-flex align-items-center justify-content-between">
-      <strong>Detalle por Bodega</strong>
-      <span class="text-secondary small">{{ resultados_bodegas|length }} registro(s)</span>
-    </div>
-  </div>
-  <div class="card-body">
-    {% if resultados_bodegas %}
-      {% regroup resultados_bodegas by ubicacion__bodega__sucursal__codigo as grupos %}
-      <div class="accordion" id="accSucursales">
-        {% for g in grupos %}
-          {% with scode=g.grouper %}
-          <div class="accordion-item fade-in">
-            <h2 class="accordion-header">
-              <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse"
-                      data-bs-target="#suc-{{ scode|slugify }}" aria-expanded="false">
-                <div class="d-flex flex-column">
-                  <span class="fw-semibold">Sucursal {{ scode }}</span>
-                  <small class="text-secondary">
-                    {{ g.list.0.ubicacion__bodega__sucursal__nombre }} · {{ g.list|length }} bodega(s)
-                  </small>
-                </div>
-              </button>
-            </h2>
-            <div id="suc-{{ scode|slugify }}" class="accordion-collapse collapse" data-bs-parent="#accSucursales">
-              <div class="accordion-body">
-                <div class="table-responsive">
-                  <table class="table align-middle mb-0">
-                    <thead class="border-bottom">
-                      <tr>
-                        <th style="min-width: 280px;">Bodega</th>
-                        <th class="td-num" style="width: 15%;">Disponible</th>
-                        <th class="td-num" style="width: 15%;">Reservado</th>
-                        <th class="td-num" style="width: 15%;">Neto</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {% for r in g.list %}
-                      <tr>
-                        <td>
-                          <span class="fw-semibold">{{ r.ubicacion__bodega__codigo }}</span>
-                          <span class="text-secondary">— {{ r.ubicacion__bodega__nombre }}</span>
-                        </td>
-                        <td class="td-num">{{ r.total_disponible|floatformat:2 }}</td>
-                        <td class="td-num">{{ r.total_reservado|floatformat:2 }}</td>
-                        <td class="td-num fw-semibold">{{ r.total_neto|floatformat:2 }}</td>
-                      </tr>
-                      {% endfor %}
-                    </tbody>
-                  </table>
-                </div>
-              </div>
-            </div>
+      <!-- Resumen por ubicación (sucursal/bodega) -->
+      <div class="card card-soft mb-4 fade-in">
+        <div class="card-header bg-transparent">
+          <div class="d-flex align-items-center justify-content-between">
+            <strong>Stock por ubicación</strong>
+            <span class="text-secondary small">{{ resumen_sucursales|length }} registro(s)</span>
           </div>
-          {% endwith %}
-        {% endfor %}
+        </div>
+        <div class="card-body p-0">
+          {% if resumen_sucursales %}
+            <div class="table-responsive">
+              <table class="table align-middle mb-0">
+                <thead class="border-bottom">
+                  <tr>
+                    <th style="min-width: 200px;">Sucursal</th>
+                    <th style="min-width: 200px;">Bodega</th>
+                    <th class="td-num" style="width: 15%;">Disponible</th>
+                    <th class="td-num" style="width: 15%;">Neto</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {% for r in resumen_sucursales %}
+                  <tr class="fade-in" style="animation-delay: {{ forloop.counter0 }}0ms;">
+                    <td data-label="Sucursal">
+                      {% if r.sucursal_codigo %}
+                        <span class="fw-semibold">{{ r.sucursal_codigo }}</span>
+                        <span class="text-secondary">— {{ r.sucursal_nombre }}</span>
+                      {% else %}
+                        <span class="text-secondary">—</span>
+                      {% endif %}
+                    </td>
+                    <td data-label="Bodega">
+                      {% if r.bodega_codigo %}
+                        <span class="fw-semibold">{{ r.bodega_codigo }}</span>
+                        <span class="text-secondary">— {{ r.bodega_nombre }}</span>
+                      {% else %}
+                        <span class="text-secondary">—</span>
+                      {% endif %}
+                    </td>
+                    <td class="td-num" data-label="Disponible">
+                      {{ r.total_disponible|default:0|floatformat:0 }}
+                    </td>
+                    <td class="td-num fw-semibold" data-label="Neto">
+                      {{ r.total_neto|default:0|floatformat:0 }}
+                    </td>
+                  </tr>
+                  {% endfor %}
+                </tbody>
+              </table>
+            </div>
+          {% else %}
+            <div class="p-4 empty">No hay stock registrado por sucursal/bodega para este producto.</div>
+          {% endif %}
+        </div>
       </div>
-    {% else %}
-      <div class="empty">No hay stock registrado por bodega para este producto.</div>
-    {% endif %}
-  </div>
-</div>
 
-
-      <!-- Detalle por bodega (acordeón por sucursal) -->
+      <!-- Acordeón agrupado por sucursal (opcional) -->
       <div class="card card-soft fade-in">
         <div class="card-header bg-transparent">
           <div class="d-flex align-items-center justify-content-between">
-            <strong>Detalle por Bodega</strong>
-            <span class="text-secondary small">{{ resultados_bodegas|length }} registro(s)</span>
+            <strong>Detalle agrupado por sucursal</strong>
+            <span class="text-secondary small">vista agrupada</span>
           </div>
         </div>
         <div class="card-body">
-          {% if resultados_bodegas %}
-            {% regroup resultados_bodegas by ubicacion__bodega__sucursal__codigo as grupos %}
-            <div class="accordion" id="accSucursales">
+          {% if resumen_sucursales %}
+            {% regroup resumen_sucursales by sucursal_codigo as grupos %}
+            <div class="accordion" id="accStock">
               {% for g in grupos %}
                 {% with scode=g.grouper %}
-                <div class="accordion-item fade-in">
-                  <h2 class="accordion-header">
-                    <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse"
-                            data-bs-target="#suc-{{ scode|slugify }}" aria-expanded="false">
-                      <div class="d-flex flex-column">
-                        <span class="fw-semibold">Sucursal {{ scode }}</span>
-                        <small class="text-secondary">
-                          {{ g.list.0.ubicacion__bodega__sucursal__nombre }} · {{ g.list|length }} bodega(s)
-                        </small>
-                      </div>
-                    </button>
-                  </h2>
-                  <div id="suc-{{ scode|slugify }}" class="accordion-collapse collapse" data-bs-parent="#accSucursales">
-                    <div class="accordion-body">
-                      <div class="table-responsive">
-                        <table class="table align-middle mb-0">
-                          <thead class="border-bottom">
-                            <tr>
-                              <th style="min-width: 280px;">Bodega</th>
-                              <th class="td-num" style="width: 15%;">Disponible</th>
-                              <th class="td-num" style="width: 15%;">Reservado</th>
-                              <th class="td-num" style="width: 15%;">Neto</th>
-                            </tr>
-                          </thead>
-                          <tbody>
-                            {% for r in g.list %}
-                            <tr>
-                              <td>
-                                <span class="fw-semibold">{{ r.ubicacion__bodega__codigo }}</span>
-                                <span class="text-secondary">— {{ r.ubicacion__bodega__nombre }}</span>
-                              </td>
-                              <td class="td-num">{{ r.total_disponible|floatformat:2 }}</td>
-                              <td class="td-num">{{ r.total_reservado|floatformat:2 }}</td>
-                              <td class="td-num fw-semibold">{{ r.total_neto|floatformat:2 }}</td>
-                            </tr>
-                            {% endfor %}
-                          </tbody>
-                        </table>
+                  <div class="accordion-item">
+                    <h2 class="accordion-header">
+                      <button class="accordion-button collapsed" type="button"
+                              data-bs-toggle="collapse"
+                              data-bs-target="#suc-{{ scode|default:'sin-sucursal'|slugify }}"
+                              aria-expanded="false">
+                        <div class="d-flex flex-column">
+                          {% if scode %}
+                            <span class="fw-semibold">Sucursal {{ scode }}</span>
+                            <small class="text-secondary">
+                              {{ g.list.0.sucursal_nombre }}
+                              · {{ g.list|length }} registro(s)
+                            </small>
+                          {% else %}
+                            <span class="fw-semibold">Sin sucursal (stock en bodegas)</span>
+                            <small class="text-secondary">{{ g.list|length }} registro(s)</small>
+                          {% endif %}
+                        </div>
+                      </button>
+                    </h2>
+                    <div id="suc-{{ scode|default:'sin-sucursal'|slugify }}" class="accordion-collapse collapse"
+                         data-bs-parent="#accStock">
+                      <div class="accordion-body">
+                        <div class="table-responsive">
+                          <table class="table align-middle mb-0">
+                            <thead class="border-bottom">
+                              <tr>
+                                <th>Bodega</th>
+                                <th class="td-num">Disponible</th>
+                                <th class="td-num">Neto</th>
+                              </tr>
+                            </thead>
+                            <tbody>
+                              {% for r in g.list %}
+                              <tr>
+                                <td>
+                                  {% if r.bodega_codigo %}
+                                    <span class="fw-semibold">{{ r.bodega_codigo }}</span>
+                                    <span class="text-secondary">— {{ r.bodega_nombre }}</span>
+                                  {% else %}
+                                    <span class="text-secondary">—</span>
+                                  {% endif %}
+                                </td>
+                                <td class="td-num">{{ r.total_disponible|default:0|floatformat:0 }}</td>
+                                <td class="td-num fw-semibold">{{ r.total_neto|default:0|floatformat:0 }}</td>
+                              </tr>
+                              {% endfor %}
+                            </tbody>
+                          </table>
+                        </div>
                       </div>
                     </div>
                   </div>
-                </div>
                 {% endwith %}
               {% endfor %}
             </div>
           {% else %}
-            <div class="empty">No hay stock registrado por bodega para este producto.</div>
+            <div class="empty">No hay datos para agrupar.</div>
           {% endif %}
         </div>
       </div>
@@ -318,7 +296,7 @@
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
 
 <script>
-/* ===== Escáner minimal (modal con “Escanear”) ===== */
+/* ===== Escáner minimal (el mismo que ya usas) ===== */
 (function(){
   const ZXING_URL="https://unpkg.com/@zxing/library@0.21.3";
   const QUAGGA_URL="https://unpkg.com/quagga2@1.8.4/dist/quagga.js";
@@ -509,14 +487,13 @@
 </script>
 
 <script>
-  // Abre el modal, vuelca el SKU y envía la búsqueda.
+  // abrir scanner y autocompletar SKU
   (function(){
     const form  = document.getElementById('searchForm');
     const input = document.getElementById('skuInput');
     const btn   = document.getElementById('btnOpenScanner');
     const btnSubmit = document.getElementById('btnSubmit');
 
-    // Spinner/estado al enviar
     form.addEventListener('submit', () => {
       if (btnSubmit.dataset.loading) return;
       btnSubmit.dataset.loading = "1";
@@ -541,7 +518,6 @@
       });
     });
 
-    // Copiar SKU (si hay producto)
     const btnCopy = document.getElementById('copySku');
     if (btnCopy){
       btnCopy.addEventListener('click', async () => {
@@ -549,7 +525,11 @@
           await navigator.clipboard.writeText('{{ producto.sku|default_if_none:"" }}');
           btnCopy.classList.remove('btn-outline-secondary');
           btnCopy.classList.add('btn-success'); btnCopy.textContent = 'SKU copiado';
-          setTimeout(()=>{ btnCopy.classList.remove('btn-success'); btnCopy.classList.add('btn-outline-secondary'); btnCopy.textContent='Copiar SKU'; }, 1400);
+          setTimeout(()=>{
+            btnCopy.classList.remove('btn-success');
+            btnCopy.classList.add('btn-outline-secondary');
+            btnCopy.textContent='Copiar SKU';
+          }, 1400);
         }catch(e){ console.warn(e); }
       });
     }

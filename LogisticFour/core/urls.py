@@ -28,11 +28,11 @@ urlpatterns = [
 
 
 
-     path( "password_reset/",auth_views.PasswordResetView.as_view(template_name="accounts/password_reset_form.html"),name="password_reset" ),
-     path( "password_reset/done/",auth_views.PasswordResetDoneView.as_view(template_name="accounts/password_reset_done.html"),name="password_reset_done"),
-     path("reset/<uidb64>/<token>/",auth_views.PasswordResetConfirmView.as_view(template_name="accounts/password_reset_confirm.html"),name="password_reset_confirm"),
-     path("reset/done/",auth_views.PasswordResetCompleteView.as_view(template_name="accounts/password_reset_complete.html"),name="password_reset_complete" ),
-     path("password_reset/", auth_views.PasswordResetView.as_view(template_name="accounts/password_reset_form.html",email_template_name="accounts/password_reset_email.html",success_url="/password_reset/done/",extra_email_context={"domain_override": "127.0.0.1:8000"},),name="password_reset",),
+    path( "password_reset/",auth_views.PasswordResetView.as_view(template_name="accounts/password_reset_form.html"),name="password_reset" ),
+    path( "password_reset/done/",auth_views.PasswordResetDoneView.as_view(template_name="accounts/password_reset_done.html"),name="password_reset_done"),
+    path("reset/<uidb64>/<token>/",auth_views.PasswordResetConfirmView.as_view(template_name="accounts/password_reset_confirm.html"),name="password_reset_confirm"),
+    path("reset/done/",auth_views.PasswordResetCompleteView.as_view(template_name="accounts/password_reset_complete.html"),name="password_reset_complete" ),
+    path("password_reset/", auth_views.PasswordResetView.as_view(template_name="accounts/password_reset_form.html",email_template_name="accounts/password_reset_email.html",success_url="/password_reset/done/",extra_email_context={"domain_override": "127.0.0.1:8000"},),name="password_reset",),
 
     path("users/<int:user_id>/set-role/", views.usuario_set_rol, name="usuario-set-rol"),
 
@@ -53,28 +53,22 @@ urlpatterns = [
     path("productos/<int:pk>/", views.ProductDetailView.as_view(), name="producto-detail"),
 
      # Sucursales CRUD
-     path("sucursales/", views.SucursalListView.as_view(), name="sucursal-list"),
-     path("sucursales/agregar/", views.SucursalCreateView.as_view(), name="sucursal-create"),
-     path("sucursales/<int:pk>/editar/", views.SucursalUpdateView.as_view(), name="sucursal-edit"),
-     path("sucursales/<int:pk>/eliminar/", views.SucursalDeleteView.as_view(), name="sucursal-delete"),
+    path("sucursales/", views.SucursalListView.as_view(), name="sucursal-list"),
+    path("sucursales/agregar/", views.SucursalCreateView.as_view(), name="sucursal-create"),
+    path("sucursales/<int:pk>/editar/", views.SucursalUpdateView.as_view(), name="sucursal-edit"),
+    path("sucursales/<int:pk>/eliminar/", views.SucursalDeleteView.as_view(), name="sucursal-delete"),
      #path("sucursales/<int:pk>/", views.SucursalDetailView.as_view(), name="sucursal-detail"),
 
      # Bodegas CRUD
-     path("bodegas/", views.BodegaListView.as_view(), name="bodega-list"),
-     path("bodegas/agregar/", views.BodegaCreateView.as_view(), name="bodega-create"),
-     path("bodegas/<int:pk>/editar/", views.BodegaUpdateView.as_view(), name="bodega-edit"),
-     path("bodegas/<int:pk>/eliminar/", views.BodegaDeleteView.as_view(), name="bodega-delete"),
-     path("bodegas/<int:pk>/", views.BodegaDetailView.as_view(), name="bodega-detail"),
+    path("bodegas/", views.BodegaListView.as_view(), name="bodega-list"),
+    path("bodegas/agregar/", views.BodegaCreateView.as_view(), name="bodega-create"),
+    path("bodegas/<int:pk>/editar/", views.BodegaUpdateView.as_view(), name="bodega-edit"),
+    path("bodegas/<int:pk>/eliminar/", views.BodegaDeleteView.as_view(), name="bodega-delete"),
+    path("bodegas/<int:pk>/", views.BodegaDetailView.as_view(), name="bodega-detail"),
 
 
-     path('productos/bodega/<int:bodega_id>/', views.productos_por_bodega, name='productos_por_bodega'),
+    path('productos/bodega/<int:bodega_id>/', views.productos_por_bodega, name='productos_por_bodega'),
 
-         # Ubicaciones (páginas)
-     path("ubicaciones/", views.UbicacionListView.as_view(), name="ubicacion-list"),
-     path("ubicaciones/agregar/", views.UbicacionCreateView.as_view(), name="ubicacion-create"),
-     path("ubicaciones/<int:pk>/editar/", views.UbicacionUpdateView.as_view(), name="ubicacion-edit"),
-     path("ubicaciones/<int:pk>/eliminar/", views.UbicacionDeleteView.as_view(), name="ubicacion-delete"),
-    # TipoUbicacion (modales)
     path("tipos/agregar/", views.TipoUbicacionCreateModal.as_view(), name="tipo-create"),
     path("tipos/<int:pk>/editar/", views.TipoUbicacionUpdateModal.as_view(), name="tipo-edit"),
     path("tipos/<int:pk>/eliminar/", views.TipoUbicacionDeleteModal.as_view(), name="tipo-delete"),
@@ -136,8 +130,13 @@ urlpatterns = [
 
 
 
+    path("movimientos/", views.movimientos_index, name="movimientos_index"),
+    path("movimientos/bodega-a-sucursal/", views.bodega_a_sucursal, name="bodega_a_sucursal"),
+    path("movimientos/sucursal-a-sucursal/", views.sucursal_a_sucursal,name="mov_sucursal_a_sucursal",),
+    path("movimientos/bodega-a-bodega/", views.bodega_a_bodega, name="mov_bodega_a_bodega",),
+    path("movimientos/sucursal-a-bodega/", views.sucursal_a_bodega, name="mov_sucursal_a_bodega",),
 
-    path('movimiento/bodega-a-sucursal/', views.bodega_a_sucursal, name='bodega_a_sucursal'),
+    path("ajax/sucursales-y-productos/", views.ajax_sucursales_y_productos, name="ajax_sucursales_y_productos"),
     
 
 
@@ -161,4 +160,8 @@ urlpatterns = [
 
 
     path("productos/stock/", views.stock_por_producto, name="stock-por-producto"),
+    path("api/geocode/", views.geocode, name="geocode"),
+    path("api/paypal/stock-in/", views.paypal_stock_in, name="paypal-stock-in"),
+    path("paypal/ingresos/", views.paypal_ingresos_view, name="paypal-ingresos"),   
 ]
+

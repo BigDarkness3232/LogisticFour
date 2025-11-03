@@ -5,7 +5,7 @@ from django.db.models.signals import pre_save, post_save
 from django.dispatch import receiver
 from django.template.loader import render_to_string
 import logging
-from .models import Producto
+from .models import Producto, Sucursal,UbicacionSucursal, UbicacionBodega,Bodega
 
 logger = logging.getLogger(__name__)
 
@@ -99,4 +99,28 @@ def producto_stock_notificaciones(sender, instance: Producto, created: bool, **k
             "emails/stock_bajo.txt",
             "emails/stock_bajo.html",
             ctx,
+        )
+
+
+
+
+
+
+@receiver(post_save, sender=Sucursal)
+def crear_ubicacion_sucursal_default(sender, instance: Sucursal, created, **kwargs):
+    if created and not instance.ubicaciones.exists():
+        UbicacionSucursal.objects.create(
+            sucursal=instance,
+            nombre="GENERAL",
+            codigo=f"SUC-{instance.id}-GEN",
+        )
+
+
+@receiver(post_save, sender=Bodega)
+def crear_ubicacion_bodega_default(sender, instance: Bodega, created, **kwargs):
+    if created and not instance.ubicaciones.exists():
+        UbicacionBodega.objects.create(
+            bodega=instance,
+            nombre="GENERAL",
+            codigo=f"BOD-{instance.id}-GEN",
         )
