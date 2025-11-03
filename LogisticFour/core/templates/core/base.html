@@ -350,8 +350,8 @@
           <div class="subnav" role="group" aria-label="Submenú Sucursales y Bodegas">
             <a href="{% url 'sucursal-list' %}" class="subitem {% if request.resolver_match and request.resolver_match.url_name == 'sucursal-list' %}active{% endif %}">Sucursales</a>
             <a href="{% url 'bodega-list' %}" class="subitem {% if request.resolver_match and request.resolver_match.url_name == 'bodega-list' %}active{% endif %}">Bodegas</a>
-            <a href="{% url 'bodega_a_sucursal' %}" class="subitem {% if request.resolver_match and request.resolver_match.url_name == 'bodega_a_sucursal' %}active{% endif %}">Movimiento Bodega a Sucursal</a>
-            <a href="{% url 'mov_sucursal_a_sucursal' %}" class="subitem {% if request.resolver_match and request.resolver_match.url_name == 'bodega_a_sucursal' %}active{% endif %}">Movimiento Bodega a Sucursal</a>
+            <a href="{% url 'bodega_a_sucursal' %}" class="subitem {% if request.resolver_match and request.resolver_match.url_name == 'sucursal_a_sucursal' %}active{% endif %}">Movimiento Bodega a Sucursal</a>
+            <a href="{% url 'mov_sucursal_a_sucursal' %}" class="subitem {% if request.resolver_match and request.resolver_match.url_name == 'bodega_a_sucursal' %}active{% endif %}">Movimiento sucursal a sucursal</a>
             <a href="{% url 'mov_bodega_a_bodega' %}" class="subitem {% if request.resolver_match and request.resolver_match.url_name == 'bodega_a_sucursal' %}active{% endif %}">Movimiento Bodega a Sucursal</a>
             <a href="{% url 'mov_sucursal_a_bodega' %}" class="subitem {% if request.resolver_match and request.resolver_match.url_name == 'bodega_a_sucursal' %}active{% endif %}">Movimiento Bodega a Sucursal</a>
             
