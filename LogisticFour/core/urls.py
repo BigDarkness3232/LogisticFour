@@ -104,6 +104,10 @@ urlpatterns = [
     path("series/<int:pk>/eliminar/", views.SerieDeleteModal.as_view(), name="serie-delete"),
 
     path("auditoria/inventario/", views.auditoria_inventario, name="auditoria_inventario"),
+
+    path("finanzas/", views.finanzas_reporte, name="finanzas_reporte"),
+    path("finanzas/export/excel/", views.finanzas_export_excel, name="finanzas_export_excel"),
+    path("finanzas/export/pdf/",   views.finanzas_export_pdf,   name="finanzas_export_pdf"), 
     
 
 

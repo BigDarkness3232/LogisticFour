@@ -3,7 +3,8 @@ from django import forms
 from django.contrib.auth.forms import UserCreationForm
 from django.contrib.auth.models import User
 from django.core.exceptions import ValidationError
-
+from core.models import Bodega, UsuarioPerfil
+from django.db.models import Q
 from core.models import (
     # usuarios
     UsuarioPerfil,
@@ -13,16 +14,6 @@ from core.models import (
     Sucursal, Bodega, UbicacionBodega, UbicacionSucursal,
     # productos
     Producto, LoteProducto, SerieProducto,
-    #orden
-    OrdenCompra,
-    LineaOrdenCompra,
-    RecepcionMercaderia,
-    LineaRecepcionMercaderia,
-    FacturaProveedor,
-    UsuarioPerfil,
-    Producto,
-    UnidadMedida,
-    Bodega,
 )
 
 
@@ -472,6 +463,56 @@ class LoteProductoForm(forms.ModelForm):
         return cd
 
 
+class FinanzasReporteForm(forms.Form):
+    bodega = forms.ModelChoiceField(
+        queryset=Bodega.objects.all().order_by("codigo"),
+        required=False,
+        label="Bodega",
+        empty_label="---------",
+    )
+    proveedor = forms.ModelChoiceField(
+        queryset=User.objects.none(),  # se completa en __init__
+        required=False,
+        label="Proveedor",
+        empty_label="---------",
+    )
+    fecha_desde = forms.DateField(
+        required=False,
+        widget=forms.DateInput(attrs={"type": "date"}),
+        label="Desde",
+    )
+    fecha_hasta = forms.DateField(
+        required=False,
+        widget=forms.DateInput(attrs={"type": "date"}),
+        label="Hasta",
+    )
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+
+        # Etiquetas legibles
+        self.fields["bodega"].label_from_instance = (
+            lambda b: f"{b.codigo} - {b.nombre}"
+        )
+        self.fields["proveedor"].label_from_instance = (
+            lambda u: (u.get_full_name() or u.username)
+        )
+
+        # Queryset correcto para proveedores (nota el doble underscore)
+        self.fields["proveedor"].queryset = (
+            User.objects.filter(
+                perfil__rol=UsuarioPerfil.Rol.PROVEEDOR,
+                is_active=True,
+            ).order_by("username")
+        )
+
+    def clean(self):
+        data = super().clean()
+        d, h = data.get("fecha_desde"), data.get("fecha_hasta")
+        if d and h and d > h:
+            self.add_error("fecha_hasta", "La fecha hasta no puede ser menor que la fecha desde.")
+        return data
+
 # =========================================================
 #  Series
 # =========================================================
@@ -522,8 +563,4 @@ class SerieProductoForm(forms.ModelForm):
         if lote and prod and lote.producto_id != prod.id:
             self.add_error("lote", "El lote seleccionado no pertenece a este producto.")
         return cd
-
-
-
-
 
