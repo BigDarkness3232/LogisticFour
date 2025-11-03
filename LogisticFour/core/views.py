@@ -2916,6 +2916,8 @@ def sucursal_a_bodega(request):
 
 
 
+def movimientos_index(request):
+    return render(request, "core/Movimientos/movimientos_index.html")
 
 
 import requests
@@ -3076,6 +3078,7 @@ def paypal_stock_in(request):
             creado_por=request.user,
         )
 
+<<<<<<< HEAD
         # monto
         try:
             monto_usd = Decimal(str(monto_usd_raw))
@@ -3158,3 +3161,11 @@ def paypal_ingresos_view(request):
         .order_by("-creado_en")[:50]
     )
     return render(request, "core/paypal_ingresos.html", {"ordenes": ordenes})
+=======
+    # 6) responder al JS
+    return JsonResponse({
+        "ok": True,
+        "nuevo_stock": str(stock_obj.cantidad_disponible),
+        "msg": "Stock agregado correctamente",
+    })
+>>>>>>> d7246277409fc387be059146da031d41c00be24c
