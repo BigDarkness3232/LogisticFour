@@ -1,0 +1,73 @@
+{% extends "core/base.html" %}
+{% block title %}Movimiento: Sucursal → Sucursal{% endblock %}
+{% block content %}
+<div class="page-wrap container py-4">
+  <h2 class="mb-3">Movimiento: Sucursal → Sucursal</h2>
+
+  {% if error %}<div class="alert alert-danger">{{ error }}</div>{% endif %}
+  {% if success %}<div class="alert alert-success">{{ success }}</div>{% endif %}
+
+  <div class="card shadow-sm">
+    <div class="card-body">
+      <form method="post" class="row g-3">
+        {% csrf_token %}
+
+        <div class="col-md-6">
+          <label class="form-label fw-semibold">Sucursal origen</label>
+          <select name="sucursal_origen" class="form-select" required onchange="this.form.submit()">
+            <option value="">-- Seleccione sucursal origen --</option>
+            {% for s in sucursales %}
+              <option value="{{ s.id }}" {% if s.id|stringformat:'s' == sucursal_sel|stringformat:'s' %}selected{% endif %}>
+                {{ s.nombre }}
+              </option>
+            {% endfor %}
+          </select>
+          <div class="form-text">Primero elige la sucursal desde donde saldrá el stock.</div>
+        </div>
+
+        <div class="col-md-6">
+          <label class="form-label fw-semibold">Sucursal destino</label>
+          {% if sucursales_destino %}
+            <select name="sucursal_destino" class="form-select" required>
+              <option value="">-- Seleccione sucursal destino --</option>
+              {% for s in sucursales_destino %}
+                <option value="{{ s.id }}">{{ s.nombre }}</option>
+              {% endfor %}
+            </select>
+          {% else %}
+            <select class="form-select" disabled>
+              <option>Seleccione una sucursal de origen…</option>
+            </select>
+          {% endif %}
+        </div>
+
+        <div class="col-md-6">
+          <label class="form-label fw-semibold">Producto</label>
+          {% if productos %}
+            <select name="producto" class="form-select" required>
+              <option value="">-- Seleccione producto --</option>
+              {% for p in productos %}
+                <option value="{{ p.id }}">{{ p.sku }} — {{ p.nombre }} ({{ p.stock_total|floatformat:0 }} disp.)</option>
+              {% endfor %}
+            </select>
+          {% else %}
+            <select class="form-select" disabled>
+              <option>Seleccione una sucursal de origen…</option>
+            </select>
+          {% endif %}
+        </div>
+
+        <div class="col-md-3">
+          <label class="form-label fw-semibold">Cantidad</label>
+          <input type="number" name="cantidad" class="form-control" min="1" required>
+        </div>
+
+        <div class="col-12 d-flex gap-2 mt-3">
+          <button type="submit" class="btn btn-primary">Mover</button>
+          <a href="{% url 'mov_sucursal_a_sucursal' %}" class="btn btn-outline-secondary">Limpiar</a>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+{% endblock %}
