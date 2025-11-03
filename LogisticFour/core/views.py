@@ -2915,10 +2915,8 @@ def sucursal_a_bodega(request):
 
 
 
-<<<<<<< HEAD
 def movimientos_index(request):
     return render(request, "core/Movimientos/movimientos_index.html")
-=======
 
 
 import requests
@@ -3040,4 +3038,3 @@ def paypal_stock_in(request):
         "nuevo_stock": str(stock_obj.cantidad_disponible),
         "msg": "Stock agregado correctamente",
     })
->>>>>>> a9bea30153ad0c486716358a88c0ed300891279e
