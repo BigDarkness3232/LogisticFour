@@ -274,7 +274,6 @@ def _redirect_url_by_role(perfil):
     mapping = {
         'ADMIN': reverse('dashboard'),
         'BODEGUERO': reverse('products'),
-        'AUDITOR': reverse('finanzas'),
     }
     return mapping.get(perfil.rol, reverse('dashboard'))
 
