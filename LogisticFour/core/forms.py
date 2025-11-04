@@ -69,32 +69,10 @@ class UsuarioPerfilEditForm(forms.ModelForm):
 #  (sin el campo ubicacion porque ya no existe en el modelo)
 # =========================================================
 class ProductoForm(forms.ModelForm):
-    marca = forms.ModelChoiceField(
-        queryset=Marca.objects.none(),
-        required=False,
-        empty_label="— Selecciona una marca —"
-    )
-    categoria = forms.ModelChoiceField(
-        queryset=CategoriaProducto.objects.none(),
-        required=False,
-        empty_label="— Selecciona una categoría —"
-    )
-    unidad_base = forms.ModelChoiceField(
-        queryset=UnidadMedida.objects.none(),
-        required=True,
-        empty_label=None
-    )
-    tasa_impuesto = forms.ModelChoiceField(
-        queryset=TasaImpuesto.objects.none(),
-        required=False,
-        empty_label="— Sin impuesto —"
-    )
-    stock = forms.IntegerField(
-        min_value=0,
-        required=True,
-        label="Cantidad de stock",
-        help_text="No puede ser negativa"
-    )
+    marca = forms.ModelChoiceField(queryset=Marca.objects.none(), required=False, empty_label="— Selecciona una marca —")
+    categoria = forms.ModelChoiceField(queryset=CategoriaProducto.objects.none(), required=False, empty_label="— Selecciona una categoría —")
+    unidad_base = forms.ModelChoiceField(queryset=UnidadMedida.objects.none(), required=True, empty_label=None)
+    tasa_impuesto = forms.ModelChoiceField(queryset=TasaImpuesto.objects.none(), required=False, empty_label="— Sin impuesto —")
 
     class Meta:
         model = Producto
@@ -104,19 +82,14 @@ class ProductoForm(forms.ModelForm):
             "unidad_base", "tasa_impuesto",
             "activo", "es_serializado", "tiene_vencimiento",
             "precio",
-            "stock",  # este sigue estando en el modelo
         ]
         widgets = {
             "sku": forms.TextInput(attrs={"placeholder": "SKU o código interno"}),
             "nombre": forms.TextInput(attrs={"placeholder": "Nombre del producto"}),
-            "stock": forms.NumberInput(attrs={"min": 0, "step": 1}),
-        }
-        help_texts = {
-            "es_serializado": "Actívalo si cada unidad tiene número de serie.",
-            "tiene_vencimiento": "Actívalo si el producto maneja fechas de vencimiento/lote.",
+            "precio": forms.NumberInput(attrs={"min": 0, "step": 1}),
         }
 
-    def __init__(self, *args, **kwargs):
+    def __init__(self, *args, include_stock: bool = False, **kwargs):
         super().__init__(*args, **kwargs)
 
         self.fields["marca"].queryset = Marca.objects.all().order_by("nombre")
@@ -124,28 +97,32 @@ class ProductoForm(forms.ModelForm):
         self.fields["unidad_base"].queryset = UnidadMedida.objects.all().order_by("codigo")
         self.fields["tasa_impuesto"].queryset = TasaImpuesto.objects.filter(activo=True).order_by("nombre")
 
-        # estilos
+        # APLICAR CLASES CORRECTAS POR TIPO DE WIDGET
         for name, field in self.fields.items():
-            if not isinstance(field.widget, forms.CheckboxInput):
-                field.widget.attrs.setdefault("class", "form-control")
+            w = field.widget
+            if isinstance(w, (forms.Select, forms.SelectMultiple)):
+                w.attrs.setdefault("class", "form-select")
+            elif isinstance(w, forms.CheckboxInput):
+                w.attrs.setdefault("class", "form-check-input")
             else:
-                field.widget.attrs.setdefault("class", "form-check-input")
+                w.attrs.setdefault("class", "form-control")
 
-    def clean_sku(self):
-        sku = (self.cleaned_data.get("sku") or "").strip()
-        return sku.upper()
 
-    def clean_nombre(self):
-        return (self.cleaned_data.get("nombre") or "").strip()
+ # donde tengas StockInlineForm (en views.py o forms.py)
+class StockInlineForm(forms.Form):
+    bodega = forms.ModelChoiceField(queryset=Bodega.objects.all(), required=True, label="Bodega destino",
+                                    widget=forms.Select(attrs={"class":"form-select"}))
+    cantidad_inicial = forms.IntegerField(min_value=0, required=True, label="Cantidad inicial",
+                                          widget=forms.NumberInput(attrs={"class":"form-control"}))
+    costo_unitario = forms.DecimalField(max_digits=12, decimal_places=2, required=False, label="Costo unitario",
+                                        widget=forms.NumberInput(attrs={"class":"form-control"}))
+    lote = forms.CharField(max_length=100, required=False, label="Lote",
+                           widget=forms.TextInput(attrs={"class":"form-control"}))
+    fecha_vencimiento = forms.DateField(required=False, label="Fecha de vencimiento",
+                                        widget=forms.DateInput(attrs={"type":"date","class":"form-control"}))
 
-    def save(self, commit=True):
-        obj = super().save(commit=False)
-        obj.sku = (obj.sku or "").strip().upper()
-        if "stock" in self.cleaned_data and self.cleaned_data["stock"] is not None:
-            obj.stock = max(0, int(self.cleaned_data["stock"]))
-        if commit:
-            obj.save()
-        return obj
+               
+
 
 
 # =========================================================

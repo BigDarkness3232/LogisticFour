@@ -20,7 +20,7 @@ from django.shortcuts import render
 # =============================================
 #  LIBRERÍAS DE DJANGO
 # =============================================
-from django import forms
+from django import apps, forms
 from django.conf import settings
 from django.contrib import messages
 from django.contrib.auth import authenticate, login, logout
@@ -173,6 +173,99 @@ def product_add(request):
         form = ProductoForm()
 
     return render(request, "core/product_add.html", {"form": form})
+
+
+def _get_or_create_default_location(bodega):
+    """
+    Si el proyecto NO tiene Stock.bodega, pero SÍ trabaja con ubicacion_bodega,
+    buscamos (o creamos) una ubicación por defecto en esa bodega.
+    """
+    # intenta resolver el modelo UbicacionBodega de tu app (ajusta 'core' si tu app se llama distinto)
+    UbicacionBodega = None
+    for app_label in ("core",):  # agrega otros app_labels si aplica
+        try:
+            UbicacionBodega = apps.get_model(app_label, "UbicacionBodega")
+            break
+        except LookupError:
+            continue
+
+    if UbicacionBodega is None:
+        return None  # no existe ese modelo → no podemos setear ubicación
+
+    # Busca / crea ubicación por defecto
+    ubi, _ = UbicacionBodega.objects.get_or_create(
+        bodega=bodega,
+        codigo="DEF",
+        defaults={"nombre": "General"}
+    )
+    return ubi
+
+
+@login_required
+@transaction.atomic
+def product_add_combined(request):
+    if request.method == "POST":
+        pform = ProductoForm(request.POST, include_stock=False)
+        sform = StockInlineForm(request.POST)
+
+        if pform.is_valid() and sform.is_valid():
+            # si marca vencimiento, exige fecha
+            if pform.cleaned_data.get("tiene_vencimiento") and not sform.cleaned_data.get("fecha_vencimiento"):
+                sform.add_error("fecha_vencimiento", "Debes indicar una fecha de vencimiento para este producto.")
+            else:
+                # 1) Producto
+                producto = pform.save()
+
+                # 2) Stock inicial + bodega seleccionada
+                bodega = sform.cleaned_data["bodega"]
+                cantidad = sform.cleaned_data["cantidad_inicial"] or 0
+
+                stock_field_names = {f.name for f in Stock._meta.get_fields()}
+                stock_kwargs = dict(
+                    producto=producto,
+                    cantidad_disponible=cantidad,
+                )
+
+                if "bodega" in stock_field_names:
+                    # Caso 1: FK directa a Bodega
+                    stock_kwargs["bodega"] = bodega
+                else:
+                    # Caso 2: usar ubicacion_bodega por defecto en esa bodega
+                    ubi = _get_or_create_default_location(bodega)
+                    if ubi and "ubicacion_bodega" in stock_field_names:
+                        stock_kwargs["ubicacion_bodega"] = ubi
+
+                # extras si existen en el modelo
+                if "costo_unitario" in stock_field_names:
+                    stock_kwargs["costo_unitario"] = sform.cleaned_data.get("costo_unitario") or 0
+                if "lote" in stock_field_names:
+                    stock_kwargs["lote"] = sform.cleaned_data.get("lote") or ""
+                if "fecha_vencimiento" in stock_field_names:
+                    stock_kwargs["fecha_vencimiento"] = sform.cleaned_data.get("fecha_vencimiento")
+
+                # crea el stock solo con claves válidas
+                valid_names = {f.name for f in Stock._meta.get_fields()}
+                clean_kwargs = {k: v for k, v in stock_kwargs.items() if k in valid_names}
+                Stock.objects.create(**clean_kwargs)
+
+                # (opcional) recalcula stock global
+                try:
+                    total = (Stock.objects
+                             .filter(producto=producto)
+                             .aggregate(total=Sum("cantidad_disponible"))["total"]) or 0
+                    producto.stock = total
+                    producto.save(update_fields=["stock"])
+                except Exception:
+                    pass
+
+                messages.success(request, "Producto y stock inicial registrados correctamente.")
+                return redirect(reverse("producto-detail", args=[producto.id]))
+    else:
+        pform = ProductoForm(include_stock=False)
+        sform = StockInlineForm()
+
+    return render(request, "core/product_add.html", {"pform": pform, "sform": sform})
+
 
 # -------------------- Login Helpers --------------------
 def _redirect_url_by_role(perfil):
@@ -912,6 +1005,87 @@ class ProductUpdateView(LoginRequiredMixin, SuccessMessageMixin, UpdateView):
     def get_success_url(self):
         return reverse_lazy("products")
 
+class ProductUpdateView(LoginRequiredMixin, SuccessMessageMixin, UpdateView):
+
+    model = Producto
+    form_class = ProductoForm
+    template_name = "core/product_update.html"
+    context_object_name = "producto"
+    success_message = "Producto actualizado correctamente."
+
+    # ---------- Queryset “rápido” ----------
+    def get_queryset(self):
+        return (Producto.objects
+                .select_related("marca", "categoria", "unidad_base", "tasa_impuesto"))
+
+  
+    pk_url_kwarg = "pk"
+    slug_url_kwarg = "sku"
+    slug_field = "sku"
+
+    def get_object(self, queryset=None):
+        qs = queryset or self.get_queryset()
+        # 1) Prioridad: si hay <pk> en la URL, úsalo
+        pk = self.kwargs.get(self.pk_url_kwarg)
+        if pk is not None:
+            try:
+                return qs.get(pk=pk)
+            except Producto.DoesNotExist:
+                raise Http404("Producto no encontrado.")
+        # 2) Si hay <sku> en la URL, úsalo
+        sku_kw = self.kwargs.get(self.slug_url_kwarg)
+        if sku_kw:
+            try:
+                return qs.get(sku=str(sku_kw).upper())
+            except Producto.DoesNotExist:
+                raise Http404("Producto no encontrado.")
+        # 3) Fallback: si llega ?sku= en querystring
+        sku_qs = (self.request.GET.get("sku") or "").strip().upper()
+        if sku_qs:
+            try:
+                return qs.get(sku=sku_qs)
+            except Producto.DoesNotExist:
+                raise Http404("Producto no encontrado.")
+        return super().get_object(qs)
+
+    # ---------- Pasar flag al form ----------
+    def get_form_kwargs(self):
+        kwargs = super().get_form_kwargs()
+        # Editar solo metadatos del producto (no stock)
+        kwargs["include_stock"] = False
+        return kwargs
+
+    # ---------- UX de errores ----------
+    def form_invalid(self, form):
+        # muestra un resumen arriba sin obligarte a inspeccionar campo por campo
+        errors = []
+        for name, field_errors in form.errors.items():
+            for e in field_errors:
+                errors.append(f"{name}: {e}")
+        if errors:
+            messages.error(self.request, "No se pudo actualizar el producto. Revisa los campos.")
+        return super().form_invalid(form)
+
+    # ---------- Redirecciones ----------
+    def form_valid(self, form):
+        resp = super().form_valid(form)
+        nxt = self.request.POST.get("next") or self.request.GET.get("next")
+        if nxt:
+            return redirect(nxt)
+        return resp
+
+    def get_success_url(self):
+        # Si hay ?next= úsalo, si no, vuelve al detalle del propio producto
+        nxt = self.request.POST.get("next") or self.request.GET.get("next")
+        if nxt:
+            return nxt
+        try:
+            return reverse("producto-detail", args=[self.object.pk])
+        except Exception:
+            return reverse_lazy("products")
+
+
+
 class ProductDeleteView(LoginRequiredMixin, DeleteView):
     model = Producto
     template_name = "core/product_confirm_delete.html"  # fallback si navegas directo
@@ -923,10 +1097,99 @@ class ProductDeleteView(LoginRequiredMixin, DeleteView):
 
 
 class ProductDetailView(LoginRequiredMixin, DetailView):
+    """
+    Detalle de producto con:
+      - info general del producto
+      - métricas (stock total disponible, precio, estado)
+      - desglose de stock por sucursal/bodega/ubicación
+    """
     model = Producto
     template_name = "core/product_detail.html"
     context_object_name = "producto"
 
+    def get_context_data(self, **kwargs):
+        ctx = super().get_context_data(**kwargs)
+        producto = self.object
+
+        # Totales (si no hay reservas, neto = disponible)
+        agg = (
+            Stock.objects
+            .filter(producto=producto)
+            .aggregate(
+                total_disponible=Coalesce(
+                    Sum("cantidad_disponible"),
+                    Value(0, output_field=DecimalField(max_digits=20, decimal_places=6))
+                )
+            )
+        )
+        total_disponible = agg["total_disponible"] or 0
+        ctx["totales"] = {
+            "total_disponible": total_disponible,
+            "total_neto": total_disponible,
+        }
+
+        # Desglose por sucursal/bodega/ubicación (campos opcionales seguros)
+        resumen = (
+            Stock.objects
+            .filter(producto=producto)
+            .annotate(
+                sucursal_codigo=Case(
+                    When(ubicacion_sucursal__isnull=False, then=F("ubicacion_sucursal__sucursal__codigo")),
+                    default=Value("", output_field=CharField()),
+                ),
+                sucursal_nombre=Case(
+                    When(ubicacion_sucursal__isnull=False, then=F("ubicacion_sucursal__sucursal__nombre")),
+                    default=Value("", output_field=CharField()),
+                ),
+                bodega_codigo=Case(
+                    When(ubicacion_bodega__isnull=False, then=F("ubicacion_bodega__bodega__codigo")),
+                    default=Value("", output_field=CharField()),
+                ),
+                bodega_nombre=Case(
+                    When(ubicacion_bodega__isnull=False, then=F("ubicacion_bodega__bodega__nombre")),
+                    default=Value("", output_field=CharField()),
+                ),
+                # ubicación física (si existen esos campos)
+                sucursal_ubi_codigo=Case(
+                    When(ubicacion_sucursal__isnull=False, then=F("ubicacion_sucursal__codigo")),
+                    default=Value("", output_field=CharField()),
+                ),
+                sucursal_ubi_nombre=Case(
+                    When(ubicacion_sucursal__isnull=False, then=F("ubicacion_sucursal__nombre")),
+                    default=Value("", output_field=CharField()),
+                ),
+                bodega_ubi_codigo=Case(
+                    When(ubicacion_bodega__isnull=False, then=F("ubicacion_bodega__codigo")),
+                    default=Value("", output_field=CharField()),
+                ),
+                bodega_ubi_nombre=Case(
+                    When(ubicacion_bodega__isnull=False, then=F("ubicacion_bodega__nombre")),
+                    default=Value("", output_field=CharField()),
+                ),
+            )
+            .values(
+                "sucursal_codigo", "sucursal_nombre",
+                "bodega_codigo", "bodega_nombre",
+                "sucursal_ubi_codigo", "sucursal_ubi_nombre",
+                "bodega_ubi_codigo", "bodega_ubi_nombre",
+            )
+            .annotate(
+                total_disponible=Coalesce(
+                    Sum("cantidad_disponible"),
+                    Value(0, output_field=DecimalField(max_digits=20, decimal_places=6))
+                ),
+                total_neto=F("total_disponible"),
+            )
+            .order_by(
+                "sucursal_codigo",
+                "bodega_codigo",
+                "sucursal_ubi_codigo",
+                "bodega_ubi_codigo",
+            )
+        )
+
+        ctx["resumen_sucursales"] = resumen
+        return ctx
 # ----------------------
 # CRUD Ubicacion (pÃ¡ginas)
 # ----------------------

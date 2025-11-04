@@ -35,6 +35,7 @@ urlpatterns = [
     path("password_reset/", auth_views.PasswordResetView.as_view(template_name="accounts/password_reset_form.html",email_template_name="accounts/password_reset_email.html",success_url="/password_reset/done/",extra_email_context={"domain_override": "127.0.0.1:8000"},),name="password_reset",),
 
     path("users/<int:user_id>/set-role/", views.usuario_set_rol, name="usuario-set-rol"),
+    path("productos/agregar/", views.product_add_combined, name="product_add"),
 
 
 
@@ -48,7 +49,8 @@ urlpatterns = [
     #codigo QR producto
     path("productos/", views.ProductsListView.as_view(), name="products"),
     path("productos/agregar/", views.ProductCreateView.as_view(), name="product_add"),
-    path("productos/<int:pk>/editar/",views.ProductUpdateView.as_view(), name="producto-update"),
+    path("productos/<int:pk>/editar/", views.ProductUpdateView.as_view(), name="producto-update"),
+    path("productos/<slug:sku>/editar/", views.ProductUpdateView.as_view(), name="producto-update-sku"),
     path("productos/<int:pk>/eliminar/", views.ProductDeleteView.as_view(), name="producto-delete"),
     path("productos/<int:pk>/", views.ProductDetailView.as_view(), name="producto-detail"),
 
