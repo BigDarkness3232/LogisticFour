@@ -16,8 +16,6 @@ urlpatterns = [
 
     # Redirección por rol (opcionales pero útiles)
     path('home/', views.dashboard_view, name='accounts_home'),
-    path('home/auditor/', views.auditor_home, name='auditor_home'),
-    path('home/proveedor/', views.proveedor_home, name='proveedor_home'),
 
     # Signup (si lo usas)
     path("signup/", views.signup, name="accounts-signup"),

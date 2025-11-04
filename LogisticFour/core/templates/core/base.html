@@ -332,21 +332,51 @@
   <aside class="sidenav" id="sidenav" aria-label="Navegación lateral">
     <div class="brand">LogisticFour</div>
     <nav>
-      {% if user.is_authenticated %}
+        <!-- Accesos comunes para todos -->
         <a href="{% url 'dashboard' %}" class="item">🏠 Inicio</a>
-        <a href="{% url 'products' %}" class="item">📦 Productos</a>
-        <a href="#" class="item">🏷️ Categorías</a>
         <a href="{% url 'stock-por-producto' %}" class="item">📊 Consultar producto</a>
+
+        <!-- Accesos para el Bodeguero -->
+        {% if user.is_authenticated and user.perfil and user.perfil.rol == 'BODEGUERO' %}
+        <a href="{% url 'products' %}" class="item">📦 Productos</a>
         <a href="{% url 'movimientos_index' %}" class="item">🔁 Movimientos de Inventario</a>
 
+        <!-- Grupo colapsable para Bodeguero: Sucursales / Bodegas / Ubicaciones -->
+        <div class="nav-group">
+            <button class="group-head" type="button" aria-expanded="false">
+                <span class="label">
+                    <svg width="16" height="16" aria-hidden="true"><use xlink:href="#icon-warehouse"></use></svg>
+                    Sucursales / Bodegas / Ubicaciones
+                </span>
+                <span class="caret">▶</span>
+            </button>
+            <div class="subnav" role="group">
+                <a href="{% url 'sucursal-list' %}" class="subitem">Sucursales</a>
+                <a href="{% url 'bodega-list' %}" class="subitem">Bodegas</a>
+            </div>
+        </div>
+        {% endif %}
 
-        <!-- Grupo colapsable -->
-        <div class="nav-group {% if request.resolver_match and request.resolver_match.url_name in 'sucursal-list bodega-list ubicacion-list' %}expanded{% endif %}" data-group>
+        <!-- Accesos para el Auditor -->
+        {% if user.is_authenticated and user.perfil and user.perfil.rol == 'AUDITOR' %}
+        <a href="{% url 'auditoria_inventario' %}" class="item">💻 Auditoria</a>
+        <a href="{% url 'finanzas_reporte' %}" class="item">💳 Finanzas</a>
+        {% endif %}
+
+        <!-- Accesos para el Administrador (Admin ve todo) -->
+        {% if user.is_authenticated and user.perfil and user.perfil.rol == 'ADMIN' %}
+        <a href="{% url 'usuario-list' %}" class="item">👥 Usuarios</a>
+        <a href="{% url 'products' %}" class="item">📦 Productos</a>
+        <a href="{% url 'movimientos_index' %}" class="item">🔁 Movimientos de Inventario</a>
+        <a href="{% url 'auditoria_inventario' %}" class="item">💻 Auditoria</a>
+        <a href="{% url 'finanzas_reporte' %}" class="item">💳 Finanzas</a>
+
+        <!-- Grupo colapsable para Admin: Sucursales / Bodegas / Ubicaciones -->
+       <div class="nav-group {% if request.resolver_match and request.resolver_match.url_name in 'sucursal-list bodega-list ubicacion-list' %}expanded{% endif %}" data-group>
           <button class="group-head" type="button" aria-expanded="{% if request.resolver_match and request.resolver_match.url_name in 'sucursal-list bodega-list ubicacion-list' %}true{% else %}false{% endif %}">
             <span class="label">
               <svg width="16" height="16" aria-hidden="true"><use xlink:href="#icon-warehouse"></use></svg>
-              Sucursales / Bodegas / Ubicaciones
-            </span>
+              Sucursales / Bodegas
             <span class="caret">▶</span>
           </button>
           <div class="subnav" role="group" aria-label="Submenú Sucursales y Bodegas">
@@ -354,26 +384,22 @@
             <a href="{% url 'bodega-list' %}" class="subitem {% if request.resolver_match and request.resolver_match.url_name == 'bodega-list' %}active{% endif %}">Bodegas</a>         
           </div>
         </div>
+        {% endif %}
 
-        <a href="{% url 'finanzas_reporte' %}" class="item">💳 Finanzas</a>
-
-      {% else %}
+        <!-- Accesos para todos los usuarios autenticados -->
+        {% if user.is_authenticated %}
+        <a href="{% url 'logout' %}" class="subitem">↩︎ Cerrar sesión</a>
+        {% else %}
         <a href="{% url 'login' %}" class="item">🔐 Iniciar sesión</a>
-      {% endif %}
-
-      {% if user.is_authenticated and user.perfil and user.perfil.rol == 'ADMIN' %}
-        <a href="{% url 'usuario-list' %}" class="item">👥 Usuarios</a>
-      {% endif %}
-      <a href="{% url 'auditoria_inventario' %}" class="item">💻 Auditoria</a>
+        {% endif %}
     </nav>
 
     <div class="sidenav-footer">
-      {% if user.is_authenticated %}
+        {% if user.is_authenticated %}
         <a href="#" class="subitem">⚙️ Configuración</a>
-        <a href="{% url 'logout' %}" class="subitem">↩︎ Cerrar sesión</a>
-      {% endif %}
+        {% endif %}
     </div>
-  </aside>
+</aside>
 
   <!-- Main -->
   <main class="main">

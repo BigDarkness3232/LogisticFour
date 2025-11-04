@@ -274,8 +274,7 @@ def _redirect_url_by_role(perfil):
     mapping = {
         'ADMIN': reverse('dashboard'),
         'BODEGUERO': reverse('products'),
-        'AUDITOR': reverse('auditor_home'),
-        'PROVEEDOR': reverse('proveedor_home'),
+        'AUDITOR': reverse('finanzas'),
     }
     return mapping.get(perfil.rol, reverse('dashboard'))
 
@@ -322,14 +321,6 @@ def dashboard_view(request):
     perfil = getattr(request.user, 'perfil', None)
     return redirect(_redirect_url_by_role(perfil))
 
-@login_required
-def auditor_home(request):
-    # Puedes crear accounts/auditor_home.html si quieres contenido propio
-    return render(request, 'accounts/auditor_home.html')
-
-@login_required
-def proveedor_home(request):
-    return render(request, 'accounts/proveedor_home.html')
 
 
 # -------------------- Signup (opcional, solo ADMIN) --------------------
