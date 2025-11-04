@@ -53,55 +53,6 @@ def producto_snapshot_before_save(sender, instance: Producto, **kwargs):
 # 📦 Producto: post-save (notificación por cambios de stock)
 # =====================================================
 
-@receiver(post_save, sender=Producto)
-def producto_stock_notificaciones(sender, instance: Producto, created: bool, **kwargs):
-    """Envía notificación si se agrega stock o si el stock está bajo."""
-    admin_list = list(getattr(settings, "TICKETS_NOTIFY_EMAILS", []))
-    if not admin_list:
-        return
-
-    ctx = {"p": instance}
-    stock_actual = instance.stock
-    stock_anterior = getattr(instance, "_old_stock", None)
-    UMBRAL_BAJO = 5  # <-- puedes ajustar este valor o hacerlo configurable
-
-    # 1️⃣ Producto creado con stock inicial
-    if created and stock_actual > 0:
-        subject = f"[Stock] Nuevo producto con stock inicial: {instance.nombre}"
-        _send_html_email(
-            subject,
-            admin_list,
-            "emails/stock_nuevo.txt",
-            "emails/stock_nuevo.html",
-            ctx,
-        )
-        return
-
-    # 2️⃣ Stock agregado (aumenta)
-    if stock_anterior is not None and stock_actual > stock_anterior:
-        diff = stock_actual - stock_anterior
-        ctx["cantidad_agregada"] = diff
-        subject = f"[Stock] Se agregó stock a {instance.nombre} (+{diff} unidades)"
-        _send_html_email(
-            subject,
-            admin_list,
-            "emails/stock_agregado.txt",
-            "emails/stock_agregado.html",
-            ctx,
-        )
-
-    # 3️⃣ Bajo stock
-    if stock_actual <= UMBRAL_BAJO:
-        subject = f"[Alerta] Bajo stock: {instance.nombre} ({stock_actual} unidades)"
-        _send_html_email(
-            subject,
-            admin_list,
-            "emails/stock_bajo.txt",
-            "emails/stock_bajo.html",
-            ctx,
-        )
-
-
 
 
 

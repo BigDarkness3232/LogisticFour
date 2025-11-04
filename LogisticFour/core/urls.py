@@ -6,9 +6,10 @@ urlpatterns = [
     # App principal
     path("", views.dashboard, name="dashboard"),
     path("productos/", views.product_list, name="products"),
-    path("productos/", views.product_list, name="products"),
+   
     path("category/<slug:slug>/", views.category, name="category"),
-    path("products/add/", views.product_add, name="product_add"),
+    path("productos/agregar/", views.product_add_combined, name="product_add"),
+
 
     # Auth propias
     path("login/", views.login_view, name="login"),
@@ -48,7 +49,8 @@ urlpatterns = [
     #codigo QR producto
     path("productos/", views.ProductsListView.as_view(), name="products"),
     path("productos/agregar/", views.ProductCreateView.as_view(), name="product_add"),
-    path("productos/<int:pk>/editar/",views.ProductUpdateView.as_view(), name="producto-update"),
+    path("productos/<int:pk>/editar/", views.ProductUpdateView.as_view(), name="producto-update"),
+    path("productos/<slug:sku>/editar/", views.ProductUpdateView.as_view(), name="producto-update-sku"),
     path("productos/<int:pk>/eliminar/", views.ProductDeleteView.as_view(), name="producto-delete"),
     path("productos/<int:pk>/", views.ProductDetailView.as_view(), name="producto-detail"),
 
