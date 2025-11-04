@@ -355,7 +355,8 @@
           </div>
         </div>
 
-        <a href="#" class="item">💳 Finanzas</a>
+        <a href="{% url 'finanzas_reporte' %}" class="item">💳 Finanzas</a>
+
       {% else %}
         <a href="{% url 'login' %}" class="item">🔐 Iniciar sesión</a>
       {% endif %}

@@ -14,6 +14,8 @@ from decimal import Decimal
 from django.db.models.signals import pre_save, post_save
 from django.dispatch import receiver
 from django.utils import timezone
+# core/views.py  (arriba con el resto de imports)
+from django.shortcuts import render
 
 # =============================================
 #  LIBRERÍAS DE DJANGO
@@ -3096,7 +3098,21 @@ def _auto_width(ws):
         ws.column_dimensions[get_column_letter(i)].width = min(max_len + 2, 50)
 
 #----------------------------
+# --- Finanzas: helpers comunes ---
+from django.contrib.auth.decorators import login_required, user_passes_test
+from django.http import HttpResponse
+from django.db.models import Q, Sum, Value, DecimalField
+from django.db.models.functions import Coalesce
+from django.contrib.auth.models import User
+from io import BytesIO
+
+from core.forms import FinanzasReporteForm
+from core.models import (
+    UsuarioPerfil, Bodega, Producto,
+    OrdenCompra, RecepcionMercaderia, FacturaProveedor, Stock
+)
 def _is_auditor(user):
+    """Permite AUDITOR, ADMIN y superuser."""
     try:
         if not user.is_authenticated:
             return False
@@ -3107,24 +3123,117 @@ def _is_auditor(user):
     except Exception:
         return False
 
+def _auto_width(ws):
+    """Auto-anchos para openpyxl."""
+    from openpyxl.utils import get_column_letter
+    for i, col in enumerate(ws.columns, start=1):
+        max_len = 0
+        for cell in col:
+            val = cell.value
+            s = str(val) if val is not None else ""
+            max_len = max(max_len, len(s))
+        ws.column_dimensions[get_column_letter(i)].width = min(max_len + 2, 50)
 
+def _build_finanzas_querysets(cleaned):
+    """
+    Devuelve (ordenes, recepciones, facturas, productos, resumen) aplicando los
+    filtros del formulario ya limpiado.
+    """
+    bodega     = cleaned.get("bodega")
+    proveedor  = cleaned.get("proveedor")
+    fecha_desde = cleaned.get("fecha_desde")
+    fecha_hasta = cleaned.get("fecha_hasta")
+
+    # bases
+    ordenes = OrdenCompra.objects.select_related("proveedor", "bodega").all()
+    recepciones = RecepcionMercaderia.objects.select_related("bodega", "orden_compra").all()
+    facturas = FacturaProveedor.objects.select_related("proveedor").all()
+    productos = Producto.objects.all()
+
+    # filtros por bodega
+    if bodega:
+        ordenes = ordenes.filter(bodega=bodega)
+        recepciones = recepciones.filter(bodega=bodega)
+
+        # productos con stock en esa bodega (ya sea en ubicación de bodega
+        # o en sucursales que cuelgan de esa bodega)
+        productos = (
+            productos.filter(
+                Q(stocks__ubicacion_bodega__bodega=bodega) |
+                Q(stocks__ubicacion_sucursal__sucursal__bodega=bodega)
+            )
+            .annotate(
+                stock_filtrado=Coalesce(
+                    Sum(
+                        "stocks__cantidad_disponible",
+                        filter=Q(stocks__ubicacion_bodega__bodega=bodega) |
+                                Q(stocks__ubicacion_sucursal__sucursal__bodega=bodega),
+                    ),
+                    Value(0, output_field=DecimalField(max_digits=20, decimal_places=6))
+                )
+            )
+            .distinct()
+        )
+    else:
+        # sin bodega, stock agregado general
+        productos = productos.annotate(
+            stock_filtrado=Coalesce(
+                Sum("stocks__cantidad_disponible"),
+                Value(0, output_field=DecimalField(max_digits=20, decimal_places=6))
+            )
+        )
+
+    # filtros por proveedor
+    if proveedor:
+        ordenes = ordenes.filter(proveedor=proveedor)
+        facturas = facturas.filter(proveedor=proveedor)
+        # relación M2M Producto <-> Proveedor (ajusta related_name si varía)
+        productos = productos.filter(usuarios_proveedor__proveedor=proveedor).distinct()
+
+    # filtros por fecha
+    if fecha_desde:
+        ordenes = ordenes.filter(creado_en__date__gte=fecha_desde)
+        recepciones = recepciones.filter(creado_en__date__gte=fecha_desde)
+        facturas = facturas.filter(fecha_factura__gte=fecha_desde)
+    if fecha_hasta:
+        ordenes = ordenes.filter(creado_en__date__lte=fecha_hasta)
+        recepciones = recepciones.filter(creado_en__date__lte=fecha_hasta)
+        facturas = facturas.filter(fecha_factura__lte=fecha_hasta)
+
+    resumen = {
+        "ordenes_count": ordenes.count(),
+        "recepciones_count": recepciones.count(),
+        "facturas_count": facturas.count(),
+        "productos_count": productos.count(),
+        "stock_total": productos.aggregate(s=Sum("stock_filtrado"))["s"] or 0,
+    }
+    return (
+        ordenes.order_by("-creado_en"),
+        recepciones.order_by("-creado_en"),
+        facturas.order_by("-fecha_factura"),
+        productos.order_by("nombre"),
+        resumen,
+    )
+
+# --- Página de reporte ---
 @login_required
 @user_passes_test(_is_auditor)
 def finanzas_reporte(request):
     form = FinanzasReporteForm(request.GET or None)
 
-    # combos
+    # poblar combos (por si el form se instanció sin queryset)
     form.fields["bodega"].queryset = Bodega.objects.all().order_by("codigo")
-    form.fields["proveedor"].queryset = (
-        User.objects.filter(perfil__rol=UsuarioPerfil.Rol.PROVEEDOR, is_active=True).order_by("username")
-    )
+    form.fields["proveedor"].queryset = User.objects.filter(
+        perfil__rol=UsuarioPerfil.Rol.PROVEEDOR, is_active=True
+    ).order_by("username")
 
-    # detectar si hay filtros
-    bodega_id = form.data.get("bodega") or None
-    proveedor_id = form.data.get("proveedor") or None
-    f_desde_raw = form.data.get("fecha_desde") or None
-    f_hasta_raw = form.data.get("fecha_hasta") or None
-    has_filters = any([bodega_id, proveedor_id, f_desde_raw, f_hasta_raw])
+    # ¿se aplicaron filtros?
+    has_filters = any([
+        request.GET.get("bodega"),
+        request.GET.get("proveedor"),
+        request.GET.get("fecha_desde"),
+        request.GET.get("fecha_hasta"),
+    ])
 
     if not has_filters:
         return render(request, "core/finanzas_reporte.html", {
@@ -3137,49 +3246,8 @@ def finanzas_reporte(request):
             "resumen": {},
         })
 
-    # bases
-    ordenes = OrdenCompra.objects.select_related("proveedor", "bodega").all()
-    recepciones = RecepcionMercaderia.objects.select_related("bodega", "orden_compra").all()
-    facturas = FacturaProveedor.objects.select_related("proveedor").all()
-    productos = Producto.objects.all()
-
-    if form.is_valid():
-        bodega = form.cleaned_data.get("bodega")
-        proveedor = form.cleaned_data.get("proveedor")
-        f_desde = form.cleaned_data.get("fecha_desde")
-        f_hasta = form.cleaned_data.get("fecha_hasta")
-
-        if bodega:
-            ordenes = ordenes.filter(bodega=bodega)
-            recepciones = recepciones.filter(bodega=bodega)
-            productos = (
-                productos.filter(stocks_ubicacion_bodega_bodega=bodega)
-                .annotate(
-                    stock_filtrado=Sum(
-                        "stocks__cantidad_disponible",
-                        filter=Q(stocks_ubicacion_bodega_bodega=bodega),
-                    )
-                ).distinct()
-            )
-        else:
-            productos = productos.annotate(stock_filtrado=Sum("stocks__cantidad_disponible"))
-
-        if proveedor:
-            ordenes = ordenes.filter(proveedor=proveedor)
-            facturas = facturas.filter(proveedor=proveedor)
-            productos = productos.filter(usuarios_proveedor__proveedor=proveedor)
-
-        # fechas (aplican a OC/Recepciones/Facturas)
-        if f_desde:
-            ordenes = ordenes.filter(creado_en_date_gte=f_desde)
-            recepciones = recepciones.filter(creado_en_date_gte=f_desde)
-            facturas = facturas.filter(fecha_factura__gte=f_desde)
-        if f_hasta:
-            ordenes = ordenes.filter(creado_en_date_lte=f_hasta)
-            recepciones = recepciones.filter(creado_en_date_lte=f_hasta)
-            facturas = facturas.filter(fecha_factura__lte=f_hasta)
-    else:
-        # si el form es inválido, mostramos vacío
+    if not form.is_valid():
+        # mostrar vacío si los filtros no son válidos
         return render(request, "core/finanzas_reporte.html", {
             "form": form,
             "ordenes": OrdenCompra.objects.none(),
@@ -3190,24 +3258,208 @@ def finanzas_reporte(request):
             "resumen": {},
         })
 
-    # resumen/contadores
-    resumen = {
-        "ordenes_count": ordenes.count(),
-        "recepciones_count": recepciones.count(),
-        "facturas_count": facturas.count(),
-        "productos_count": productos.count(),
-        "stock_total": productos.aggregate(s=Sum("stock_filtrado"))["s"] or 0,
-    }
-
+    ordenes, recepciones, facturas, productos, resumen = _build_finanzas_querysets(form.cleaned_data)
     return render(request, "core/finanzas_reporte.html", {
         "form": form,
-        "ordenes": ordenes.order_by("-creado_en"),
-        "recepciones": recepciones.order_by("-creado_en"),
-        "facturas": facturas.order_by("-fecha_factura"),
-        "productos": productos.order_by("nombre"),
+        "ordenes": ordenes,
+        "recepciones": recepciones,
+        "facturas": facturas,
+        "productos": productos,
         "has_filters": True,
         "resumen": resumen,
     })
 
+# --- Export: Excel (.xlsx) ---
+@login_required
+@user_passes_test(_is_auditor)
+def finanzas_export_excel(request):
+    form = FinanzasReporteForm(request.GET or None)
+    if not form.is_valid():
+        return HttpResponse("Filtros inválidos.", status=400)
 
+    ordenes, recepciones, facturas, productos, resumen = _build_finanzas_querysets(form.cleaned_data)
 
+    try:
+        from openpyxl import Workbook
+        from openpyxl.styles import Font, Alignment, Border, Side
+    except Exception:
+        return HttpResponse("Falta instalar openpyxl (pip install openpyxl)", status=500)
+
+    wb = Workbook()
+    ws = wb.active
+    ws.title = "Reporte Finanzas"
+
+    bold = Font(bold=True)
+    center = Alignment(horizontal="center")
+    thin = Side(style="thin")
+    border = Border(left=thin, right=thin, top=thin, bottom=thin)
+
+    row = 1
+    ws.cell(row=row, column=1, value="Reporte de Finanzas").font = Font(bold=True, size=14); row += 2
+
+    # Órdenes
+    ws.cell(row=row, column=1, value="Órdenes de compra").font = bold; row += 1
+    headers = ["N° OC", "Proveedor", "Bodega", "Estado", "Fecha Esperada", "Creada"]
+    for c, h in enumerate(headers, 1):
+        cell = ws.cell(row=row, column=c, value=h); cell.font = bold; cell.alignment = center; cell.border = border
+    row += 1
+    for oc in ordenes:
+        ws.cell(row=row, column=1, value=oc.numero_orden).border = border
+        ws.cell(row=row, column=2, value=(oc.proveedor.get_full_name() or oc.proveedor.username)).border = border
+        ws.cell(row=row, column=3, value=f"{oc.bodega.codigo} - {oc.bodega.nombre}").border = border
+        ws.cell(row=row, column=4, value=oc.estado).border = border
+        ws.cell(row=row, column=5, value=(oc.fecha_esperada or "")).border = border
+        ws.cell(row=row, column=6, value=oc.creado_en.strftime("%Y-%m-%d %H:%M")).border = border
+        row += 1
+    row += 1
+
+    # Facturas
+    ws.cell(row=row, column=1, value="Facturas proveedor").font = bold; row += 1
+    headers = ["N°", "Proveedor", "Monto", "Fecha", "Estado"]
+    for c, h in enumerate(headers, 1):
+        cell = ws.cell(row=row, column=c, value=h); cell.font = bold; cell.alignment = center; cell.border = border
+    row += 1
+    for f in facturas:
+        ws.cell(row=row, column=1, value=f.numero_factura).border = border
+        ws.cell(row=row, column=2, value=(f.proveedor.get_full_name() or f.proveedor.username)).border = border
+        ws.cell(row=row, column=3, value=float(f.monto_total or 0)).border = border
+        ws.cell(row=row, column=4, value=f.fecha_factura).border = border
+        ws.cell(row=row, column=5, value=f.estado).border = border
+        row += 1
+    row += 1
+
+    # Recepciones
+    ws.cell(row=row, column=1, value="Recepciones").font = bold; row += 1
+    headers = ["N°", "Bodega", "Estado", "Recibido en"]
+    for c, h in enumerate(headers, 1):
+        cell = ws.cell(row=row, column=c, value=h); cell.font = bold; cell.alignment = center; cell.border = border
+    row += 1
+    for r in recepciones:
+        ws.cell(row=row, column=1, value=r.numero_recepcion).border = border
+        ws.cell(row=row, column=2, value=f"{r.bodega.codigo} - {r.bodega.nombre}").border = border
+        ws.cell(row=row, column=3, value=r.estado).border = border
+        ws.cell(row=row, column=4, value=(r.recibido_en.strftime("%Y-%m-%d %H:%M") if r.recibido_en else "")).border = border
+        row += 1
+    row += 1
+
+    # Productos
+    ws.cell(row=row, column=1, value="Productos (según filtros)").font = bold; row += 1
+    headers = ["SKU", "Nombre", "Stock"]
+    for c, h in enumerate(headers, 1):
+        cell = ws.cell(row=row, column=c, value=h); cell.font = bold; cell.alignment = center; cell.border = border
+    row += 1
+    for p in productos:
+        ws.cell(row=row, column=1, value=p.sku).border = border
+        ws.cell(row=row, column=2, value=p.nombre).border = border
+        ws.cell(row=row, column=3, value=float(getattr(p, "stock_filtrado", 0) or 0)).border = border
+        row += 1
+
+    _auto_width(ws)
+
+    bio = BytesIO()
+    wb.save(bio)
+    bio.seek(0)
+
+    resp = HttpResponse(
+        bio.getvalue(),
+        content_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+    )
+    resp['Content-Disposition'] = 'attachment; filename="reporte_finanzas.xlsx"'
+    return resp
+
+# --- Export: PDF (con tablas y columnas de productos más anchas) ---
+@login_required
+@user_passes_test(_is_auditor)
+def finanzas_export_pdf(request):
+    form = FinanzasReporteForm(request.GET or None)
+    if not form.is_valid():
+        return HttpResponse("Filtros inválidos.", status=400)
+
+    ordenes, recepciones, facturas, productos, resumen = _build_finanzas_querysets(form.cleaned_data)
+
+    try:
+        from reportlab.lib.pagesizes import A4
+        from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle
+        from reportlab.lib import colors
+        from reportlab.lib.styles import getSampleStyleSheet
+    except Exception:
+        return HttpResponse("Falta instalar reportlab (pip install reportlab)", status=500)
+
+    buffer = BytesIO()
+    doc = SimpleDocTemplate(buffer, pagesize=A4, leftMargin=36, rightMargin=36, topMargin=36, bottomMargin=36)
+    styles = getSampleStyleSheet()
+    story = []
+
+    title = Paragraph("<b>Reporte de Finanzas</b>", styles["Title"])
+    story += [title, Spacer(1, 10)]
+
+    def section(title_txt, headers, rows, col_widths=None):
+        story.append(Paragraph(f"<b>{title_txt}</b>", styles["Heading4"]))
+        data = [headers] + (rows if rows else [[""] * len(headers)])
+        tbl = Table(data, colWidths=col_widths)
+        tbl.setStyle(TableStyle([
+            ("GRID", (0,0), (-1,-1), 1, colors.black),
+            ("BACKGROUND", (0,0), (-1,0), colors.lightgrey),
+            ("ALIGN", (0,0), (-1,0), "CENTER"),
+            ("VALIGN", (0,0), (-1,-1), "MIDDLE"),
+        ]))
+        story.extend([tbl, Spacer(1, 12)])
+
+    # Órdenes
+    section(
+        "Órdenes de compra",
+        ["N° OC", "Proveedor", "Bodega", "Estado", "Fecha Esperada", "Creada"],
+        [[
+            oc.numero_orden,
+            (oc.proveedor.get_full_name() or oc.proveedor.username),
+            f"{oc.bodega.codigo} - {oc.bodega.nombre}",
+            oc.estado,
+            (oc.fecha_esperada or ""),
+            oc.creado_en.strftime("%Y-%m-%d %H:%M"),
+        ] for oc in ordenes]
+    )
+
+    # Facturas
+    section(
+        "Facturas proveedor",
+        ["N°", "Proveedor", "Monto", "Fecha", "Estado"],
+        [[
+            f.numero_factura,
+            (f.proveedor.get_full_name() or f.proveedor.username),
+            f"{f.monto_total}",
+            f.fecha_factura.strftime("%Y-%m-%d"),
+            f.estado,
+        ] for f in facturas]
+    )
+
+    # Recepciones
+    section(
+        "Recepciones",
+        ["N°", "Bodega", "Estado", "Recibido en"],
+        [[
+            r.numero_recepcion,
+            f"{r.bodega.codigo} - {r.bodega.nombre}",
+            r.estado,
+            (r.recibido_en.strftime("%Y-%m-%d %H:%M") if r.recibido_en else ""),
+        ] for r in recepciones]
+    )
+
+    # Productos (SKU y Nombre con más ancho para que no se solapen)
+    section(
+        "Productos (según filtros)",
+        ["SKU", "Nombre", "Stock"],
+        [[
+            p.sku,
+            p.nombre,
+            f"{getattr(p, 'stock_filtrado', 0) or 0}",
+        ] for p in productos],
+        col_widths=[120, 320, 60],  # ← ajustado para evitar solapes
+    )
+
+    doc.build(story)
+    pdf = buffer.getvalue()
+    buffer.close()
+
+    resp = HttpResponse(pdf, content_type="application/pdf")
+    resp['Content-Disposition'] = 'attachment; filename="reporte_finanzas.pdf"'
+    return resp
