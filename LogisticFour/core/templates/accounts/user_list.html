@@ -7,9 +7,14 @@
   @keyframes fadeInUp {0%{opacity:0;transform:translateY(12px)}100%{opacity:1;transform:translateY(0)}}
   @keyframes pulse {0%,100%{transform:scale(1)}50%{transform:scale(1.05)}}
 
-  .card{animation:fadeInUp .4s ease}
-  .table .tr{transition:.15s}
+  .card{animation:fadeInUp .4s ease; padding: 20px; margin-top: 20px;}
+  .table .tr{transition:.15s; padding: 12px 16px; border-bottom: 1px solid #e5e7eb; display: grid; grid-template-columns: 1fr 2fr 2fr 2fr 2fr;}
   .table .tr:hover{background:#fafafa}
+
+  /* Alternancia de colores para filas */
+  .table .tr:nth-child(odd) {
+    background-color: #f9fafb;
+  }
 
   /* Badges */
   .badge{display:inline-block;padding:.25rem .55rem;border-radius:999px;background:#eef2ff;color:#3730a3;font-weight:600}
