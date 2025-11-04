@@ -10,7 +10,7 @@ import logging
 from datetime import datetime, timezone
 
 
-from decimal import Decimal
+from decimal import Decimal, InvalidOperation
 from django.db.models.signals import pre_save, post_save
 from django.dispatch import receiver
 from django.utils import timezone
@@ -816,6 +816,9 @@ class BodegaDetailView(LoginRequiredMixin, DetailView):
 
 #Area de productos
 
+from core.indicadores import get_eur_clp, get_utm_clp  # Importamos las funciones para obtener las tasas
+
+
 class ProductsListView(LoginRequiredMixin, ListView):
     model = Producto
     template_name = "core/products.html"
@@ -828,7 +831,6 @@ class ProductsListView(LoginRequiredMixin, ListView):
         qs = (
             Producto.objects
             .select_related("marca", "categoria", "unidad_base")
-            # para que no haga N+1 al mostrar la primera ubicaciÃ³n
             .prefetch_related(
                 "stocks_producto",
                 "stocks_producto__ubicacion",
@@ -836,7 +838,6 @@ class ProductsListView(LoginRequiredMixin, ListView):
                 "stocks_producto__ubicacion__sucursal",
             )
             .annotate(
-                # stock real = suma de las filas de Stock de ese producto
                 total_stock=Coalesce(
                     Sum("stocks_producto__cantidad_disponible"),
                     Value(0, output_field=DecimalField(max_digits=20, decimal_places=6))
@@ -861,6 +862,26 @@ class ProductsListView(LoginRequiredMixin, ListView):
     def get_context_data(self, **kwargs):
         ctx = super().get_context_data(**kwargs)
         ctx["q"] = (self.request.GET.get("q") or "").strip()
+
+        # Obtener las tasas de cambio de mindicador.cl
+        eur = get_eur_clp()  # CLP por 1 EUR
+        utm = get_utm_clp()  # CLP por 1 UTM
+
+        # Calculamos el precio en EUR y UTM en la vista, no en el template
+        try:
+            ctx["productos"] = [
+                {
+                    "producto": producto,
+                    "precio_eur": round(producto.precio / eur, 2) if eur else None,
+                    "precio_utm": round(producto.precio / utm, 4) if utm else None,
+                }
+                for producto in self.get_queryset()
+            ]
+        except Exception as e:
+            print(f"Error calculando los precios: {e}")
+            # En caso de error dejamos los valores en None
+            ctx["productos"] = self.get_queryset()
+
         return ctx
 
 
