@@ -466,15 +466,14 @@ class LoteProductoForm(forms.ModelForm):
 class FinanzasReporteForm(forms.Form):
     bodega = forms.ModelChoiceField(
         queryset=Bodega.objects.all().order_by("codigo"),
-        required=False,
-        label="Bodega",
-        empty_label="---------",
+        required=False, label="Bodega", empty_label="---------",
     )
     proveedor = forms.ModelChoiceField(
-        queryset=User.objects.none(),  # se define en __init__
-        required=False,
-        label="Proveedor",
-        empty_label="---------",
+        queryset=User.objects.filter(
+            perfil__rol=UsuarioPerfil.Rol.PROVEEDOR,
+            is_active=True
+        ).order_by("username"),
+        required=False, label="Proveedor", empty_label="---------",
     )
     fecha_desde = forms.DateField(
         required=False,
