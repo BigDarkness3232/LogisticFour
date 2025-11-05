@@ -55,7 +55,7 @@ from core.forms import *
 from core.forms import SignupUserForm, UsuarioPerfilForm
 from core.models import *
 from core.models import Producto, UsuarioPerfil
-from core.utils import ensure_ubicacion_sucursal
+from core.utils import ensure_ubicacion_sucursal, qr_url, barcode_url
 from django.db import models as djmodels
 
 from core.forms import SignupUserForm, UsuarioPerfilForm, FinanzasReporteForm
@@ -3745,3 +3745,15 @@ def set_currency(request):
         request.session["currency"] = cur
     next_url = request.GET.get("next") or request.META.get("HTTP_REFERER") or reverse("products")
     return HttpResponseRedirect(next_url)
+
+#--- Etiqueta de producto con código de barras y QR ---
+def etiqueta_producto(request, pk):
+    p = get_object_or_404(Producto, pk=pk)
+    # QR abre el detalle del producto; ajusta a tu ruta real
+    link_detalle = request.build_absolute_uri(f"/productos/{p.pk}/")
+    ctx = {
+        "producto": p,
+        "qr": qr_url(link_detalle, size="220x220"),
+        "barcode": barcode_url(p.sku, bcid="code128", scale=4, height=14, includetext=True),
+    }
+    return render(request, "core/etiqueta_producto.html", ctx)

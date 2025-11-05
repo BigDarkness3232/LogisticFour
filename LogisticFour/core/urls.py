@@ -10,6 +10,7 @@ urlpatterns = [
     path("productos/", views.product_list, name="products"),
     path("category/<slug:slug>/", views.category, name="category"),
     path("products/add/", views.product_add, name="product_add"),
+    path("productos/<int:pk>/etiqueta/", views.etiqueta_producto, name="etiqueta_producto"),
 
     # Auth propias
     path("login/", views.login_view, name="login"),

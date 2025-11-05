@@ -40,6 +40,11 @@
           <a class="btn btn-primary" href="{% url 'product_add' %}">Agregar otro</a>
           {# Ajusta esta ruta a tu vista de edición si existe #}
           <a class="btn btn-warning" href="{% url 'producto-update' producto.id %}">Editar</a>
+          <a class="btn btn-xs btn-outline-primary"
+          href="{% url 'etiqueta_producto' pk=producto.pk %}">
+          Etiqueta
+        </a>
+
         </div>
       </div>
     </div>
