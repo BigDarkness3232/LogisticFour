@@ -2,14 +2,14 @@ from pathlib import Path
 from dotenv import load_dotenv
 import os
 
-load_dotenv()
+load_dotenv()  # Cargar las variables de entorno desde el archivo .env
 
 BASE_DIR = Path(__file__).resolve().parent.parent
 
 # ==========================
 # ⚙️ CONFIGURACIÓN GENERAL
 # ==========================
-SECRET_KEY = 'django-insecure-^)nb02+@4w5s$i7-vu^alov)=^ky58(sg+xuc(-q&z%*gt0z&)'
+SECRET_KEY = os.getenv('DJANGO_SECRET_KEY', 'django-insecure-^)nb02+@4w5s$i7-vu^alov)=^ky58(sg+xuc(-q&z%*gt0z&)')  # Deberías definirla en tu archivo .env
 DEBUG = True
 
 ALLOWED_HOSTS = [
@@ -46,9 +46,6 @@ INSTALLED_APPS = [
     'core',
     'django.contrib.sites',
     'widget_tweaks',
-
-   
-
 ]
 
 SITE_ID = 1
@@ -144,26 +141,43 @@ EMAIL_USE_TLS = True
 EMAIL_USE_SSL = False
 EMAIL_TIMEOUT = 20
 
-EMAIL_HOST_USER = "aantonio.martinezc@gmail.com"
-EMAIL_HOST_PASSWORD = "dsrl cajk fgox fgwf"  # tu clave de aplicación de Gmail
-
-
-
+# Obtener credenciales desde el archivo .env para mayor seguridad
+EMAIL_HOST_USER = os.getenv('EMAIL_HOST_USER', 'capstonelogisticfour@gmail.com')
+EMAIL_HOST_PASSWORD = os.getenv('EMAIL_HOST_PASSWORD', 'dukb qtba ujnd gbzz')  # Clave de aplicación de Gmail en el archivo .env
 
 DEFAULT_FROM_EMAIL = EMAIL_HOST_USER
 SERVER_EMAIL = EMAIL_HOST_USER  # para errores del sistema
-ADMINS = [("Antonio", "antonio.amc46@gmail.com")]
-
-
-
-
+ADMINS = [("MAKLF", "capstonelogisticfour@gmail.com")]
 
 TICKETS_NOTIFY_EMAILS = [
     "antonio.amc46@gmail.com",
     "an.martinezc@duocuc.cl",
 ]
 
-
-
-
+# ==========================
+# 📝 LOGGING
+# ==========================
+LOGGING = {
+    'version': 1,
+    'disable_existing_loggers': False,
+    'handlers': {
+        'file': {
+            'level': 'DEBUG',  # Puedes usar 'INFO' o 'ERROR' dependiendo de lo que quieras capturar
+            'class': 'logging.FileHandler',
+            'filename': BASE_DIR / 'logs/django.log',  # Guarda los logs en la carpeta 'logs' dentro del proyecto
+        },
+    },
+    'loggers': {
+        'django': {
+            'handlers': ['file'],
+            'level': 'DEBUG',  # Puedes usar 'INFO' o 'ERROR' dependiendo de lo que quieras capturar
+            'propagate': True,
+        },
+        'core': {  # Asegúrate de que 'core' sea el nombre de tu aplicación
+            'handlers': ['file'],
+            'level': 'DEBUG',  # Aquí registramos eventos de la aplicación específica
+            'propagate': True,
+        },
+    },
+}
 

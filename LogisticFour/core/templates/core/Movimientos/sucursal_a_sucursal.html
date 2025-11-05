@@ -364,16 +364,15 @@
 
           <div class="mv-messages">
             {% if success %}
-              <div class="msg-success">
-                <span class="msg-icon">✓</span>
-                <div>{{ success }}</div>
-              </div>
+                <div class="alert alert-success">
+                    {{ success }}
+                </div>
             {% endif %}
+
             {% if error %}
-              <div class="msg-error">
-                <span class="msg-icon">!</span>
-                <div>{{ error }}</div>
-              </div>
+                <div class="alert alert-danger">
+                    {{ error }}
+                </div>
             {% endif %}
           </div>
         </form>
