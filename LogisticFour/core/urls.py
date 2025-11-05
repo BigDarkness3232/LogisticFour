@@ -23,10 +23,11 @@ urlpatterns = [
 
     # Reset de contraseña (built-in views + tus plantillas)
     path( "password_reset/",auth_views.PasswordResetView.as_view(template_name="accounts/password_reset_form.html"),name="password_reset" ),
-    path( "password_reset/done/",auth_views.PasswordResetDoneView.as_view(template_name="accounts/password_reset_done.html"),name="password_reset_done"),
+    path("password_reset/done/",auth_views.PasswordResetDoneView.as_view(template_name="accounts/password_reset_done.html"  ),name="password_reset_done",),
     path("reset/<uidb64>/<token>/",auth_views.PasswordResetConfirmView.as_view(template_name="accounts/password_reset_confirm.html"),name="password_reset_confirm"),
-    path("reset/done/",auth_views.PasswordResetCompleteView.as_view(template_name="accounts/password_reset_complete.html"),name="password_reset_complete" ),
+    path("reset/done/",auth_views.PasswordResetCompleteView.as_view(template_name="accounts/password_reset_complete.html"),name="password_reset_complete",),
     path("password_reset/", auth_views.PasswordResetView.as_view(template_name="accounts/password_reset_form.html",email_template_name="accounts/password_reset_email.html",success_url="/password_reset/done/",extra_email_context={"domain_override": "127.0.0.1:8000"},),name="password_reset",),
+    path("users/<int:user_id>/set-role/", views.usuario_set_rol, name="usuario-set-rol"),
 
     path("users/<int:user_id>/set-role/", views.usuario_set_rol, name="usuario-set-rol"),
     path("productos/agregar/", views.product_add_combined, name="product_add"),
