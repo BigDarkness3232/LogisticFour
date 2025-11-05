@@ -388,40 +388,10 @@
 
     <section class="content">
       <!-- ejemplo de cabecera de página -->
-      <div class="d-flex flex-wrap gap-2 justify-content-between align-items-center fadein-up">
-        <div>
-          <h1 class="h4 mb-0 fw-bold">Panel general</h1>
-          <p class="text-secondary mb-0" style="font-size:.82rem">Resumen de sucursales, bodegas y stock.</p>
-        </div>
-        <div class="toolbar">
-          <a href="{% url 'bodega-create' %}" class="app-btn">＋ Nueva bodega</a>
-          <a href="{% url 'sucursal-create' %}" class="app-btn ghost">＋ Nueva sucursal</a>
-        </div>
-      </div>
+
 
       <!-- KPIs -->
-      <div class="kpis fadein-up">
-        <article class="kpi">
-          <small>Sucursales activas</small>
-          <div class="num">12</div>
-          <span class="trend ok">▲ +3 este mes</span>
-        </article>
-        <article class="kpi">
-          <small>Bodegas totales</small>
-          <div class="num">34</div>
-          <span class="trend">Sin cambios</span>
-        </article>
-        <article class="kpi">
-          <small>Movimientos hoy</small>
-          <div class="num">58</div>
-          <span class="trend ok">▲ +12%</span>
-        </article>
-        <article class="kpi">
-          <small>Alertas de stock</small>
-          <div class="num" style="color:#b91c1c">5</div>
-          <span class="trend bad">▼ revisar</span>
-        </article>
-      </div>
+
 
       {% block content %}{% endblock %}
     </section>

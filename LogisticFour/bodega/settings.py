@@ -12,14 +12,9 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 SECRET_KEY = os.getenv('DJANGO_SECRET_KEY', 'django-insecure-^)nb02+@4w5s$i7-vu^alov)=^ky58(sg+xuc(-q&z%*gt0z&)')  # Deberías definirla en tu archivo .env
 DEBUG = True
 
-ALLOWED_HOSTS = [
-    "127.0.0.1",
-    "localhost",
-    "192.168.1.9",
-    ".ngrok.io",
-    ".ngrok-free.app",
-    ".ngrok-free.dev",
-]
+SITE_ID = 1
+ALLOWED_HOSTS = ["127.0.0.1", "localhost", "192.168.1.9", ".ngrok.io", ".ngrok-free.app", ".ngrok-free.dev"]
+
 
 CSRF_TRUSTED_ORIGINS = [
     "http://127.0.0.1:8000",

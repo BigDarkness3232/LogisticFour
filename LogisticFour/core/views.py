@@ -276,7 +276,19 @@ def _redirect_url_by_role(perfil):
 
 
 
+from django.contrib.auth.views import PasswordResetView
 
+class PasswordResetViewWithDomain(PasswordResetView):
+    def form_valid(self, form):
+        form.save(
+            use_https=self.request.is_secure(),
+            request=self.request,
+            domain_override=self.request.get_host(),  # <- usa el host actual
+            html_email_template_name=self.html_email_template_name,
+            extra_email_context=self.extra_email_context,
+            from_email=self.from_email,
+        )
+        return super().form_valid(form)
 
 
 
@@ -3629,3 +3641,5 @@ def paypal_ingresos_view(request):
         .order_by("-id")
     )
     return render(request, "core/paypal_ingresos.html", {"ordenes": ordenes})
+from django.contrib.auth.views import PasswordResetView
+
