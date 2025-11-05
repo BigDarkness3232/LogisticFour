@@ -1,6 +1,7 @@
 from django.urls import path
 from django.contrib.auth import views as auth_views
 from . import views
+from core.views import set_currency
 
 urlpatterns = [
     # App principal
@@ -21,11 +22,6 @@ urlpatterns = [
     path("signup/", views.signup, name="accounts-signup"),
 
     # Reset de contraseña (built-in views + tus plantillas)
-
-
-
-
-
     path( "password_reset/",auth_views.PasswordResetView.as_view(template_name="accounts/password_reset_form.html"),name="password_reset" ),
     path( "password_reset/done/",auth_views.PasswordResetDoneView.as_view(template_name="accounts/password_reset_done.html"),name="password_reset_done"),
     path("reset/<uidb64>/<token>/",auth_views.PasswordResetConfirmView.as_view(template_name="accounts/password_reset_confirm.html"),name="password_reset_confirm"),
@@ -109,7 +105,8 @@ urlpatterns = [
     path("finanzas/export/excel/", views.finanzas_export_excel, name="finanzas_export_excel"),
     path("finanzas/export/pdf/",   views.finanzas_export_pdf,   name="finanzas_export_pdf"),
     
-
+    # Cambio de moneda
+    path("set-currency/", set_currency, name="set_currency"),
 
 
 

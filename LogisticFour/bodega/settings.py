@@ -163,7 +163,9 @@ TICKETS_NOTIFY_EMAILS = [
     "an.martinezc@duocuc.cl",
 ]
 
-
+TEMPLATES[0]["OPTIONS"]["context_processors"] += [
+    "core.context_processors.currency_context",
+]
 
 
 

@@ -139,6 +139,16 @@
     </div>
   </form>
 
+  <!-- Cambio de moneda -->
+  <div class="actions-grid">
+    <span class="muted">Moneda:</span>
+    {% for c in currency_supported %}
+      <a class="btnx" href="{% url 'set_currency' %}?c={{ c }}&next={{ request.get_full_path|urlencode }}">
+        {{ c }}
+      </a>
+    {% endfor %}
+  </div>
+  
   <!-- Tabla -->
   <div class="table-wrap">
     <table class="tbl" id="tblProductos">
@@ -185,7 +195,17 @@
             {% endif %}
           </td>
           <td class="num"><strong>{{ stock }}</strong></td>
-          <td class="num">{% if p.precio %}${{ p.precio }}{% else %}—{% endif %}</td>
+          {% load currency %}
+          <td class="num">
+            {% if p.precio is not None %}
+              {% if current_currency == "USD" %}
+                {% price_usd_from_clp p.precio as price_usd %}
+                {{ price_usd|default:"USD no disponible" }}
+              {% else %}
+                {{ p.precio|money_clp }}
+              {% endif %}
+            {% else %}—{% endif %}
+          </td>
           <td class="num">
             <div class="actions">
               <a class="act info" href="{% url 'producto-detail' p.pk %}">Ver</a>
@@ -215,7 +235,17 @@
                 <span class="chip no">Sin stock</span>
               {% endif %}
               <span class="chip" style="background:#eef2ff">Stock: {{ stock }}</span>
-              {% if p.precio %}<span class="chip" style="background:#fffbea">Precio: ${{ p.precio }}</span>{% endif %}
+              {% if p.precio is not None %}
+                <span class="chip" style="background:#fffbea">
+                  Precio: {{ p.precio|money_clp }}
+                </span>
+                {% price_usd_from_clp p.precio as price_usd_m %}
+                {% if price_usd_m %}
+                  <span class="chip" style="background:#eef2ff">
+                    {{ price_usd_m }}
+                  </span>
+                {% endif %}
+              {% endif %}
             </div>
             <div class="actions" style="margin-top:8px">
               <a class="act info" href="{% url 'producto-detail' p.pk %}">Ver</a>

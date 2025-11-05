@@ -40,3 +40,12 @@ def get_utm_clp():
     """
     data = get_mindicadores()
     return (data.get("utm") or {}).get("valor")
+
+def get_usd_clp():
+    """
+    Obtiene el valor actual del USD en CLP desde mindicador.cl (promedio hoy).
+    """
+    data = get_mindicadores()
+    # En mindicador suele venir como 'dolar' o 'dólar'. Cubrimos ambas.
+    dolar = data.get("dolar") or data.get("dólar")
+    return (dolar or {}).get("valor")

@@ -3737,3 +3737,11 @@ def finanzas_export_pdf(request):
     resp = HttpResponse(pdf, content_type="application/pdf")
     resp['Content-Disposition'] = 'attachment; filename="reporte_finanzas.pdf"'
     return resp
+
+# --- Cambio de moneda en sesión ---
+def set_currency(request):
+    cur = (request.GET.get("c") or "").upper()
+    if cur in ("CLP", "USD"):
+        request.session["currency"] = cur
+    next_url = request.GET.get("next") or request.META.get("HTTP_REFERER") or reverse("products")
+    return HttpResponseRedirect(next_url)
