@@ -599,6 +599,11 @@ class Transferencia(MarcaTiempo):
         null=True,
         blank=True,
     )
+    # Ej: número de guía correlativo interno
+    numero_guia = models.CharField(max_length=20, null=True, blank=True)
+    fecha_emision = models.DateField(null=True, blank=True)
+    observaciones = models.TextField(null=True, blank=True)
+
     estado = models.CharField(max_length=30, default="DRAFT")
     creado_por = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True)
 

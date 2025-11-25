@@ -2246,6 +2246,7 @@ def _recalcular_stock_global(producto: Producto) -> None:
     producto.stock = int(total)
     producto.save(update_fields=["stock"])
 
+
 def bodega_a_sucursal(request):
     bodegas = (
         Bodega.objects.prefetch_related("sucursales", "ubicaciones")
@@ -2317,9 +2318,17 @@ def bodega_a_sucursal(request):
                 },
             )
 
-        # ===== Movimiento de stock mejorado =====
+        # ===== Movimiento de stock + Transferencia =====
         with transaction.atomic():
-            # Traemos todas las filas de stock con cantidad > 0 en ESA bodega
+            # 1) Creamos la CABECERA de la transferencia
+            transferencia = Transferencia.objects.create(
+                bodega_origen=bodega,
+                sucursal_destino=sucursal,
+                estado="CONFIRMADA",  # o "DRAFT" si prefieres
+                creado_por=request.user if request.user.is_authenticated else None,
+            )
+
+            # 2) Traemos todas las filas de stock con cantidad > 0 en ESA bodega
             filas_origen = list(
                 Stock.objects.select_for_update()
                 .filter(
@@ -2351,6 +2360,7 @@ def bodega_a_sucursal(request):
             )
 
             if disp_total < cantidad:
+                # IMPORTANTE: si fallamos, la transferencia recién creada se deshace por el atomic()
                 return render(
                     request,
                     "core/Movimientos/bodega_a_sucursal.html",
@@ -2392,7 +2402,17 @@ def bodega_a_sucursal(request):
 
             stock_destino.save(update_fields=["cantidad_disponible"])
 
-            # === KÁRDEX: crear MovimientoStock TRANSFERENCIA ===
+            # 3) Creamos la LÍNEA de transferencia (por ahora 1 línea con el total)
+            LineaTransferencia.objects.create(
+                transferencia=transferencia,
+                producto=producto,
+                lote=None,   # Cuando tengas lote/serie aquí, se puede mejorar
+                serie=None,
+                cantidad=Decimal(cantidad),
+                unidad=_unidad_default(),
+            )
+
+            # 4) KÁRDEX: crear MovimientoStock TRANSFERENCIA y vincularlo a la transferencia
             try:
                 MovimientoStock.objects.create(
                     tipo_movimiento=_tm("TRANSFERENCIA"),
@@ -2405,9 +2425,9 @@ def bodega_a_sucursal(request):
                     serie=None,
                     cantidad=Decimal(cantidad),
                     unidad=_unidad_default(),
-                    tabla_referencia="vista:bodega_a_sucursal",
-                    referencia_id=None,
-                    creado_por=request.user,
+                    tabla_referencia="transferencias",
+                    referencia_id=transferencia.id,
+                    creado_por=request.user if request.user.is_authenticated else None,
                     notas=f"Bodega {bodega.codigo} → Sucursal {sucursal.codigo}",
                 )
             except TipoMovimiento.DoesNotExist:
@@ -2447,10 +2467,9 @@ def bodega_a_sucursal(request):
             or 0
         )
 
-    
         notificar_stock_bajo(
             producto=producto,
-            nombre_lugar=bodega.nombre,   
+            nombre_lugar=bodega.nombre,
             stock_actual=rem_total_bodega,
         )
 
@@ -2491,7 +2510,6 @@ def bodega_a_sucursal(request):
         "core/Movimientos/bodega_a_sucursal.html",
         {"bodegas": bodegas},
     )
-
 
 
 
