@@ -1,37 +1,232 @@
 {% extends "core/base.html" %}
 
 {% block content %}
-<div class="container mt-4">
-  <h2>Finanzas</h2>
+<style>
+  :root{
+    --fin-ink:#0f172a;
+    --fin-muted:#64748b;
+    --fin-line:#e2e8f0;
+    --fin-card:#ffffff;
+    --fin-head:#f8fafc;
+    --fin-pri:#111827;
+    --fin-pri-ink:#ffffff;
+  }
 
-  <form method="get" class="row g-3 mb-2">
-    <div class="col-md-3">{{ form.bodega.label_tag }} {{ form.bodega }}</div>
-    <div class="col-md-3">{{ form.proveedor.label_tag }} {{ form.proveedor }}</div>
-    <div class="col-md-2">{{ form.fecha_desde.label_tag }} {{ form.fecha_desde }}</div>
-    <div class="col-md-2">{{ form.fecha_hasta.label_tag }} {{ form.fecha_hasta }}</div>
-    <div class="col-md-2 d-flex align-items-end">
-      <button class="btn btn-primary w-100" type="submit">Ver</button>
+  .finanzas-wrap{
+    max-width: 1100px;
+    margin-inline: auto;
+  }
+
+  .finanzas-card{
+    background:var(--fin-card);
+    border-radius:16px;
+    border:1px solid var(--fin-line);
+    padding:16px 20px;
+    box-shadow:0 1px 0 rgba(15,23,42,.04);
+    margin-bottom:16px;
+  }
+
+  .finanzas-header{
+    display:flex;
+    align-items:center;
+    justify-content:space-between;
+    gap:8px;
+    margin-bottom:10px;
+  }
+
+  .finanzas-header h2{
+    margin:0;
+    font-size:20px;
+  }
+
+  /* ===== Filtros ===== */
+  .finanzas-filters{
+    display:flex;
+    flex-wrap:wrap;
+    gap:12px;
+    align-items:flex-end;
+  }
+
+  .fin-field{
+    display:flex;
+    flex-direction:column;
+    gap:4px;
+    min-width:180px;
+  }
+
+  .fin-label{
+    font-size:11px;
+    text-transform:uppercase;
+    letter-spacing:.06em;
+    color:var(--fin-muted);
+    font-weight:600;
+  }
+
+  .fin-control{
+    position:relative;
+  }
+
+  /* estilo pill para todos los campos del bloque de finanzas */
+  .finanzas-card select,
+  .finanzas-card input[type="text"],
+  .finanzas-card input[type="date"]{
+    width:100%;
+    border-radius:999px;
+    border:1px solid var(--fin-line);
+    padding:7px 12px;
+    font-size:13px;
+    background:#f9fafb;
+    outline:none;
+    color:var(--fin-ink);
+    transition:border-color .15s, box-shadow .15s, background .15s;
+  }
+
+  .finanzas-card select:focus,
+  .finanzas-card input[type="text"]:focus,
+  .finanzas-card input[type="date"]:focus{
+    border-color:#2563eb;
+    box-shadow:0 0 0 1px rgba(37,99,235,.2);
+    background:#ffffff;
+  }
+
+  /* select con flecha personalizada */
+  .fin-control.fin-select select{
+    -webkit-appearance:none;
+    -moz-appearance:none;
+    appearance:none;
+    padding-right:32px;
+  }
+
+  .fin-control.fin-select::after{
+    content:"▾";
+    position:absolute;
+    right:12px;
+    top:50%;
+    transform:translateY(-50%);
+    font-size:11px;
+    opacity:.6;
+    pointer-events:none;
+  }
+
+  /* botón Ver */
+  .btn-filter{
+    border-radius:999px;
+    padding:8px 18px;
+    font-size:13px;
+    border:1px solid var(--fin-line);
+    background:#f9fafb;
+    color:var(--fin-ink);
+    cursor:pointer;
+    font-weight:500;
+    transition:background .15s,border-color .15s,transform .05s;
+    text-decoration:none;
+    display:inline-flex;
+    align-items:center;
+    justify-content:center;
+    width:100%;
+  }
+
+  .btn-filter-primary{
+    background:var(--fin-pri);
+    color:var(--fin-pri-ink);
+    border-color:var(--fin-pri);
+  }
+
+  .btn-filter:hover{ transform:translateY(-1px); }
+  .btn-filter-primary:hover{ background:#020617; }
+
+  .finanzas-section-title{
+    margin-top:24px;
+  }
+
+  .table-finanzas{
+    font-size:14px;
+  }
+
+  .table-finanzas thead th{
+    background:var(--fin-head);
+  }
+
+  @media (max-width: 768px){
+    .finanzas-wrap{padding-inline:8px;}
+    .finanzas-header{flex-direction:column; align-items:flex-start;}
+    .fin-field{min-width:140px;}
+  }
+</style>
+
+<div class="container mt-4 finanzas-wrap">
+
+  <div class="finanzas-card">
+    <div class="finanzas-header">
+      <h2>Finanzas</h2>
     </div>
-  </form>
+
+    <form method="get" class="finanzas-filters">
+
+      <div class="fin-field">
+        <span class="fin-label">{{ form.bodega.label }}</span>
+        <div class="fin-control fin-select">
+          {{ form.bodega }}
+        </div>
+      </div>
+
+      <div class="fin-field">
+        <span class="fin-label">{{ form.proveedor.label }}</span>
+        <div class="fin-control fin-select">
+          {{ form.proveedor }}
+        </div>
+      </div>
+
+      <div class="fin-field">
+        <span class="fin-label">{{ form.fecha_desde.label }}</span>
+        <div class="fin-control fin-date">
+          {{ form.fecha_desde }}
+        </div>
+      </div>
+
+      <div class="fin-field">
+        <span class="fin-label">{{ form.fecha_hasta.label }}</span>
+        <div class="fin-control fin-date">
+          {{ form.fecha_hasta }}
+        </div>
+      </div>
+
+      <div class="fin-field" style="min-width:120px">
+        <span class="fin-label">&nbsp;</span>
+        <button class="btn-filter btn-filter-primary" type="submit">Ver</button>
+      </div>
+
+    </form>
+  </div>
 
   {% if has_filters == False %}
-    <div class="alert alert-info">Selecciona al menos un criterio (Bodega, Proveedor o Fechas) y presiona “Ver”.</div>
+    <div class="alert alert-info">
+      Selecciona al menos un criterio (Bodega, Proveedor o Fechas) y presiona “Ver”.
+    </div>
   {% endif %}
 
   {% if has_filters %}
-    <div class="d-flex gap-2 mb-3">
-      {% if form.cleaned_data.bodega %}<span class="badge bg-secondary">Bodega: {{ form.cleaned_data.bodega.codigo }}</span>{% endif %}
-      {% if form.cleaned_data.proveedor %}<span class="badge bg-secondary">Proveedor: {{ form.cleaned_data.proveedor.username }}</span>{% endif %}
-      {% if form.cleaned_data.fecha_desde %}<span class="badge bg-secondary">Desde: {{ form.cleaned_data.fecha_desde }}</span>{% endif %}
-      {% if form.cleaned_data.fecha_hasta %}<span class="badge bg-secondary">Hasta: {{ form.cleaned_data.fecha_hasta }}</span>{% endif %}
+    <div class="d-flex flex-wrap gap-2 mb-3">
+      {% if form.cleaned_data.bodega %}
+        <span class="badge bg-secondary">Bodega: {{ form.cleaned_data.bodega.codigo }}</span>
+      {% endif %}
+      {% if form.cleaned_data.proveedor %}
+        <span class="badge bg-secondary">Proveedor: {{ form.cleaned_data.proveedor.username }}</span>
+      {% endif %}
+      {% if form.cleaned_data.fecha_desde %}
+        <span class="badge bg-secondary">Desde: {{ form.cleaned_data.fecha_desde }}</span>
+      {% endif %}
+      {% if form.cleaned_data.fecha_hasta %}
+        <span class="badge bg-secondary">Hasta: {{ form.cleaned_data.fecha_hasta }}</span>
+      {% endif %}
     </div>
 
-    <div class="mb-3">
+    <div class="mb-3 d-flex flex-wrap gap-2">
       <a class="btn btn-success btn-sm" href="{% url 'finanzas_export_excel' %}?{{ request.GET.urlencode }}">Exportar Excel</a>
       <a class="btn btn-danger btn-sm" href="{% url 'finanzas_export_pdf' %}?{{ request.GET.urlencode }}">Exportar PDF</a>
     </div>
 
-    <div class="row g-3">
+    <div class="row g-3 mb-2">
       <div class="col-md-3">
         <div class="card"><div class="card-body">
           <div class="text-muted small">Órdenes</div>
@@ -59,8 +254,8 @@
     </div>
   {% endif %}
 
-  <h4 class="mt-4">Órdenes de compra</h4>
-  <table class="table table-sm table-striped">
+  <h4 class="finanzas-section-title">Órdenes de compra</h4>
+  <table class="table table-sm table-striped table-finanzas">
     <thead><tr>
       <th>OC</th><th>Proveedor</th><th>Bodega</th><th>Estado</th><th>Fecha esperada</th><th>Creada</th>
     </tr></thead>
@@ -74,12 +269,14 @@
         <td>{{ oc.fecha_esperada|date:"Y-m-d" }}</td>
         <td>{{ oc.creado_en|date:"Y-m-d H:i" }}</td>
       </tr>
-    {% empty %}<tr><td colspan="6">Sin datos.</td></tr>{% endfor %}
+    {% empty %}
+      <tr><td colspan="6">Sin datos.</td></tr>
+    {% endfor %}
     </tbody>
   </table>
 
   <h4>Facturas proveedor</h4>
-  <table class="table table-sm table-striped">
+  <table class="table table-sm table-striped table-finanzas">
     <thead><tr>
       <th>N°</th><th>Proveedor</th><th>Monto</th><th>Fecha</th><th>Estado</th>
     </tr></thead>
@@ -92,12 +289,14 @@
         <td>{{ f.fecha_factura|date:"Y-m-d" }}</td>
         <td>{{ f.estado }}</td>
       </tr>
-    {% empty %}<tr><td colspan="5">Sin datos.</td></tr>{% endfor %}
+    {% empty %}
+      <tr><td colspan="5">Sin datos.</td></tr>
+    {% endfor %}
     </tbody>
   </table>
 
   <h4>Recepciones</h4>
-  <table class="table table-sm table-striped">
+  <table class="table table-sm table-striped table-finanzas">
     <thead><tr>
       <th>N°</th><th>Bodega</th><th>Estado</th><th>Recibido en</th>
     </tr></thead>
@@ -109,12 +308,14 @@
         <td>{{ r.estado }}</td>
         <td>{{ r.recibido_en|date:"Y-m-d H:i" }}</td>
       </tr>
-    {% empty %}<tr><td colspan="4">Sin datos.</td></tr>{% endfor %}
+    {% empty %}
+      <tr><td colspan="4">Sin datos.</td></tr>
+    {% endfor %}
     </tbody>
   </table>
 
   <h4>Productos (según filtros)</h4>
-  <table class="table table-sm table-striped">
+  <table class="table table-sm table-striped table-finanzas">
     <thead><tr><th>SKU</th><th>Nombre</th><th class="text-end">Stock</th></tr></thead>
     <tbody>
     {% for p in productos %}
@@ -123,11 +324,17 @@
         <td>{{ p.nombre }}</td>
         <td class="text-end">{{ p.stock_filtrado|default:0|floatformat:0 }}</td>
       </tr>
-    {% empty %}<tr><td colspan="3">Sin datos.</td></tr>{% endfor %}
+    {% empty %}
+      <tr><td colspan="3">Sin datos.</td></tr>
+    {% endfor %}
     </tbody>
     {% if productos %}
     <tfoot>
-      <tr><th></th><th class="text-end">Total</th><th class="text-end">{{ resumen.stock_total|floatformat:0 }}</th></tr>
+      <tr>
+        <th></th>
+        <th class="text-end">Total</th>
+        <th class="text-end">{{ resumen.stock_total|floatformat:0 }}</th>
+      </tr>
     </tfoot>
     {% endif %}
   </table>

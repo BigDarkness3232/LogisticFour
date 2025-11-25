@@ -451,7 +451,6 @@
                     <span class="muted">No hay ubicaciones para esta sucursal.</span>
                   {% endif %}
                 </div>
-
                 <div class="lx-kv">
                   <small>Productos con stock aquí</small>
                   {% with ubicaciones=s.ubicaciones.all %}
@@ -459,11 +458,12 @@
                       <ul style="margin:0; padding-left:1rem">
                         {% for u in ubicaciones %}
                           {% for st in u.stocks.all %}
-                            <li>
-                              {{ st.producto.sku }} — {{ st.producto.nombre }}:
-                              <strong>{{ st.cantidad_disponible }}</strong>
-                            </li>
-                          {% empty %}
+                            {% if st.cantidad_disponible|default:0 > 0 %}
+                              <li>
+                                {{ st.producto.sku }} — {{ st.producto.nombre }}:
+                                <strong>{{ st.cantidad_disponible|default:0|floatformat:0 }}</strong>
+                              </li>
+                            {% endif %}
                           {% endfor %}
                         {% endfor %}
                       </ul>

@@ -5,42 +5,222 @@
 
 {% block content %}
 <style>
-  :root{ --ink:#0f172a; --muted:#64748b; --line:#e2e8f0; --card:#fff; --head:#f8fafc; --pri:#111827; --pri-ink:#fff; }
+  :root{
+    --ink:#0f172a;
+    --muted:#64748b;
+    --line:#e2e8f0;
+    --card:#fff;
+    --head:#f8fafc;
+    --pri:#111827;
+    --pri-ink:#fff;
+  }
+
   .auditoria-wrap{display:grid; gap:16px;}
-  .card{background:var(--card); border:1px solid var(--line); border-radius:12px; padding:12px;}
-  .tabs{display:flex; gap:8px; flex-wrap:wrap}
-  .tab{padding:8px 12px; border:1px solid var(--line); border-radius:999px; cursor:pointer; user-select:none}
-  .tab.active{background:var(--pri); color:var(--pri-ink); border-color:var(--pri)}
-  .table{width:100%; border-collapse:collapse; font-size:14px}
-  .table th,.table td{border-bottom:1px solid var(--line); padding:8px; vertical-align:top}
-  .sub{color:var(--muted); font-size:12px}
-  .grid-2{display:grid; grid-template-columns:1fr 1fr; gap:12px}
-  @media (max-width: 860px){ .grid-2{grid-template-columns:1fr} }
+
+  .card{
+    background:var(--card);
+    border:1px solid var(--line);
+    border-radius:16px;
+    padding:14px 18px;
+  }
+
+  .auditoria-header{
+    display:flex;
+    justify-content:space-between;
+    align-items:center;
+    gap:8px;
+    margin-bottom:10px;
+  }
+
+  .auditoria-header h2{
+    margin:0;
+    font-size:20px;
+  }
+
+  /* ===== Filtros ===== */
+  .filter-row{
+    display:flex;
+    gap:12px;
+    flex-wrap:wrap;
+    align-items:flex-end;
+  }
+
+  .field{
+    display:flex;
+    flex-direction:column;
+    gap:4px;
+    min-width:160px;
+  }
+
+  .field-label{
+    font-size:11px;
+    text-transform:uppercase;
+    letter-spacing:.06em;
+    color:var(--muted);
+    font-weight:600;
+  }
+
+  .field-control{
+    position:relative;
+  }
+
+  .field-input{
+    width:100%;
+    border-radius:999px;
+    border:1px solid var(--line);
+    padding:7px 32px 7px 12px;
+    font-size:13px;
+    background:#f9fafb;
+    outline:none;
+    color:var(--ink);
+    transition:border-color .15s, box-shadow .15s, background .15s;
+  }
+
+  .field-input:focus{
+    border-color:#2563eb;
+    box-shadow:0 0 0 1px rgba(37,99,235,.2);
+    background:#fff;
+  }
+
+  .field-control--date::after{
+    content:"📅";
+    position:absolute;
+    right:10px;
+    top:50%;
+    transform:translateY(-50%);
+    font-size:13px;
+    opacity:.6;
+    pointer-events:none;
+  }
+
+  .field-control--select::after{
+    content:"▾";
+    position:absolute;
+    right:12px;
+    top:50%;
+    transform:translateY(-50%);
+    font-size:11px;
+    opacity:.6;
+    pointer-events:none;
+  }
+
+  .field-control--select select{
+    appearance:none;
+  }
+
+  /* Botones filtros */
+  .btn-filter{
+    border-radius:999px;
+    padding:8px 16px;
+    font-size:13px;
+    border:1px solid var(--line);
+    background:#f9fafb;
+    color:var(--ink);
+    cursor:pointer;
+    font-weight:500;
+    transition:background .15s,border-color .15s,transform .05s;
+    text-decoration:none;
+    display:inline-flex;
+    gap:6px;
+    align-items:center;
+  }
+
+  .btn-filter-primary{
+    background:var(--pri);
+    color:var(--pri-ink);
+    border-color:var(--pri);
+  }
+
+  .btn-filter:hover{ transform:translateY(-1px); }
+  .btn-filter-primary:hover{ background:#020617; }
+
+  /* Tabs inferiores */
+  .tabs{display:flex; gap:8px; flex-wrap:wrap; margin-bottom:8px;}
+  .tab{
+    padding:8px 12px;
+    border:1px solid var(--line);
+    border-radius:999px;
+    cursor:pointer;
+    user-select:none;
+    font-size:13px;
+  }
+  .tab.active{
+    background:var(--pri);
+    color:var(--pri-ink);
+    border-color:var(--pri);
+  }
+
+  .table{width:100%; border-collapse:collapse; font-size:14px;}
+  .table th,.table td{
+    border-bottom:1px solid var(--line);
+    padding:8px;
+    vertical-align:top;
+  }
+
+  .table thead th{
+    background:var(--head);
+    position:sticky;
+    top:0;
+    z-index:1;
+  }
+
+  .sub{color:var(--muted); font-size:12px;}
+  .grid-2{display:grid; grid-template-columns:1fr 1fr; gap:12px;}
+
+  @media (max-width: 860px){
+    .grid-2{grid-template-columns:1fr;}
+    .auditoria-header{flex-direction:column; align-items:flex-start;}
+  }
 </style>
 
 <div class="auditoria-wrap">
   <div class="card">
-    <h2 style="margin:0 0 8px">Auditoría de Inventario</h2>
-    <form method="get" style="display:flex; gap:8px; flex-wrap:wrap; align-items:end">
-      <div>
-        <label class="sub">Desde</label>
-        <input type="date" name="desde" value="{{ desde|date:'Y-m-d' }}">
+    <div class="auditoria-header">
+      <h2>Auditoría de Inventario</h2>
+    </div>
+
+    <form method="get" class="filter-row">
+      <div class="field">
+        <span class="field-label">Desde</span>
+        <div class="field-control field-control--date">
+          <input
+            type="date"
+            name="desde"
+            class="field-input"
+            value="{{ desde|date:'Y-m-d' }}">
+        </div>
       </div>
-      <div>
-        <label class="sub">Hasta</label>
-        <input type="date" name="hasta" value="{{ hasta|date:'Y-m-d' }}">
+
+      <div class="field">
+        <span class="field-label">Hasta</span>
+        <div class="field-control field-control--date">
+          <input
+            type="date"
+            name="hasta"
+            class="field-input"
+            value="{{ hasta|date:'Y-m-d' }}">
+        </div>
       </div>
-      <div>
-        <label class="sub">Producto</label>
-        <select name="producto_id">
-          <option value="">— Todos —</option>
-          {% for p in productos %}
-            <option value="{{ p.id }}" {% if producto_id == p.id %}selected{% endif %}>{{ p.nombre }}</option>
-          {% endfor %}
-        </select>
+
+      <div class="field" style="min-width:220px">
+        <span class="field-label">Producto</span>
+        <div class="field-control field-control--select">
+          <select name="producto_id" class="field-input">
+            <option value="">— Todos —</option>
+            {% for p in productos %}
+              <option value="{{ p.id }}" {% if producto_id == p.id %}selected{% endif %}>{{ p.nombre }}</option>
+            {% endfor %}
+          </select>
+        </div>
       </div>
-      <button class="tab active" type="submit">Aplicar filtros</button>
-      <a class="tab" href="{% url 'auditoria_inventario' %}">Limpiar</a>
+
+      <button class="btn-filter btn-filter-primary" type="submit">
+        Aplicar filtros
+      </button>
+
+      <a class="btn-filter" href="{% url 'auditoria_inventario' %}">
+        Limpiar
+      </a>
     </form>
   </div>
 
@@ -74,7 +254,7 @@
             <td>{{ m.ocurrido_en|date:"Y-m-d H:i" }}</td>
             <td>{{ m.tipo_movimiento.codigo }}</td>
             <td>{{ m.producto }}</td>
-            <td style="text-align:right">{{ m.cantidad }}</td>
+            <td style="text-align:right">{{ m.cantidad|default:0|floatformat:0 }}</td>
             <td>{{ m.unidad|default:"—" }}</td>
             <td class="sub">
               {% if m.ubicacion_bodega_desde %}B:{{ m.ubicacion_bodega_desde.codigo }} {% endif %}
@@ -142,7 +322,7 @@
                   {% if l.lote %}L:{{ l.lote.codigo }}{% endif %}
                   {% if l.serie %} {% if l.lote %}<br>{% endif %}S:{{ l.serie.codigo }}{% endif %}
                 </td>
-                <td style="text-align:right">{{ l.cantidad_delta }}</td>
+                <td style="text-align:right">{{ l.cantidad_delta|default:0|floatformat:0 }}</td>
                 <td class="sub">{{ l.motivo|default:"" }}</td>
               </tr>
               {% empty %}
@@ -194,9 +374,9 @@
                   {% if l.ubicacion_bodega %}B:{{ l.ubicacion_bodega.codigo }} {% endif %}
                   {% if l.ubicacion_sucursal %}S:{{ l.ubicacion_sucursal.codigo }}{% endif %}
                 </td>
-                <td style="text-align:right">{{ l.cantidad_sistema }}</td>
-                <td style="text-align:right">{{ l.cantidad_contada }}</td>
-                <td style="text-align:right">{{ l.diferencia }}</td>
+                <td style="text-align:right">{{ l.cantidad_sistema|default:0|floatformat:0 }}</td>
+                <td style="text-align:right">{{ l.cantidad_contada|default:0|floatformat:0 }}</td>
+                <td style="text-align:right">{{ l.diferencia|default:0|floatformat:0 }}</td>
                 <td class="sub">{{ l.contado_por|default:"—" }}</td>
               </tr>
               {% empty %}
@@ -230,7 +410,7 @@
               {% if r.lote %}L:{{ r.lote.codigo }}{% endif %}
               {% if r.serie %} {% if r.lote %}<br>{% endif %}S:{{ r.serie.codigo }}{% endif %}
             </td>
-            <td style="text-align:right">{{ r.cantidad_reservada }}</td>
+            <td style="text-align:right">{{ r.cantidad_reservada|default:0|floatformat:0 }}</td>
             <td class="sub">
               {% if r.tabla_referencia %}{{ r.tabla_referencia }}#{{ r.referencia_id }}{% else %}—{% endif %}
             </td>

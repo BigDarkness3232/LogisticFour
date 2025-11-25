@@ -150,12 +150,13 @@ urlpatterns = [
 
 
 
+    path('bodegas/<int:bodega_id>/agregar-sucursal/', views.bodega_agregar_sucursal, name='bodega-agregar-sucursal'),
 
 
 
 
-
-
+    path("bodegas/<int:bodega_id>/productos/", views.bodega_productos, name="bodega-productos"),
+    path("ajax/ubicaciones-por-producto/", views.ajax_ubicaciones_por_producto, name="ajax_ubicaciones_por_producto"),
 
 
 

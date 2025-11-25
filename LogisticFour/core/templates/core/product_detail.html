@@ -41,10 +41,9 @@
           {# Ajusta esta ruta a tu vista de edición si existe #}
           <a class="btn btn-warning" href="{% url 'producto-update' producto.id %}">Editar</a>
           <a class="btn btn-xs btn-outline-primary"
-          href="{% url 'etiqueta_producto' pk=producto.pk %}">
-          Etiqueta
-        </a>
-
+             href="{% url 'etiqueta_producto' pk=producto.pk %}">
+            Etiqueta
+          </a>
         </div>
       </div>
     </div>
@@ -98,39 +97,42 @@
               </thead>
               <tbody>
                 {% for r in resumen_sucursales %}
-                <tr>
-                  <td>
-                    {% if r.sucursal_codigo %}
-                      <span class="fw-semibold">{{ r.sucursal_codigo }}</span>
-                      <span class="text-secondary">— {{ r.sucursal_nombre }}</span>
-                    {% else %}<span class="text-secondary">—</span>{% endif %}
-                  </td>
-                  <td>
-                    {% if r.bodega_codigo %}
-                      <span class="fw-semibold">{{ r.bodega_codigo }}</span>
-                      <span class="text-secondary">— {{ r.bodega_nombre }}</span>
-                    {% else %}<span class="text-secondary">—</span>{% endif %}
-                  </td>
-                  <td>
-                    {% if r.sucursal_ubi_codigo or r.sucursal_ubi_nombre or r.bodega_ubi_codigo or r.bodega_ubi_nombre %}
-                      <span class="pill">
-                        {% if r.sucursal_ubi_codigo or r.sucursal_ubi_nombre %}
-                          <span class="fw-semibold">{{ r.sucursal_ubi_codigo|default:r.sucursal_ubi_nombre }}</span>
-                          {% if r.sucursal_ubi_codigo and r.sucursal_ubi_nombre %}
-                            <span class="text-secondary">· {{ r.sucursal_ubi_nombre }}</span>
+                  {# SOLO MOSTRAR SI EL STOCK DISPONIBLE ES MAYOR O IGUAL A 1 #}
+                  {% if r.total_disponible|default:0 >= 1 %}
+                  <tr>
+                    <td>
+                      {% if r.sucursal_codigo %}
+                        <span class="fw-semibold">{{ r.sucursal_codigo }}</span>
+                        <span class="text-secondary">— {{ r.sucursal_nombre }}</span>
+                      {% else %}<span class="text-secondary">—</span>{% endif %}
+                    </td>
+                    <td>
+                      {% if r.bodega_codigo %}
+                        <span class="fw-semibold">{{ r.bodega_codigo }}</span>
+                        <span class="text-secondary">— {{ r.bodega_nombre }}</span>
+                      {% else %}<span class="text-secondary">—</span>{% endif %}
+                    </td>
+                    <td>
+                      {% if r.sucursal_ubi_codigo or r.sucursal_ubi_nombre or r.bodega_ubi_codigo or r.bodega_ubi_nombre %}
+                        <span class="pill">
+                          {% if r.sucursal_ubi_codigo or r.sucursal_ubi_nombre %}
+                            <span class="fw-semibold">{{ r.sucursal_ubi_codigo|default:r.sucursal_ubi_nombre }}</span>
+                            {% if r.sucursal_ubi_codigo and r.sucursal_ubi_nombre %}
+                              <span class="text-secondary">· {{ r.sucursal_ubi_nombre }}</span>
+                            {% endif %}
+                          {% else %}
+                            <span class="fw-semibold">{{ r.bodega_ubi_codigo|default:r.bodega_ubi_nombre }}</span>
+                            {% if r.bodega_ubi_codigo and r.bodega_ubi_nombre %}
+                              <span class="text-secondary">· {{ r.bodega_ubi_nombre }}</span>
+                            {% endif %}
                           {% endif %}
-                        {% else %}
-                          <span class="fw-semibold">{{ r.bodega_ubi_codigo|default:r.bodega_ubi_nombre }}</span>
-                          {% if r.bodega_ubi_codigo and r.bodega_ubi_nombre %}
-                            <span class="text-secondary">· {{ r.bodega_ubi_nombre }}</span>
-                          {% endif %}
-                        {% endif %}
-                      </span>
-                    {% else %}<span class="text-secondary">—</span>{% endif %}
-                  </td>
-                  <td class="td-num">{{ r.total_disponible|default:0|floatformat:0 }}</td>
-                  <td class="td-num fw-semibold">{{ r.total_neto|default:0|floatformat:0 }}</td>
-                </tr>
+                        </span>
+                      {% else %}<span class="text-secondary">—</span>{% endif %}
+                    </td>
+                    <td class="td-num">{{ r.total_disponible|default:0|floatformat:0 }}</td>
+                    <td class="td-num fw-semibold">{{ r.total_neto|default:0|floatformat:0 }}</td>
+                  </tr>
+                  {% endif %}
                 {% endfor %}
               </tbody>
             </table>

@@ -1,0 +1,144 @@
+{% extends "core/base.html" %}
+{% load static %}
+{% block title %}Productos de {{ bodega.nombre }}{% endblock %}
+
+{% block content %}
+<style>
+  :root{--ink:#0f172a;--muted:#64748b;--line:#e2e8f0;--card:#fff;--bg:#f1f5f9;--accent:#111827;}
+  .wrap{max-width:1080px;margin-inline:auto;display:grid;gap:14px;padding-bottom:18px;}
+  .head{display:flex;justify-content:space-between;gap:10px;align-items:center}
+  .title{margin:0;font-weight:800;font-size:clamp(1.2rem,2.2vw,1.5rem)}
+  .sub{margin:0;color:var(--muted);font-size:.86rem}
+  .metrics{display:flex;gap:10px;flex-wrap:wrap}
+  .metric{background:#f8fafc;border:1px solid rgba(148,163,184,.35);border-radius:12px;padding:8px 12px}
+  .metric small{color:var(--muted);display:block}
+  .metric strong{font-size:1.15rem}
+  .card{background:var(--card);border:1px solid var(--line);border-radius:14px;box-shadow:0 12px 30px rgba(15,23,42,.03);animation:fade .3s ease}
+  .card-body{padding:14px}
+  .filters{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:8px}
+  .input{flex:1 1 280px;min-width:220px;border:1px solid #cbd5e1;border-radius:10px;padding:9px 10px;background:#f8fafc}
+  .btn{background:var(--accent);color:#fff;border:none;border-radius:10px;padding:9px 13px;font-weight:600;cursor:pointer}
+  .btn-ghost{background:#fff;border:1px solid var(--line);color:#0f172a;border-radius:10px;padding:9px 13px}
+  table{width:100%;border-collapse:separate;border-spacing:0}
+  thead th{position:sticky;top:0;background:#eef2ff;border-bottom:1px solid var(--line);text-align:left;padding:9px 10px;font-size:.76rem}
+  tbody td{padding:10px;border-bottom:1px solid var(--line)}
+  tbody tr:hover{background:#f8fafc}
+  .mono{font-family:ui-monospace,Menlo,Consolas,monospace}
+  .pill{display:inline-block;border:1px solid #cbd5e1;border-radius:999px;padding:2px 8px;font-size:.72rem;margin:2px 6px 2px 0;background:#fff}
+  .muted{color:var(--muted);font-size:.85rem}
+  @keyframes fade{from{opacity:0;transform:translateY(4px)}to{opacity:1;transform:none}}
+  @media(max-width:760px){
+    thead{display:none}
+    table{display:block} tbody{display:grid;gap:12px}
+    tr{display:grid;gap:6px;border:1px solid var(--line);border-radius:12px;padding:6px 8px}
+    td{border:none;padding:4px 8px}
+    td[data-label]::before{content:attr(data-label) ": ";font-weight:600;color:var(--muted)}
+  }
+</style>
+
+<div class="wrap">
+  <div class="head">
+    <div>
+      <h1 class="title">Productos de {{ bodega.nombre }}</h1>
+      <p class="sub">Se muestran los productos con stock registrado en ubicaciones de esta bodega.</p>
+    </div>
+    <div class="metrics">
+      <div class="metric">
+        <small>Total ítems</small><strong>{{ total_items }}</strong>
+      </div>
+      <div class="metric">
+        <small>Suma stock</small><strong>{{ suma_stock|floatformat:0 }}</strong>
+      </div>
+      <a href="{% url 'bodega-list' %}" class="btn-ghost">← Volver</a>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-body">
+      <form method="get" class="filters">
+        <input class="input" type="text" name="q" value="{{ q }}" placeholder="Buscar por SKU o nombre…">
+        <button class="btn" type="submit">Buscar</button>
+        {% if q %}<a class="btn-ghost" href="{% url 'bodega-productos' bodega.id %}">Limpiar</a>{% endif %}
+      </form>
+
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>SKU</th>
+              <th>Nombre</th>
+              <th class="mono">Stock en bodega</th>
+              <th>Ubicaciones</th>
+            </tr>
+          </thead>
+          <tbody id="prodBody">
+            {% for p in productos %}
+              <tr>
+                <td class="mono" data-label="SKU">{{ p.sku }}</td>
+                <td data-label="Nombre"><strong>{{ p.nombre }}</strong></td>
+                <td class="mono" data-label="Stock">{{ p.stock_total|floatformat:0 }}</td>
+                <td data-label="Ubicaciones">
+                  <div class="ubi-cell" data-producto="{{ p.id }}">
+                    <span class="muted">Cargando ubicaciones…</span>
+                  </div>
+                </td>
+              </tr>
+            {% empty %}
+              <tr><td colspan="4" style="text-align:center;color:#64748b;padding:18px">No hay productos encontrados.</td></tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+(function(){
+  const bodegaId = {{ bodega.id }};
+  const cells = document.querySelectorAll('.ubi-cell');
+  const cache = new Map();
+
+  async function loadCell(cell){
+    const pid = cell.getAttribute('data-producto');
+    if (cache.has(pid)) {
+      cell.innerHTML = cache.get(pid);
+      return;
+    }
+    try{
+      const res = await fetch(/ajax/ubicaciones-por-producto/?bodega_id=${bodegaId}&producto_id=${pid});
+      const data = await res.json();
+      if (data.error) throw new Error(data.error);
+
+      let html;
+      if (!data.ubicaciones || data.ubicaciones.length === 0){
+        html = '<span class="muted">Sin stock por ubicación</span>';
+      } else {
+        html = data.ubicaciones.map(u =>
+          <span class="pill">${u.codigo}${u.nombre ? ' — '+u.nombre : ''} · <strong>${u.cantidad}</strong></span>
+        ).join(' ');
+      }
+      cell.innerHTML = html;
+      cache.set(pid, html);
+    } catch(e){
+      console.error(e);
+      cell.innerHTML = '<span class="muted" style="color:#b91c1c;">Error</span>';
+    }
+  }
+
+  // Carga perezosa al entrar en viewport (mejor performance con listas largas)
+  const io = 'IntersectionObserver' in window ? new IntersectionObserver((entries)=>{
+    entries.forEach(entry=>{
+      if(entry.isIntersecting){
+        loadCell(entry.target);
+        io.unobserve(entry.target);
+      }
+    });
+  }, {rootMargin:'120px'}) : null;
+
+  cells.forEach(c=>{
+    if(io) io.observe(c); else loadCell(c);
+  });
+})();
+</script>
+{% endblock %} 
