@@ -4704,21 +4704,22 @@ def guia_transferencia_detalle(request, pk):
 
 
 
+from django.core.paginator import Paginator
+from django.core.paginator import Paginator, EmptyPage, PageNotAnInteger
+from django.shortcuts import render, redirect, get_object_or_404
+from django.db.models import Q
+from .models import Transferencia  
+
+
+
 @login_required
 def resumen_guias_despacho(request):
     """
     Listado de guías de despacho / transferencias,
     con filtro por tipo de movimiento.
-
-      - TODOS   : todas
-      - BOD_BOD : Bodega → Bodega
-      - BOD_SUC : Bodega → Sucursal
-      - SUC_BOD : Sucursal → Bodega
-      - SUC_SUC : Sucursal ↔ Sucursal
     """
     tipo_raw = (request.GET.get("tipo", "") or "").strip()
 
-    # Normalizamos el parámetro y damos compatibilidad con valores antiguos
     if tipo_raw == "":
         tipo = "TODOS"
     elif tipo_raw == "bod_bod":
@@ -4745,28 +4746,34 @@ def resumen_guias_despacho(request):
         .order_by("-creado_en")
     )
 
-    # === Filtros por tipo usando tipo_movimiento ===
+    # Filtrar según tipo de movimiento
     if tipo == "TODOS":
         transferencias = base_qs
-
     elif tipo == "BOD_BOD":
         transferencias = base_qs.filter(tipo_movimiento="BOD_BOD")
-
     elif tipo == "BOD_SUC":
         transferencias = base_qs.filter(tipo_movimiento="BOD_SUC")
-
     elif tipo == "SUC_BOD":
         transferencias = base_qs.filter(tipo_movimiento="SUC_BOD")
-
     elif tipo == "SUC_SUC":
         transferencias = base_qs.filter(tipo_movimiento="SUC_SUC")
-
     else:
-        # Si llega un tipo raro, mostramos todo para no romper la vista
         transferencias = base_qs
 
+    # Paginación: 20 transferencias por página
+    paginator = Paginator(transferencias, 13)  # 20 por página
+    page_number = request.GET.get("page", 1)
+
+    try:
+        page_obj = paginator.page(page_number)
+    except PageNotAnInteger:
+        page_obj = paginator.page(1)
+    except EmptyPage:
+        page_obj = paginator.page(paginator.num_pages)
+
     context = {
-        "transferencias": transferencias,
-        "tipo_sel": tipo,
+        'transferencias': page_obj,
+        'tipo_sel': tipo,
     }
+
     return render(request, "core/Guias/resumen_guias.html", context)
