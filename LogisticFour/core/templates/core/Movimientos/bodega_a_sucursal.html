@@ -138,6 +138,8 @@
     gap: 6px;
     align-items: center;
     cursor: pointer;
+    text-decoration: none;
+    font-size: .9rem;
     transition: transform .12s ease, box-shadow .12s ease, background .12s ease;
   }
 
@@ -149,6 +151,25 @@
 
   .mv-btn:active {
     transform: translateY(0);
+  }
+
+  /* Botón "Ver guía de despacho" igual al de sucursal→sucursal */
+  .mv-btn-ghost {
+    background: #ffffff;
+    border-radius: 999px;
+    border: 1px solid rgba(22, 163, 74, .4);
+    padding: 6px 14px;
+    font-size: .82rem;
+    font-weight: 600;
+    color: var(--success-ink);
+    display: inline-flex;
+    align-items: center;
+    gap: .4rem;
+    text-decoration: none;
+  }
+
+  .mv-btn-ghost:hover {
+    background: #f0fdf4;
   }
 
   .mv-messages {
@@ -165,7 +186,7 @@
     padding: 10px 12px;
     display: flex;
     gap: 10px;
-    align-items: center;
+    align-items: flex-start;
   }
 
   .msg-error {
@@ -280,7 +301,9 @@
             <select name="bodega" id="bodegaSelect" class="mv-select" required>
               <option value="">— Selecciona una bodega —</option>
               {% for b in bodegas %}
-                <option value="{{ b.id }}">{{ b.codigo }} — {{ b.nombre }}</option>
+                <option value="{{ b.id }}" {% if bodega_sel == b.id %}selected{% endif %}>
+                  {{ b.codigo }} — {{ b.nombre }}
+                </option>
               {% endfor %}
             </select>
             <p class="mv-loading" id="bodegaHelp">Al seleccionar se cargarán las sucursales y los productos.</p>
@@ -315,7 +338,17 @@
             {% if success %}
               <div class="msg-success">
                 <span class="msg-icon">✓</span>
-                <div>{{ success }}</div>
+                <div>
+                  <div>{{ success }}</div>
+                  {% if transferencia_id %}
+                    <div style="margin-top:6px;">
+                      <a href="{% url 'detalle_transferencia' transferencia_id %}"
+                         class="mv-btn-ghost">
+                        Ver guía de despacho
+                      </a>
+                    </div>
+                  {% endif %}
+                </div>
               </div>
             {% endif %}
             {% if error %}

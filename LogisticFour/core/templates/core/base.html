@@ -370,6 +370,9 @@
         <a href="{% url 'movimientos_index' %}" class="item">🔁 Movimientos de Inventario</a>
         <a href="{% url 'auditoria_inventario' %}" class="item">💻 Auditoria</a>
         <a href="{% url 'finanzas_reporte' %}" class="item">💳 Finanzas</a>
+              <a href="{% url 'resumen_guias_despacho' %}" class="app-btn ghost">
+          📑 Resumen guías
+        </a>
 
         <!-- Grupo colapsable para Admin: Sucursales / Bodegas / Ubicaciones -->
         <div class="nav-group {% if request.resolver_match and request.resolver_match.url_name in 'sucursal-list bodega-list ubicacion-list' %}expanded{% endif %}" data-group>
@@ -409,58 +412,62 @@
 </aside>
 
   <!-- Main -->
-  <main class="main">
-    <header class="topbar">
-      <button class="menu-toggle" id="menuBtn" aria-label="Abrir menú" aria-controls="sidenav" aria-expanded="false">☰</button>
-      <input class="search" placeholder="Buscar…" />
-      {% if user.is_authenticated %}
-        <div class="icons">
-          <span class="dot" title="Notificaciones"></span>
-          <span class="avatar" title="Perfil">👤</span>
-        </div>
-      {% endif %}
-    </header>
-
-    <section class="content">
-      <!-- ejemplo de cabecera de página -->
-      <div class="d-flex flex-wrap gap-2 justify-content-between align-items-center fadein-up">
-        <div>
-          <h1 class="h4 mb-0 fw-bold">Panel general</h1>
-          <p class="text-secondary mb-0" style="font-size:.82rem">Resumen de sucursales, bodegas y stock.</p>
-        </div>
-        <div class="toolbar">
-          <a href="{% url 'bodega-create' %}" class="app-btn">＋ Nueva bodega</a>
-          <a href="{% url 'sucursal-create' %}" class="app-btn ghost">＋ Nueva sucursal</a>
-        </div>
+<main class="main">
+  <header class="topbar">
+    <button class="menu-toggle" id="menuBtn" aria-label="Abrir menú" aria-controls="sidenav" aria-expanded="false">☰</button>
+    <input class="search" placeholder="Buscar…" />
+    {% if user.is_authenticated %}
+      <div class="icons">
+        <span class="dot" title="Notificaciones"></span>
+        <span class="avatar" title="Perfil">👤</span>
       </div>
+    {% endif %}
+  </header>
 
-      <!-- KPIs -->
-      <div class="kpis fadein-up">
-        <article class="kpi">
-          <small>Sucursales activas</small>
-          <div class="num">12</div>
-          <span class="trend ok">▲ +3 este mes</span>
-        </article>
-        <article class="kpi">
-          <small>Bodegas totales</small>
-          <div class="num">34</div>
-          <span class="trend">Sin cambios</span>
-        </article>
-        <article class="kpi">
-          <small>Movimientos hoy</small>
-          <div class="num">58</div>
-          <span class="trend ok">▲ +12%</span>
-        </article>
-        <article class="kpi">
-          <small>Alertas de stock</small>
-          <div class="num" style="color:#b91c1c">5</div>
-          <span class="trend bad">▼ revisar</span>
-        </article>
+  <section class="content">
+    <!-- ejemplo de cabecera de página -->
+    <div class="d-flex flex-wrap gap-2 justify-content-between align-items-center fadein-up">
+      <div>
+        <h1 class="h4 mb-0 fw-bold">Panel general</h1>
+        <p class="text-secondary mb-0" style="font-size:.82rem">
+          Resumen de sucursales, bodegas y stock.
+        </p>
       </div>
+      <div class="toolbar">
+        <a href="{% url 'bodega-create' %}" class="app-btn">＋ Nueva bodega</a>
+        <a href="{% url 'sucursal-create' %}" class="app-btn ghost">＋ Nueva sucursal</a>
+        <!-- ✅ Nuevo botón: Resumen de guías de despacho -->
+  
+      </div>
+    </div>
 
-      {% block content %}{% endblock %}
-    </section>
-  </main>
+    <!-- KPIs -->
+    <div class="kpis fadein-up">
+      <article class="kpi">
+        <small>Sucursales activas</small>
+        <div class="num">12</div>
+        <span class="trend ok">▲ +3 este mes</span>
+      </article>
+      <article class="kpi">
+        <small>Bodegas totales</small>
+        <div class="num">34</div>
+        <span class="trend">Sin cambios</span>
+      </article>
+      <article class="kpi">
+        <small>Movimientos hoy</small>
+        <div class="num">58</div>
+        <span class="trend ok">▲ +12%</span>
+      </article>
+      <article class="kpi">
+        <small>Alertas de stock</small>
+        <div class="num" style="color:#b91c1c">5</div>
+        <span class="trend bad">▼ revisar</span>
+      </article>
+    </div>
+
+    {% block content %}{% endblock %}
+  </section>
+</main>
 
   <!-- Bootstrap JS -->
   <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>

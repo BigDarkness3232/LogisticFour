@@ -585,6 +585,19 @@ class PoliticaReabastecimiento(models.Model):
 #  TRANSFERENCIAS / DEVOLUCIONES
 # ============================================================
 class Transferencia(MarcaTiempo):
+    TIPO_CHOICES = [
+        ("BOD_BOD", "Bodega → Bodega"),
+        ("BOD_SUC", "Bodega → Sucursal"),
+        ("SUC_BOD", "Sucursal → Bodega"),
+        ("SUC_SUC", "Sucursal ↔ Sucursal"),
+    ]
+
+    tipo_movimiento = models.CharField(
+        max_length=20,
+        choices=TIPO_CHOICES,
+        default="BOD_BOD",
+    )
+
     bodega_origen = models.ForeignKey(
         Bodega,
         on_delete=models.CASCADE,
@@ -592,23 +605,49 @@ class Transferencia(MarcaTiempo):
         null=True,
         blank=True,
     )
-    sucursal_destino = models.ForeignKey(
-        Sucursal,
+
+    bodega_destino = models.ForeignKey(
+        Bodega,
         on_delete=models.CASCADE,
         related_name="transferencias_destino",
         null=True,
         blank=True,
     )
-    # Ej: número de guía correlativo interno
+
+    # NUEVO: sucursal origen
+    sucursal_origen = models.ForeignKey(
+        Sucursal,
+        on_delete=models.CASCADE,
+        related_name="transferencias_sucursal_origen",
+        null=True,
+        blank=True,
+    )
+
+    # ya la tenías:
+    sucursal_destino = models.ForeignKey(
+        Sucursal,
+        on_delete=models.CASCADE,
+        related_name="transferencias_sucursal_destino",
+        null=True,
+        blank=True,
+    )
+
     numero_guia = models.CharField(max_length=20, null=True, blank=True)
     fecha_emision = models.DateField(null=True, blank=True)
-    observaciones = models.TextField(null=True, blank=True)
 
     estado = models.CharField(max_length=30, default="DRAFT")
-    creado_por = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True)
+    creado_por = models.ForeignKey(
+        User,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+    )
 
     class Meta:
         db_table = "transferencias"
+
+
+
 
 
 class LineaTransferencia(models.Model):

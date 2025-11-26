@@ -157,11 +157,11 @@ urlpatterns = [
 
     path("bodegas/<int:bodega_id>/productos/", views.bodega_productos, name="bodega-productos"),
     path("ajax/ubicaciones-por-producto/", views.ajax_ubicaciones_por_producto, name="ajax_ubicaciones_por_producto"),
+    path("guias/transferencia/<int:pk>/",views.guia_transferencia_detalle,name="detalle_transferencia",),    
 
 
 
-
-
+    path("guias/resumen/",views.resumen_guias_despacho,name="resumen_guias_despacho",),
 
 
 
