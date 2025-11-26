@@ -261,7 +261,6 @@
     .rg-card{padding-inline:10px;}
   }
 </style>
-
 <div class="rg-shell"> 
   <header class="rg-head">
     <div>
@@ -370,15 +369,18 @@
                 <!-- Origen (lógico según tipo_movimiento / pestaña) -->
                 <td class="rg-origen">
                   {% if tipo_sel == "SUC_BOD" and t.sucursal_destino %}
+                    {# En la pestaña Sucursal → Bodega, la sucursal es el origen lógico #}
                     {{ t.sucursal_destino.nombre }}
                     {% if t.sucursal_destino.codigo %}
                       <small>({{ t.sucursal_destino.codigo }})</small>
                     {% endif %}
+
                   {% elif t.tipo_movimiento == "BOD_BOD" or t.tipo_movimiento == "BOD_SUC" %}
                     {{ t.bodega_origen.nombre }}
                     {% if t.bodega_origen.codigo %}
                       <small>({{ t.bodega_origen.codigo }})</small>
                     {% endif %}
+
                   {% elif t.tipo_movimiento == "SUC_BOD" %}
                     {% if t.sucursal_origen %}
                       {{ t.sucursal_origen.nombre }}
@@ -393,12 +395,15 @@
                     {% else %}
                       —
                     {% endif %}
+
                   {% elif t.tipo_movimiento == "SUC_SUC" and t.sucursal_origen %}
                     {{ t.sucursal_origen.nombre }}
                     {% if t.sucursal_origen.codigo %}
                       <small>({{ t.sucursal_origen.codigo }})</small>
                     {% endif %}
+
                   {% else %}
+                    {# Fallback #}
                     {% if t.bodega_origen %}
                       {{ t.bodega_origen.nombre }}
                       {% if t.bodega_origen.codigo %}
@@ -420,28 +425,34 @@
                   {% endif %}
                 </td>
 
-                <!-- Destino -->
+                <!-- Destino (BOD_SUC: sucursal / SUC_BOD: bodega) -->
                 <td class="rg-destino">
                   {% if tipo_sel == "BOD_SUC" and t.sucursal_destino %}
+                    {# Siempre sucursal como destino en pestaña Bodega → Sucursal #}
                     {{ t.sucursal_destino.nombre }}
                     {% if t.sucursal_destino.codigo %}
                       <small>({{ t.sucursal_destino.codigo }})</small>
                     {% endif %}
+
                   {% elif tipo_sel == "SUC_BOD" and t.bodega_origen %}
+                    {# En pestaña Sucursal → Bodega la bodega es el destino lógico #}
                     {{ t.bodega_origen.nombre }}
                     {% if t.bodega_origen.codigo %}
                       <small>({{ t.bodega_origen.codigo }})</small>
                     {% endif %}
+
                   {% elif t.tipo_movimiento == "BOD_BOD" %}
                     {{ t.bodega_destino.nombre }}
                     {% if t.bodega_destino.codigo %}
                       <small>({{ t.bodega_destino.codigo }})</small>
                     {% endif %}
+
                   {% elif t.tipo_movimiento == "BOD_SUC" %}
                     {{ t.sucursal_destino.nombre }}
                     {% if t.sucursal_destino.codigo %}
                       <small>({{ t.sucursal_destino.codigo }})</small>
                     {% endif %}
+
                   {% elif t.tipo_movimiento == "SUC_BOD" %}
                     {% if t.bodega_destino %}
                       {{ t.bodega_destino.nombre }}
@@ -456,12 +467,15 @@
                     {% else %}
                       —
                     {% endif %}
+
                   {% elif t.tipo_movimiento == "SUC_SUC" %}
                     {{ t.sucursal_destino.nombre }}
                     {% if t.sucursal_destino.codigo %}
                       <small>({{ t.sucursal_destino.codigo }})</small>
                     {% endif %}
+
                   {% else %}
+                    {# Fallback sin "not" #}
                     {% if t.sucursal_destino %}
                       {{ t.sucursal_destino.nombre }}
                       {% if t.sucursal_destino.codigo %}
@@ -493,7 +507,8 @@
                 <!-- Acción: ver/descargar guía -->
                 <td>
                   <a href="{% url 'detalle_transferencia' t.id %}"
-                     class="rg-btn-ver">
+                     class="rg-btn-ver"
+                     target="_blank" rel="noopener">
                     <span class="icon">📄</span>
                     <span>Ver guía</span>
                   </a>
@@ -512,5 +527,7 @@
     </div>
   </section>
 </div>
+
+
 
 {% endblock %}
