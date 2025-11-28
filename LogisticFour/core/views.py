@@ -10,7 +10,7 @@ from decimal import Decimal
 from django.db import transaction
 from django.db.models import Sum, Value, DecimalField
 from django.db.models.functions import Coalesce
-
+from .forms import OrdenCompraForm, FacturaProveedorForm, RecepcionMercaderiaForm, ProductoForm
 import requests
 from django.http import JsonResponse
 from django.views.decorators.http import require_GET
@@ -27,7 +27,7 @@ from django.db.models.signals import pre_save, post_save
 from django.dispatch import receiver
 from django.utils import timezone
 # core/views.py  (arriba con el resto de imports)
-from django.shortcuts import render
+from django.shortcuts import render, redirect
 
 # =============================================
 #  LIBRERÍAS DE DJANGO
@@ -67,7 +67,6 @@ from django.views.generic import (
 from core.forms import *
 from core.forms import SignupUserForm, UsuarioPerfilForm
 from core.models import *
-from core.models import Producto, UsuarioPerfil
 from core.utils import ensure_ubicacion_sucursal, qr_url, barcode_url
 from django.db import models as djmodels
 
@@ -4221,13 +4220,13 @@ def _build_finanzas_querysets(cleaned):
 def finanzas_reporte(request):
     form = FinanzasReporteForm(request.GET or None)
 
-    # poblar combos (por si el form se instanció sin queryset)
+    # poblar los combos
     form.fields["bodega"].queryset = Bodega.objects.all().order_by("codigo")
     form.fields["proveedor"].queryset = User.objects.filter(
         perfil__rol=UsuarioPerfil.Rol.PROVEEDOR, is_active=True
     ).order_by("username")
 
-    # ¿se aplicaron filtros?
+    # detectar si hay filtros aplicados
     has_filters = any([
         request.GET.get("bodega"),
         request.GET.get("proveedor"),
@@ -4235,37 +4234,31 @@ def finanzas_reporte(request):
         request.GET.get("fecha_hasta"),
     ])
 
+    # si no hay filtros, no mostramos resultados
     if not has_filters:
         return render(request, "core/finanzas_reporte.html", {
             "form": form,
-            "ordenes": OrdenCompra.objects.none(),
-            "recepciones": RecepcionMercaderia.objects.none(),
-            "facturas": FacturaProveedor.objects.none(),
-            "productos": Producto.objects.none(),
+            "ordenes": [],
+            "recepciones": [],
+            "facturas": [],
+            "productos": [],
             "has_filters": False,
             "resumen": {},
         })
 
-    if not form.is_valid():
-        # mostrar vacío si los filtros no son válidos
-        return render(request, "core/finanzas_reporte.html", {
-            "form": form,
-            "ordenes": OrdenCompra.objects.none(),
-            "recepciones": RecepcionMercaderia.objects.none(),
-            "facturas": FacturaProveedor.objects.none(),
-            "productos": Producto.objects.none(),
-            "has_filters": True,
-            "resumen": {},
-        })
+    # si hay filtros, aplicamos búsqueda
+    if form.is_valid():
+        ordenes, recepciones, facturas, productos, resumen = _build_finanzas_querysets(form.cleaned_data)
+    else:
+        ordenes, recepciones, facturas, productos, resumen = [], [], [], [], {}
 
-    ordenes, recepciones, facturas, productos, resumen = _build_finanzas_querysets(form.cleaned_data)
     return render(request, "core/finanzas_reporte.html", {
         "form": form,
         "ordenes": ordenes,
         "recepciones": recepciones,
         "facturas": facturas,
         "productos": productos,
-        "has_filters": True,
+        "has_filters": has_filters,
         "resumen": resumen,
     })
 
@@ -4770,3 +4763,71 @@ def resumen_guias_despacho(request):
         "tipo_sel": tipo,
     }
     return render(request, "core/Guias/resumen_guias.html", context)
+
+@login_required
+@user_passes_test(_is_auditor)
+def crear_orden_compra(request):
+    """
+    Crea una nueva Orden de Compra usando OrdenCompraForm.
+    Si el formulario es válido hace form.save() y redirige.
+    Si NO es válido, vuelve a mostrar el formulario con errores.
+    """
+    if request.method == "POST":
+        form = OrdenCompraForm(request.POST)
+        if form.is_valid():
+            oc = form.save()
+            messages.success(
+                request,
+                f"Orden de compra {oc.numero_orden} creada correctamente."
+            )
+            # Puedes cambiar 'finanzas_reporte' por donde quieras volver
+            return redirect("finanzas_reporte")
+        else:
+            # Para depurar: puedes ver en consola qué falló
+            print("❌ OrdenCompraForm errors:", form.errors)
+    else:
+        form = OrdenCompraForm()
+
+    return render(request, "core/orden_compra_form.html", {"form": form})
+
+@login_required
+@user_passes_test(_is_auditor)
+def crear_factura_proveedor(request):
+    if request.method == "POST":
+        form = FacturaProveedorForm(request.POST)
+        if form.is_valid():
+            form.save()
+            return redirect('finanzas_reporte')  # Redirigir a la página de reporte
+    else:
+        form = FacturaProveedorForm()
+
+    return render(request, "core/crear_factura_proveedor.html", {"form": form})
+
+@login_required
+@transaction.atomic
+def crear_recepcion(request):
+    if request.method == "POST":
+        form = RecepcionMercaderiaForm(request.POST)
+        if form.is_valid():
+            recepcion = form.save(commit=False)
+            # No establezcas manualmente 'recibido_en' si no es editable
+            recepcion.save()
+            messages.success(request, "Recepción creada correctamente.")
+            return redirect('finanzas_reporte')  # O la URL que desees
+    else:
+        form = RecepcionMercaderiaForm()
+
+    return render(request, "core/crear_recepcion.html", {"form": form})
+
+@login_required
+@user_passes_test(_is_auditor)
+def crear_producto(request):
+    if request.method == "POST":
+        form = ProductoForm(request.POST)
+        if form.is_valid():
+            form.save()
+            return redirect('finanzas_reporte')  # Redirigir a la página de reporte
+    else:
+        form = ProductoForm()
+
+    return render(request, "core/crear_producto.html", {"form": form})

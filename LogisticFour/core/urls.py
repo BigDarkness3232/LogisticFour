@@ -111,6 +111,11 @@ urlpatterns = [
     path("set-currency/", set_currency, name="set_currency"),
 
 
+    # Rutas para crear documentos de finanzas
+    path('finanzas/crear/orden-compra/', views.crear_orden_compra, name='crear_orden_compra'),
+    path('finanzas/crear/factura-proveedor/', views.crear_factura_proveedor, name='crear_factura_proveedor'),
+    path('finanzas/crear/recepcion/', views.crear_recepcion, name='crear_recepcion'),
+
 
 
 
