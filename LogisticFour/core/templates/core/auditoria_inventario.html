@@ -259,7 +259,7 @@
             <td class="sub">
               {% if m.ubicacion_bodega_desde %}B:{{ m.ubicacion_bodega_desde.codigo }} {% endif %}
               {% if m.ubicacion_sucursal_desde %}S:{{ m.ubicacion_sucursal_desde.codigo }} {% endif %}
-              →
+              → 
               {% if m.ubicacion_bodega_hasta %}B:{{ m.ubicacion_bodega_hasta.codigo }} {% endif %}
               {% if m.ubicacion_sucursal_hasta %}S:{{ m.ubicacion_sucursal_hasta.codigo }} {% endif %}
             </td>
@@ -277,6 +277,31 @@
         {% endfor %}
         </tbody>
       </table>
+
+      <!-- Paginación de Movimientos -->
+      <div class="pagination-container">
+        <div class="d-flex justify-content-between align-items-center mt-3">
+          <div class="btn-group" role="group">
+            {% if movimientos.has_previous %}
+              <a class="btn btn-outline-secondary btn-sm" href="?page={{ movimientos.previous_page_number }}&desde={{ desde|date:'Y-m-d' }}&hasta={{ hasta|date:'Y-m-d' }}&producto_id={{ producto_id }}#tab-movs">
+                Anterior
+              </a>
+            {% else %}
+              <button class="btn btn-outline-secondary btn-sm" disabled>Anterior</button>
+            {% endif %}
+            {% if movimientos.has_next %}
+              <a class="btn btn-outline-secondary btn-sm" href="?page={{ movimientos.next_page_number }}&desde={{ desde|date:'Y-m-d' }}&hasta={{ hasta|date:'Y-m-d' }}&producto_id={{ producto_id }}#tab-movs">
+                Siguiente
+              </a>
+            {% else %}
+              <button class="btn btn-outline-secondary btn-sm" disabled>Siguiente</button>
+            {% endif %}
+          </div>
+          <span class="text-muted">
+            Página {{ movimientos.number }} de {{ movimientos.paginator.num_pages }}
+          </span>
+        </div>
+      </div>
     </div>
 
     <!-- AJUSTES -->
@@ -301,6 +326,7 @@
             </tbody>
           </table>
         </div>
+
         <div>
           <h4 style="margin:0 0 8px">Líneas de Ajuste</h4>
           <table class="table">
@@ -332,6 +358,31 @@
           </table>
         </div>
       </div>
+
+      <!-- Paginación de Ajustes -->
+      <div class="pagination-container">
+        <div class="d-flex justify-content-between align-items-center mt-3">
+          <div class="btn-group" role="group">
+            {% if ajustes.has_previous %}
+              <a class="btn btn-outline-secondary btn-sm" href="?page={{ ajustes.previous_page_number }}&desde={{ desde|date:'Y-m-d' }}&hasta={{ hasta|date:'Y-m-d' }}&producto_id={{ producto_id }}#tab-ajustes">
+                Anterior
+              </a>
+            {% else %}
+              <button class="btn btn-outline-secondary btn-sm" disabled>Anterior</button>
+            {% endif %}
+            {% if ajustes.has_next %}
+              <a class="btn btn-outline-secondary btn-sm" href="?page={{ ajustes.next_page_number }}&desde={{ desde|date:'Y-m-d' }}&hasta={{ hasta|date:'Y-m-d' }}&producto_id={{ producto_id }}#tab-ajustes">
+                Siguiente
+              </a>
+            {% else %}
+              <button class="btn btn-outline-secondary btn-sm" disabled>Siguiente</button>
+            {% endif %}
+          </div>
+          <span class="text-muted">
+            Página {{ ajustes.number }} de {{ ajustes.paginator.num_pages }}
+          </span>
+        </div>
+      </div>
     </div>
 
     <!-- RECUENTOS -->
@@ -356,6 +407,7 @@
             </tbody>
           </table>
         </div>
+
         <div>
           <h4 style="margin:0 0 8px">Líneas de Recuento</h4>
           <table class="table">
@@ -384,6 +436,31 @@
               {% endfor %}
             </tbody>
           </table>
+        </div>
+      </div>
+
+      <!-- Paginación de Recuentos -->
+      <div class="pagination-container">
+        <div class="d-flex justify-content-between align-items-center mt-3">
+          <div class="btn-group" role="group">
+            {% if lineas_recuento.has_previous %}
+              <a class="btn btn-outline-secondary btn-sm" href="?page={{ lineas_recuento.previous_page_number }}&desde={{ desde|date:'Y-m-d' }}&hasta={{ hasta|date:'Y-m-d' }}&producto_id={{ producto_id }}#tab-recuentos">
+                Anterior
+              </a>
+            {% else %}
+              <button class="btn btn-outline-secondary btn-sm" disabled>Anterior</button>
+            {% endif %}
+            {% if lineas_recuento.has_next %}
+              <a class="btn btn-outline-secondary btn-sm" href="?page={{ lineas_recuento.next_page_number }}&desde={{ desde|date:'Y-m-d' }}&hasta={{ hasta|date:'Y-m-d' }}&producto_id={{ producto_id }}#tab-recuentos">
+                Siguiente
+              </a>
+            {% else %}
+              <button class="btn btn-outline-secondary btn-sm" disabled>Siguiente</button>
+            {% endif %}
+          </div>
+          <span class="text-muted">
+            Página {{ lineas_recuento.number }} de {{ lineas_recuento.paginator.num_pages }}
+          </span>
         </div>
       </div>
     </div>

@@ -3906,6 +3906,7 @@ def rellenar_tablas_por_movimiento(sender, instance: MovimientoStock, created, *
         # TRANSFERENCIA / ENTRADA / SALIDA → no-ops aquí (solo guardamos el kárdex en tus vistas).
         return
     
+
 @login_required
 def auditoria_inventario(request):
     """
@@ -3931,8 +3932,11 @@ def auditoria_inventario(request):
         hasta = hoy
 
     prod_filter = Q()
-    if producto_id:
-        prod_filter = Q(producto_id=producto_id)
+    if producto_id and producto_id != 'None':  # Verificar que producto_id no sea 'None'
+        try:
+            prod_filter = Q(producto_id=int(producto_id))
+        except ValueError:
+            prod_filter = Q()  # Si el valor no es un número válido, no agregar filtro
 
     # MOVS (solo por fecha, ignorando hora)
     movimientos = (
@@ -3976,6 +3980,27 @@ def auditoria_inventario(request):
         .order_by("-recuento__creado_en")[:1000]
     )
 
+    # Paginación para 'movimientos'
+    movimientos_paginator = Paginator(movimientos, 15)
+    page_number = request.GET.get('page')
+    movimientos_page = movimientos_paginator.get_page(page_number)
+
+    # Paginación para 'ajustes'
+    ajustes_paginator = Paginator(ajustes, 15)
+    ajustes_page = ajustes_paginator.get_page(page_number)
+
+    # Paginación para 'lineas_ajuste'
+    lineas_ajuste_paginator = Paginator(lineas_ajuste, 15)
+    lineas_ajuste_page = lineas_ajuste_paginator.get_page(page_number)
+
+    # Paginación para 'recuentos'
+    recuentos_paginator = Paginator(recuentos, 15)
+    recuentos_page = recuentos_paginator.get_page(page_number)
+
+    # Paginación para 'lineas_recuento'
+    lineas_recuento_paginator = Paginator(lineas_recuento, 15)
+    lineas_recuento_page = lineas_recuento_paginator.get_page(page_number)
+
     # RESERVAS
     reservas = (
         Reserva.objects
@@ -3990,16 +4015,21 @@ def auditoria_inventario(request):
     ctx = {
         "desde": desde,
         "hasta": hasta,
-        "movimientos": movimientos,
-        "ajustes": ajustes,
-        "lineas_ajuste": lineas_ajuste,
-        "recuentos": recuentos,
-        "lineas_recuento": lineas_recuento,
+        "movimientos": movimientos_page,
+        "ajustes": ajustes_page,
+        "lineas_ajuste": lineas_ajuste_page,
+        "recuentos": recuentos_page,
+        "lineas_recuento": lineas_recuento_page,
         "reservas": reservas,
         "productos": productos,
-        "producto_id": int(producto_id) if producto_id else None,
+        "producto_id": int(producto_id) if producto_id and producto_id != 'None' else None,
     }
     return render(request, "core/auditoria_inventario.html", ctx)
+
+
+
+
+
 
 def _bodega_from_stock(stock: Stock):
     """
@@ -4074,6 +4104,9 @@ def _crear_recuento_auto(sender, instance: Stock, created, **kwargs):
         cantidad_contada=actual,
         diferencia=diff,
     )
+
+
+
 
 # --- Finanzas: Vistas de reporte ---
 
@@ -4697,21 +4730,22 @@ def guia_transferencia_detalle(request, pk):
 
 
 
+from django.core.paginator import Paginator
+from django.core.paginator import Paginator, EmptyPage, PageNotAnInteger
+from django.shortcuts import render, redirect, get_object_or_404
+from django.db.models import Q
+from .models import Transferencia  
+
+
+
 @login_required
 def resumen_guias_despacho(request):
     """
     Listado de guías de despacho / transferencias,
     con filtro por tipo de movimiento.
-
-      - TODOS   : todas
-      - BOD_BOD : Bodega → Bodega
-      - BOD_SUC : Bodega → Sucursal
-      - SUC_BOD : Sucursal → Bodega
-      - SUC_SUC : Sucursal ↔ Sucursal
     """
     tipo_raw = (request.GET.get("tipo", "") or "").strip()
 
-    # Normalizamos el parámetro y damos compatibilidad con valores antiguos
     if tipo_raw == "":
         tipo = "TODOS"
     elif tipo_raw == "bod_bod":
@@ -4738,30 +4772,36 @@ def resumen_guias_despacho(request):
         .order_by("-creado_en")
     )
 
-    # === Filtros por tipo usando tipo_movimiento ===
+    # Filtrar según tipo de movimiento
     if tipo == "TODOS":
         transferencias = base_qs
-
     elif tipo == "BOD_BOD":
         transferencias = base_qs.filter(tipo_movimiento="BOD_BOD")
-
     elif tipo == "BOD_SUC":
         transferencias = base_qs.filter(tipo_movimiento="BOD_SUC")
-
     elif tipo == "SUC_BOD":
         transferencias = base_qs.filter(tipo_movimiento="SUC_BOD")
-
     elif tipo == "SUC_SUC":
         transferencias = base_qs.filter(tipo_movimiento="SUC_SUC")
-
     else:
-        # Si llega un tipo raro, mostramos todo para no romper la vista
         transferencias = base_qs
 
+    # Paginación: 20 transferencias por página
+    paginator = Paginator(transferencias, 13)  # 20 por página
+    page_number = request.GET.get("page", 1)
+
+    try:
+        page_obj = paginator.page(page_number)
+    except PageNotAnInteger:
+        page_obj = paginator.page(1)
+    except EmptyPage:
+        page_obj = paginator.page(paginator.num_pages)
+
     context = {
-        "transferencias": transferencias,
-        "tipo_sel": tipo,
+        'transferencias': page_obj,
+        'tipo_sel': tipo,
     }
+<<<<<<< HEAD
     return render(request, "core/Guias/resumen_guias.html", context)
 
 @login_required
@@ -4831,3 +4871,7 @@ def crear_producto(request):
         form = ProductoForm()
 
     return render(request, "core/crear_producto.html", {"form": form})
+=======
+
+    return render(request, "core/Guias/resumen_guias.html", context)
+>>>>>>> 10f4d7c0c3093e9a0111af154318722c66a01fd7
