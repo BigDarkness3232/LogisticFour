@@ -1,6 +1,6 @@
 {% extends "core/base.html" %}
 
-{% block content %}
+
 <style>
   :root{
     --fin-ink:#0f172a;
@@ -154,52 +154,57 @@
   }
 </style>
 
+{% block content %}
 <div class="container mt-4 finanzas-wrap">
 
   <div class="finanzas-card">
     <div class="finanzas-header">
       <h2>Finanzas</h2>
+      <div class="d-flex gap-2">
+        <a class="btn btn-sm btn-primary" href="{% url 'crear_orden_compra' %}">Crear Orden de Compra</a>
+        <a class="btn btn-sm btn-primary" href="{% url 'crear_factura_proveedor' %}">Crear Factura de Proveedor</a>
+        <a class="btn btn-sm btn-primary" href="{% url 'crear_recepcion' %}">Crear Recepción</a>
+      </div>
     </div>
 
-    <form method="get" class="finanzas-filters">
+    <form method="get" class="row g-3 mb-3">
 
-      <div class="fin-field">
-        <span class="fin-label">{{ form.bodega.label }}</span>
+      <div class="col-md-3">
+        <label class="fin-label">{{ form.bodega.label }}</label>
         <div class="fin-control fin-select">
           {{ form.bodega }}
         </div>
       </div>
 
-      <div class="fin-field">
-        <span class="fin-label">{{ form.proveedor.label }}</span>
+      <div class="col-md-3">
+        <label class="fin-label">{{ form.proveedor.label }}</label>
         <div class="fin-control fin-select">
           {{ form.proveedor }}
         </div>
       </div>
 
-      <div class="fin-field">
-        <span class="fin-label">{{ form.fecha_desde.label }}</span>
+      <div class="col-md-2">
+        <label class="fin-label">{{ form.fecha_desde.label }}</label>
         <div class="fin-control fin-date">
           {{ form.fecha_desde }}
         </div>
       </div>
 
-      <div class="fin-field">
-        <span class="fin-label">{{ form.fecha_hasta.label }}</span>
+      <div class="col-md-2">
+        <label class="fin-label">{{ form.fecha_hasta.label }}</label>
         <div class="fin-control fin-date">
           {{ form.fecha_hasta }}
         </div>
       </div>
 
-      <div class="fin-field" style="min-width:120px">
-        <span class="fin-label">&nbsp;</span>
-        <button class="btn-filter btn-filter-primary" type="submit">Ver</button>
+      <div class="col-md-2 d-flex align-items-end">
+        <button class="btn btn-primary w-100" type="submit">Ver</button>
       </div>
 
     </form>
   </div>
 
-  {% if has_filters == False %}
+  {% if not has_filters %}
     <div class="alert alert-info">
       Selecciona al menos un criterio (Bodega, Proveedor o Fechas) y presiona “Ver”.
     </div>
@@ -252,91 +257,101 @@
         </div></div>
       </div>
     </div>
+    
+    <h4 class="finanzas-section-title">Órdenes de compra</h4>
+    <table class="table table-sm table-striped table-finanzas">
+      <thead>
+        <tr>
+          <th>OC</th><th>Proveedor</th><th>Bodega</th><th>Estado</th><th>Fecha esperada</th><th>Creada</th>
+        </tr>
+      </thead>
+      <tbody>
+      {% for oc in ordenes %}
+        <tr>
+          <td>{{ oc.numero_orden }}</td>
+          <td>{{ oc.proveedor.get_full_name|default:oc.proveedor.username }}</td>
+          <td>{{ oc.bodega.codigo }} - {{ oc.bodega.nombre }}</td>
+          <td>{{ oc.estado }}</td>
+          <td>{{ oc.fecha_esperada|date:"Y-m-d" }}</td>
+          <td>{{ oc.creado_en|date:"Y-m-d H:i" }}</td>
+        </tr>
+      {% empty %}
+        <tr><td colspan="6">Sin datos.</td></tr>
+      {% endfor %}
+      </tbody>
+    </table>
+
+    <h4>Facturas proveedor</h4>
+    <table class="table table-sm table-striped table-finanzas">
+      <thead>
+        <tr>
+          <th>N°</th><th>Proveedor</th><th>Monto</th><th>Fecha</th><th>Estado</th>
+        </tr>
+      </thead>
+      <tbody>
+      {% for f in facturas %}
+        <tr>
+          <td>{{ f.numero_factura }}</td>
+          <td>{{ f.proveedor.get_full_name|default:f.proveedor.username }}</td>
+          <td>{{ f.monto_total }}</td>
+          <td>{{ f.fecha_factura|date:"Y-m-d" }}</td>
+          <td>{{ f.estado }}</td>
+        </tr>
+      {% empty %}
+        <tr><td colspan="5">Sin datos.</td></tr>
+      {% endfor %}
+      </tbody>
+    </table>
+
+    <h4>Recepciones</h4>
+    <table class="table table-sm table-striped table-finanzas">
+      <thead>
+        <tr>
+          <th>N°</th><th>Bodega</th><th>Estado</th><th>Recibido en</th>
+        </tr>
+      </thead>
+      <tbody>
+      {% for r in recepciones %}
+        <tr>
+          <td>{{ r.numero_recepcion }}</td>
+          <td>{{ r.bodega.codigo }} - {{ r.bodega.nombre }}</td>
+          <td>{{ r.estado }}</td>
+          <td>{{ r.recibido_en|date:"Y-m-d H:i" }}</td>
+        </tr>
+      {% empty %}
+        <tr><td colspan="4">Sin datos.</td></tr>
+      {% endfor %}
+      </tbody>
+    </table>
+
+    <h4>Productos (según filtros)</h4>
+    <table class="table table-sm table-striped table-finanzas">
+      <thead>
+        <tr>
+          <th>SKU</th><th>Nombre</th><th class="text-end">Stock</th>
+        </tr>
+      </thead>
+      <tbody>
+      {% for p in productos %}
+        <tr>
+          <td>{{ p.sku }}</td>
+          <td>{{ p.nombre }}</td>
+          <td class="text-end">{{ p.stock_filtrado|default:0|floatformat:0 }}</td>
+        </tr>
+      {% empty %}
+        <tr><td colspan="3">Sin datos.</td></tr>
+      {% endfor %}
+      </tbody>
+      {% if productos %}
+      <tfoot>
+        <tr>
+          <th></th>
+          <th class="text-end">Total</th>
+          <th class="text-end">{{ resumen.stock_total|floatformat:0 }}</th>
+        </tr>
+      </tfoot>
+      {% endif %}
+    </table>
   {% endif %}
-
-  <h4 class="finanzas-section-title">Órdenes de compra</h4>
-  <table class="table table-sm table-striped table-finanzas">
-    <thead><tr>
-      <th>OC</th><th>Proveedor</th><th>Bodega</th><th>Estado</th><th>Fecha esperada</th><th>Creada</th>
-    </tr></thead>
-    <tbody>
-    {% for oc in ordenes %}
-      <tr>
-        <td>{{ oc.numero_orden }}</td>
-        <td>{{ oc.proveedor.get_full_name|default:oc.proveedor.username }}</td>
-        <td>{{ oc.bodega.codigo }} - {{ oc.bodega.nombre }}</td>
-        <td>{{ oc.estado }}</td>
-        <td>{{ oc.fecha_esperada|date:"Y-m-d" }}</td>
-        <td>{{ oc.creado_en|date:"Y-m-d H:i" }}</td>
-      </tr>
-    {% empty %}
-      <tr><td colspan="6">Sin datos.</td></tr>
-    {% endfor %}
-    </tbody>
-  </table>
-
-  <h4>Facturas proveedor</h4>
-  <table class="table table-sm table-striped table-finanzas">
-    <thead><tr>
-      <th>N°</th><th>Proveedor</th><th>Monto</th><th>Fecha</th><th>Estado</th>
-    </tr></thead>
-    <tbody>
-    {% for f in facturas %}
-      <tr>
-        <td>{{ f.numero_factura }}</td>
-        <td>{{ f.proveedor.get_full_name|default:f.proveedor.username }}</td>
-        <td>{{ f.monto_total }}</td>
-        <td>{{ f.fecha_factura|date:"Y-m-d" }}</td>
-        <td>{{ f.estado }}</td>
-      </tr>
-    {% empty %}
-      <tr><td colspan="5">Sin datos.</td></tr>
-    {% endfor %}
-    </tbody>
-  </table>
-
-  <h4>Recepciones</h4>
-  <table class="table table-sm table-striped table-finanzas">
-    <thead><tr>
-      <th>N°</th><th>Bodega</th><th>Estado</th><th>Recibido en</th>
-    </tr></thead>
-    <tbody>
-    {% for r in recepciones %}
-      <tr>
-        <td>{{ r.numero_recepcion }}</td>
-        <td>{{ r.bodega.codigo }} - {{ r.bodega.nombre }}</td>
-        <td>{{ r.estado }}</td>
-        <td>{{ r.recibido_en|date:"Y-m-d H:i" }}</td>
-      </tr>
-    {% empty %}
-      <tr><td colspan="4">Sin datos.</td></tr>
-    {% endfor %}
-    </tbody>
-  </table>
-
-  <h4>Productos (según filtros)</h4>
-  <table class="table table-sm table-striped table-finanzas">
-    <thead><tr><th>SKU</th><th>Nombre</th><th class="text-end">Stock</th></tr></thead>
-    <tbody>
-    {% for p in productos %}
-      <tr>
-        <td>{{ p.sku }}</td>
-        <td>{{ p.nombre }}</td>
-        <td class="text-end">{{ p.stock_filtrado|default:0|floatformat:0 }}</td>
-      </tr>
-    {% empty %}
-      <tr><td colspan="3">Sin datos.</td></tr>
-    {% endfor %}
-    </tbody>
-    {% if productos %}
-    <tfoot>
-      <tr>
-        <th></th>
-        <th class="text-end">Total</th>
-        <th class="text-end">{{ resumen.stock_total|floatformat:0 }}</th>
-      </tr>
-    </tfoot>
-    {% endif %}
-  </table>
 </div>
 {% endblock %}

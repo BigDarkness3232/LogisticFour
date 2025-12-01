@@ -153,19 +153,23 @@
     transform: translateY(0);
   }
 
-  .mv-btn-alt {
-    background: #fff;
-    color: var(--accent);
-    border: 1px solid #d1d5db;
-    box-shadow: none;
-    padding-inline: 12px;
+  /* === BOTÓN GHOST IGUAL AL DE "SUCURSAL → SUCURSAL" === */
+  .mv-btn-ghost {
+    background: #ffffff;
+    border-radius: 999px;
+    border: 1px solid rgba(22,163,74,.4);
+    padding: 6px 14px;
     font-size: .82rem;
+    font-weight: 600;
+    color: var(--success-ink);
+    display: inline-flex;
+    align-items: center;
+    gap: .4rem;
+    text-decoration: none;
   }
 
-  .mv-btn-alt:hover {
-    background: #f9fafb;
-    color: #000;
-    box-shadow: 0 4px 14px rgba(15,23,42,.08);
+  .mv-btn-ghost:hover {
+    background: #f0fdf4;
   }
 
   .mv-messages {
@@ -391,10 +395,11 @@
                 <span class="msg-icon">✓</span>
                 <div>
                   <div>{{ success }}</div>
+
                   {% if transferencia_id %}
                     <div style="margin-top:6px;">
                       <a href="{% url 'detalle_transferencia' transferencia_id %}"
-                         class="mv-btn mv-btn-alt">
+                         class="mv-btn-ghost">
                         Ver guía de despacho
                       </a>
                     </div>

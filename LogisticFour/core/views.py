@@ -10,7 +10,7 @@ from decimal import Decimal
 from django.db import transaction
 from django.db.models import Sum, Value, DecimalField
 from django.db.models.functions import Coalesce
-
+from .forms import OrdenCompraForm, FacturaProveedorForm, RecepcionMercaderiaForm, ProductoForm
 import requests
 from django.http import JsonResponse
 from django.views.decorators.http import require_GET
@@ -27,7 +27,7 @@ from django.db.models.signals import pre_save, post_save
 from django.dispatch import receiver
 from django.utils import timezone
 # core/views.py  (arriba con el resto de imports)
-from django.shortcuts import render
+from django.shortcuts import render, redirect
 
 # =============================================
 #  LIBRERÍAS DE DJANGO
@@ -67,7 +67,6 @@ from django.views.generic import (
 from core.forms import *
 from core.forms import SignupUserForm, UsuarioPerfilForm
 from core.models import *
-from core.models import Producto, UsuarioPerfil
 from core.utils import ensure_ubicacion_sucursal, qr_url, barcode_url
 from django.db import models as djmodels
 
@@ -3929,6 +3928,7 @@ def rellenar_tablas_por_movimiento(sender, instance: MovimientoStock, created, *
         # TRANSFERENCIA / ENTRADA / SALIDA → no-ops aquí (solo guardamos el kárdex en tus vistas).
         return
     
+
 @login_required
 def auditoria_inventario(request):
     """
@@ -3954,8 +3954,11 @@ def auditoria_inventario(request):
         hasta = hoy
 
     prod_filter = Q()
-    if producto_id:
-        prod_filter = Q(producto_id=producto_id)
+    if producto_id and producto_id != 'None':  # Verificar que producto_id no sea 'None'
+        try:
+            prod_filter = Q(producto_id=int(producto_id))
+        except ValueError:
+            prod_filter = Q()  # Si el valor no es un número válido, no agregar filtro
 
     # MOVS (solo por fecha, ignorando hora)
     movimientos = (
@@ -3999,6 +4002,27 @@ def auditoria_inventario(request):
         .order_by("-recuento__creado_en")[:1000]
     )
 
+    # Paginación para 'movimientos'
+    movimientos_paginator = Paginator(movimientos, 15)
+    page_number = request.GET.get('page')
+    movimientos_page = movimientos_paginator.get_page(page_number)
+
+    # Paginación para 'ajustes'
+    ajustes_paginator = Paginator(ajustes, 15)
+    ajustes_page = ajustes_paginator.get_page(page_number)
+
+    # Paginación para 'lineas_ajuste'
+    lineas_ajuste_paginator = Paginator(lineas_ajuste, 15)
+    lineas_ajuste_page = lineas_ajuste_paginator.get_page(page_number)
+
+    # Paginación para 'recuentos'
+    recuentos_paginator = Paginator(recuentos, 15)
+    recuentos_page = recuentos_paginator.get_page(page_number)
+
+    # Paginación para 'lineas_recuento'
+    lineas_recuento_paginator = Paginator(lineas_recuento, 15)
+    lineas_recuento_page = lineas_recuento_paginator.get_page(page_number)
+
     # RESERVAS
     reservas = (
         Reserva.objects
@@ -4013,16 +4037,21 @@ def auditoria_inventario(request):
     ctx = {
         "desde": desde,
         "hasta": hasta,
-        "movimientos": movimientos,
-        "ajustes": ajustes,
-        "lineas_ajuste": lineas_ajuste,
-        "recuentos": recuentos,
-        "lineas_recuento": lineas_recuento,
+        "movimientos": movimientos_page,
+        "ajustes": ajustes_page,
+        "lineas_ajuste": lineas_ajuste_page,
+        "recuentos": recuentos_page,
+        "lineas_recuento": lineas_recuento_page,
         "reservas": reservas,
         "productos": productos,
-        "producto_id": int(producto_id) if producto_id else None,
+        "producto_id": int(producto_id) if producto_id and producto_id != 'None' else None,
     }
     return render(request, "core/auditoria_inventario.html", ctx)
+
+
+
+
+
 
 def _bodega_from_stock(stock: Stock):
     """
@@ -4097,6 +4126,9 @@ def _crear_recuento_auto(sender, instance: Stock, created, **kwargs):
         cantidad_contada=actual,
         diferencia=diff,
     )
+
+
+
 
 # --- Finanzas: Vistas de reporte ---
 
@@ -4243,13 +4275,13 @@ def _build_finanzas_querysets(cleaned):
 def finanzas_reporte(request):
     form = FinanzasReporteForm(request.GET or None)
 
-    # poblar combos (por si el form se instanció sin queryset)
+    # poblar los combos
     form.fields["bodega"].queryset = Bodega.objects.all().order_by("codigo")
     form.fields["proveedor"].queryset = User.objects.filter(
         perfil__rol=UsuarioPerfil.Rol.PROVEEDOR, is_active=True
     ).order_by("username")
 
-    # ¿se aplicaron filtros?
+    # detectar si hay filtros aplicados
     has_filters = any([
         request.GET.get("bodega"),
         request.GET.get("proveedor"),
@@ -4257,37 +4289,31 @@ def finanzas_reporte(request):
         request.GET.get("fecha_hasta"),
     ])
 
+    # si no hay filtros, no mostramos resultados
     if not has_filters:
         return render(request, "core/finanzas_reporte.html", {
             "form": form,
-            "ordenes": OrdenCompra.objects.none(),
-            "recepciones": RecepcionMercaderia.objects.none(),
-            "facturas": FacturaProveedor.objects.none(),
-            "productos": Producto.objects.none(),
+            "ordenes": [],
+            "recepciones": [],
+            "facturas": [],
+            "productos": [],
             "has_filters": False,
             "resumen": {},
         })
 
-    if not form.is_valid():
-        # mostrar vacío si los filtros no son válidos
-        return render(request, "core/finanzas_reporte.html", {
-            "form": form,
-            "ordenes": OrdenCompra.objects.none(),
-            "recepciones": RecepcionMercaderia.objects.none(),
-            "facturas": FacturaProveedor.objects.none(),
-            "productos": Producto.objects.none(),
-            "has_filters": True,
-            "resumen": {},
-        })
+    # si hay filtros, aplicamos búsqueda
+    if form.is_valid():
+        ordenes, recepciones, facturas, productos, resumen = _build_finanzas_querysets(form.cleaned_data)
+    else:
+        ordenes, recepciones, facturas, productos, resumen = [], [], [], [], {}
 
-    ordenes, recepciones, facturas, productos, resumen = _build_finanzas_querysets(form.cleaned_data)
     return render(request, "core/finanzas_reporte.html", {
         "form": form,
         "ordenes": ordenes,
         "recepciones": recepciones,
         "facturas": facturas,
         "productos": productos,
-        "has_filters": True,
+        "has_filters": has_filters,
         "resumen": resumen,
     })
 
@@ -4726,21 +4752,22 @@ def guia_transferencia_detalle(request, pk):
 
 
 
+from django.core.paginator import Paginator
+from django.core.paginator import Paginator, EmptyPage, PageNotAnInteger
+from django.shortcuts import render, redirect, get_object_or_404
+from django.db.models import Q
+from .models import Transferencia  
+
+
+
 @login_required
 def resumen_guias_despacho(request):
     """
     Listado de guías de despacho / transferencias,
     con filtro por tipo de movimiento.
-
-      - TODOS   : todas
-      - BOD_BOD : Bodega → Bodega
-      - BOD_SUC : Bodega → Sucursal
-      - SUC_BOD : Sucursal → Bodega
-      - SUC_SUC : Sucursal ↔ Sucursal
     """
     tipo_raw = (request.GET.get("tipo", "") or "").strip()
 
-    # Normalizamos el parámetro y damos compatibilidad con valores antiguos
     if tipo_raw == "":
         tipo = "TODOS"
     elif tipo_raw == "bod_bod":
@@ -4767,117 +4794,106 @@ def resumen_guias_despacho(request):
         .order_by("-creado_en")
     )
 
-    # === Filtros por tipo usando tipo_movimiento ===
+    # Filtrar según tipo de movimiento
     if tipo == "TODOS":
         transferencias = base_qs
-
     elif tipo == "BOD_BOD":
         transferencias = base_qs.filter(tipo_movimiento="BOD_BOD")
-
     elif tipo == "BOD_SUC":
         transferencias = base_qs.filter(tipo_movimiento="BOD_SUC")
-
     elif tipo == "SUC_BOD":
         transferencias = base_qs.filter(tipo_movimiento="SUC_BOD")
-
     elif tipo == "SUC_SUC":
         transferencias = base_qs.filter(tipo_movimiento="SUC_SUC")
-
     else:
-        # Si llega un tipo raro, mostramos todo para no romper la vista
         transferencias = base_qs
 
+    # Paginación: 20 transferencias por página
+    paginator = Paginator(transferencias, 13)  # 20 por página
+    page_number = request.GET.get("page", 1)
+
+    try:
+        page_obj = paginator.page(page_number)
+    except PageNotAnInteger:
+        page_obj = paginator.page(1)
+    except EmptyPage:
+        page_obj = paginator.page(paginator.num_pages)
+
     context = {
-        "transferencias": transferencias,
-        "tipo_sel": tipo,
+        'transferencias': page_obj,
+        'tipo_sel': tipo,
     }
+<<<<<<< HEAD
     return render(request, "core/Guias/resumen_guias.html", context)
 
+@login_required
+@user_passes_test(_is_auditor)
+def crear_orden_compra(request):
+    """
+    Crea una nueva Orden de Compra usando OrdenCompraForm.
+    Si el formulario es válido hace form.save() y redirige.
+    Si NO es válido, vuelve a mostrar el formulario con errores.
+    """
+    if request.method == "POST":
+        form = OrdenCompraForm(request.POST)
+        if form.is_valid():
+            oc = form.save()
+            messages.success(
+                request,
+                f"Orden de compra {oc.numero_orden} creada correctamente."
+            )
+            # Puedes cambiar 'finanzas_reporte' por donde quieras volver
+            return redirect("finanzas_reporte")
+        else:
+            # Para depurar: puedes ver en consola qué falló
+            print("❌ OrdenCompraForm errors:", form.errors)
+    else:
+        form = OrdenCompraForm()
 
-
-
+    return render(request, "core/orden_compra_form.html", {"form": form})
 
 @login_required
-def base_panel_control(request):
-    # Obtener sucursales y bodegas
-    sucursales = Sucursal.objects.filter(activo=True)
-    bodegas = Bodega.objects.all()
-
-    # Obtener productos con stock bajo
-    stock_bajo = Stock.objects.filter(cantidad_disponible__lt=10)
-    alertas_stock = stock_bajo.count()  # Número de productos con stock bajo
-
-    # Sumar cantidades de productos por sucursal y bodega
-    sucursales_activas = sucursales.count()
-    bodegas_totales = bodegas.count()
-
-    # Pasa estos datos al template
-    context = {
-        'sucursales': sucursales,
-        'bodegas': bodegas,
-        'alertas_stock': alertas_stock,
-        'sucursales_activas': sucursales_activas,
-        'bodegas_totales': bodegas_totales,
-    }
-
-    return render(request, 'core/base_panel_control.html', context)
-
-
-
-
-
-
-
-
-
-
-
-
-
-# views.py
-from django.shortcuts import render, redirect
-from .forms import MarcaForm, UnidadMedidaForm, TasaImpuestoForm, CategoriaProductoForm
-
-def centro_catalogo(request):
-
-    marca_form = MarcaForm(prefix="marca")
-    unidad_form = UnidadMedidaForm(prefix="unidad")
-    tasa_form = TasaImpuestoForm(prefix="tasa")
-    categoria_form = CategoriaProductoForm(prefix="categoria")
-
+@user_passes_test(_is_auditor)
+def crear_factura_proveedor(request):
     if request.method == "POST":
+        form = FacturaProveedorForm(request.POST)
+        if form.is_valid():
+            form.save()
+            return redirect('finanzas_reporte')  # Redirigir a la página de reporte
+    else:
+        form = FacturaProveedorForm()
 
-        # Marca
-        if "submit_marca" in request.POST:
-            marca_form = MarcaForm(request.POST, prefix="marca")
-            if marca_form.is_valid():
-                marca_form.save()
-                return redirect("centro-catalogo")
+    return render(request, "core/crear_factura_proveedor.html", {"form": form})
 
-        # Unidad
-        if "submit_unidad" in request.POST:
-            unidad_form = UnidadMedidaForm(request.POST, prefix="unidad")
-            if unidad_form.is_valid():
-                unidad_form.save()
-                return redirect("centro-catalogo")
+@login_required
+@transaction.atomic
+def crear_recepcion(request):
+    if request.method == "POST":
+        form = RecepcionMercaderiaForm(request.POST)
+        if form.is_valid():
+            recepcion = form.save(commit=False)
+            # No establezcas manualmente 'recibido_en' si no es editable
+            recepcion.save()
+            messages.success(request, "Recepción creada correctamente.")
+            return redirect('finanzas_reporte')  # O la URL que desees
+    else:
+        form = RecepcionMercaderiaForm()
 
-        # Tasa
-        if "submit_tasa" in request.POST:
-            tasa_form = TasaImpuestoForm(request.POST, prefix="tasa")
-            if tasa_form.is_valid():
-                tasa_form.save()
-                return redirect("centro-catalogo")
+    return render(request, "core/crear_recepcion.html", {"form": form})
 
-        # Categoría
-        if "submit_categoria" in request.POST:
-            categoria_form = CategoriaProductoForm(request.POST, prefix="categoria")
-            if categoria_form.is_valid():
-                categoria_form.save()
-                return redirect("centro-catalogo")
+@login_required
+@user_passes_test(_is_auditor)
+def crear_producto(request):
+    if request.method == "POST":
+        form = ProductoForm(request.POST)
+        if form.is_valid():
+            form.save()
+            return redirect('finanzas_reporte')  # Redirigir a la página de reporte
+    else:
+        form = ProductoForm()
 
-    return render(request, "core/centro_catalogo.html", {
-        "marca_form": marca_form,
-        "unidad_form": unidad_form,
-        "tasa_form": tasa_form,
-        "categoria_form": categoria_form,
-    })
+    return render(request, "core/crear_producto.html", {"form": form})
+=======
+
+    return render(request, "core/Guias/resumen_guias.html", context)
+>>>>>>> 10f4d7c0c3093e9a0111af154318722c66a01fd7

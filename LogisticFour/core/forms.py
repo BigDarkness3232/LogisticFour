@@ -3,7 +3,7 @@ from django import forms
 from django.contrib.auth.forms import UserCreationForm
 from django.contrib.auth.models import User
 from django.core.exceptions import ValidationError
-from core.models import Bodega, UsuarioPerfil
+from core.models import Bodega, UsuarioPerfil, OrdenCompra, FacturaProveedor, RecepcionMercaderia, Producto
 from django.db.models import Q
 from core.models import (
     # usuarios
@@ -77,7 +77,7 @@ class ProductoForm(forms.ModelForm):
     class Meta:
         model = Producto
         fields = [
-            "sku", "nombre",
+            "sku", "nombre", "descripcion",
             "marca", "categoria",
             "unidad_base", "tasa_impuesto",
             "activo", "es_serializado", "tiene_vencimiento",
@@ -533,3 +533,79 @@ class SerieProductoForm(forms.ModelForm):
             self.add_error("lote", "El lote seleccionado no pertenece a este producto.")
         return cd
 
+# =========================================================
+
+class OrdenCompraForm(forms.ModelForm):
+    fecha_esperada = forms.DateField(
+        required=False,
+        widget=forms.DateInput(attrs={"type": "date"}),
+        label="Fecha esperada"
+    )
+
+    class Meta:
+        model = OrdenCompra
+        fields = ['numero_orden', 'proveedor', 'bodega', 'estado', 'fecha_esperada']
+
+class FacturaProveedorForm(forms.ModelForm):
+    class Meta:
+        model = FacturaProveedor
+        fields = ["numero_factura", "proveedor", "monto_total", "fecha_factura", "estado"]
+        widgets = {
+            # 🔹 HTML5 datepicker
+            "fecha_factura": forms.DateInput(
+                attrs={
+                    "type": "date",
+                    "class": "form-control",
+                }
+            ),
+            # 🔹 Select para el estado (ya con choices del modelo)
+            "estado": forms.Select(
+                attrs={
+                    "class": "form-select",
+                }
+            ),
+            # opcional, por prolijidad visual:
+            "numero_factura": forms.TextInput(attrs={"class": "form-control"}),
+            "proveedor": forms.Select(attrs={"class": "form-select"}),
+            "monto_total": forms.NumberInput(attrs={"class": "form-control"}),
+        }
+
+# --- Recepción de mercadería ---
+class RecepcionMercaderiaForm(forms.ModelForm):
+    ESTADO_CHOICES = [
+        ("OPEN", "Abierta"),
+        ("CLOSED", "Cerrada"),
+        # Si más adelante quieres agregar otro:
+        # ("CANCELLED", "Cancelada"),
+    ]
+
+    estado = forms.ChoiceField(
+        choices=ESTADO_CHOICES,
+        initial="OPEN",
+        label="Estado",
+    )
+
+    class Meta:
+        model = RecepcionMercaderia
+        fields = ["numero_recepcion", "bodega", "estado"]
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+
+        # estilos Bootstrap
+        self.fields["numero_recepcion"].widget.attrs.update({
+            "class": "form-control",
+            "placeholder": "Ej: REC-0001",
+        })
+        self.fields["bodega"].widget.attrs.update({
+            "class": "form-select",
+        })
+        self.fields["estado"].widget.attrs.update({
+            "class": "form-select",
+        })
+
+
+class ProductoForm(forms.ModelForm):
+    class Meta:
+        model = Producto
+        fields = ['sku', 'nombre', 'descripcion', 'stock', 'precio']
