@@ -4823,7 +4823,6 @@ def resumen_guias_despacho(request):
         'transferencias': page_obj,
         'tipo_sel': tipo,
     }
-<<<<<<< HEAD
     return render(request, "core/Guias/resumen_guias.html", context)
 
 @login_required
@@ -4893,7 +4892,137 @@ def crear_producto(request):
         form = ProductoForm()
 
     return render(request, "core/crear_producto.html", {"form": form})
-=======
 
-    return render(request, "core/Guias/resumen_guias.html", context)
->>>>>>> 10f4d7c0c3093e9a0111af154318722c66a01fd7
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+@login_required
+def base_panel_control(request):
+    # Obtener sucursales y bodegas
+    sucursales = Sucursal.objects.filter(activo=True)
+    bodegas = Bodega.objects.all()
+
+    # Obtener productos con stock bajo
+    stock_bajo = Stock.objects.filter(cantidad_disponible__lt=10)
+    alertas_stock = stock_bajo.count()  # Número de productos con stock bajo
+
+    # Sumar cantidades de productos por sucursal y bodega
+    sucursales_activas = sucursales.count()
+    bodegas_totales = bodegas.count()
+
+    # Pasa estos datos al template
+    context = {
+        'sucursales': sucursales,
+        'bodegas': bodegas,
+        'alertas_stock': alertas_stock,
+        'sucursales_activas': sucursales_activas,
+        'bodegas_totales': bodegas_totales,
+    }
+
+    return render(request, 'core/base_panel_control.html', context)
+
+
+
+
+
+
+
+
+
+
+
+
+
+# views.py
+from django.shortcuts import render, redirect
+from .forms import MarcaForm, UnidadMedidaForm, TasaImpuestoForm, CategoriaProductoForm
+
+def centro_catalogo(request):
+
+    marca_form = MarcaForm(prefix="marca")
+    unidad_form = UnidadMedidaForm(prefix="unidad")
+    tasa_form = TasaImpuestoForm(prefix="tasa")
+    categoria_form = CategoriaProductoForm(prefix="categoria")
+
+    if request.method == "POST":
+
+        # Marca
+        if "submit_marca" in request.POST:
+            marca_form = MarcaForm(request.POST, prefix="marca")
+            if marca_form.is_valid():
+                marca_form.save()
+                return redirect("centro-catalogo")
+
+        # Unidad
+        if "submit_unidad" in request.POST:
+            unidad_form = UnidadMedidaForm(request.POST, prefix="unidad")
+            if unidad_form.is_valid():
+                unidad_form.save()
+                return redirect("centro-catalogo")
+
+        # Tasa
+        if "submit_tasa" in request.POST:
+            tasa_form = TasaImpuestoForm(request.POST, prefix="tasa")
+            if tasa_form.is_valid():
+                tasa_form.save()
+                return redirect("centro-catalogo")
+
+        # Categoría
+        if "submit_categoria" in request.POST:
+            categoria_form = CategoriaProductoForm(request.POST, prefix="categoria")
+            if categoria_form.is_valid():
+                categoria_form.save()
+                return redirect("centro-catalogo")
+
+    return render(request, "core/centro_catalogo.html", {
+        "marca_form": marca_form,
+        "unidad_form": unidad_form,
+        "tasa_form": tasa_form,
+        "categoria_form": categoria_form,
+    })
