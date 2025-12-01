@@ -168,6 +168,9 @@ urlpatterns = [
     path("productos/stock/", views.stock_por_producto, name="stock-por-producto"),
     path("api/geocode/", views.geocode, name="geocode"),
     path("api/paypal/stock-in/", views.paypal_stock_in, name="paypal-stock-in"),
-    path("paypal/ingresos/", views.paypal_ingresos_view, name="paypal-ingresos"),   
+    path("paypal/ingresos/", views.paypal_ingresos_view, name="paypal-ingresos"),
+    # urls.py
+    path("catalogo/centro/", views.centro_catalogo, name="centro-catalogo"),
+   
 ]
 
