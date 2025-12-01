@@ -113,10 +113,8 @@
     </div>
     <div class="actions-grid">
       <a class="btnx primary" href="{% url 'product_add' %}">➕ Agregar producto</a>
-      <a class="btnx" href="{% url 'marca-create' %}?next={{ request.get_full_path|urlencode }}" onclick="return openModal(this.href)">➕ Marca</a>
-      <a class="btnx" href="{% url 'unidad-create' %}?next={{ request.get_full_path|urlencode }}" onclick="return openModal(this.href)">➕ Unidad</a>
-      <a class="btnx" href="{% url 'tasa-create' %}?next={{ request.get_full_path|urlencode }}" onclick="return openModal(this.href)">➕ Tasa</a>
-      <a class="btnx" href="{% url 'categoria-create' %}?next={{ request.get_full_path|urlencode }}" onclick="return openModal(this.href)">➕ Categoría</a>
+      <a href="{% url 'centro-catalogo' %}" class="item">🗂️ Centro de Catálogo</a>
+
     </div>
   </div>
 
