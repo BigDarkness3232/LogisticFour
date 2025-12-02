@@ -11,18 +11,18 @@
     --pri:#0f172a; --pri-ink:#fff;
   }
 
-  /* Contenedor general para que no pegue a los bordes */
+  /* Contenedor general (limita ancho y separa de los bordes) */
   .page-shell{
     max-width:1180px;
     margin:0 auto;
-    padding:14px 16px 22px;
+    padding:14px 20px 22px;
   }
   @media (min-width:1400px){
     .page-shell{ max-width:1280px; }
   }
   @media (max-width:880px){
     .page-shell{
-      padding:10px 10px 18px;
+      padding:10px 12px 18px;
     }
   }
 
@@ -72,15 +72,20 @@
     color:var(--ink);
     text-decoration:none;
     font-weight:500;
-    transition:.15s ease transform,.15s ease box-shadow;
+    transition:.15s ease transform,.15s ease box-shadow,.15s ease background-color;
   }
   .btnx:hover{
     transform:translateY(-1px);
     box-shadow:0 8px 26px rgba(15,23,42,.08);
+    background:#f9fafb;
   }
   .btnx.primary{
     background:var(--pri);
     color:var(--pri-ink);
+    border-color:rgba(15,23,42,.2);
+  }
+  .btnx.primary:hover{
+    background:#020617;
   }
 
   .filter{
@@ -349,18 +354,18 @@
   }
 </style>
 
-<div class="page">
-  <div class="page-head">
-    <div>
-      <h1>Productos</h1>
-      <p class="sub">Gestión de catálogo. Escanea o filtra para encontrar rápido.</p>
+<div class="page-shell">
+  <div class="page">
+    <div class="page-head">
+      <div>
+        <h1>Productos</h1>
+        <p class="sub">Gestión de catálogo. Escanea o filtra para encontrar rápido.</p>
+      </div>
+      <div class="actions-grid">
+        <a class="btnx primary" href="{% url 'product_add' %}">➕ Agregar producto</a>
+        <a href="{% url 'centro-catalogo' %}" class="btnx">🗂️ Centro de Catálogo</a>
+      </div>
     </div>
-    <div class="actions-grid">
-      <a class="btnx primary" href="{% url 'product_add' %}">➕ Agregar producto</a>
-      <a href="{% url 'centro-catalogo' %}" class="item">🗂️ Centro de Catálogo</a>
-
-    </div>
-  </div>
 
     <!-- Buscador -->
     <form id="prodSearchForm" method="get" action="{% url 'products' %}" class="filter" role="search">
@@ -385,7 +390,8 @@
     <div class="actions-grid">
       <span class="muted">Moneda:</span>
       {% for c in currency_supported %}
-        <a class="btnx" href="{% url 'set_currency' %}?c={{ c }}&next={{ request.get_full_path|urlencode }}">
+        <a class="btnx{% if c == current_currency %} primary{% endif %}"
+           href="{% url 'set_currency' %}?c={{ c }}&next={{ request.get_full_path|urlencode }}">
           {{ c }}
         </a>
       {% endfor %}
@@ -395,14 +401,14 @@
     <div class="table-wrap">
       <table class="tbl" id="tblProductos">
         <colgroup>
-          <col style="width:180px;">  <!-- SKU -->
-          <col style="width:320px;">  <!-- Nombre -->
-          <col style="width:160px;">  <!-- Marca -->
-          <col style="width:160px;">  <!-- Categoría -->
-          <col style="width:120px;">  <!-- Estado -->
-          <col style="width:110px;">  <!-- Stock -->
-          <col style="width:120px;">  <!-- Precio -->
-          <col style="width:230px;">  <!-- Acciones -->
+          <col style="width:180px;">
+          <col style="width:320px;">
+          <col style="width:160px;">
+          <col style="width:160px;">
+          <col style="width:120px;">
+          <col style="width:110px;">
+          <col style="width:120px;">
+          <col style="width:230px;">
         </colgroup>
 
         <thead>
@@ -454,7 +460,8 @@
               <div class="actions">
                 <a class="act info" href="{% url 'producto-detail' p.pk %}">Ver</a>
                 <a class="act" href="{% url 'producto-update' p.pk %}">Editar</a>
-                <form method="post" action="{% url 'producto-delete' p.pk %}" onsubmit="return confirm('¿Eliminar este producto?')">
+                <form method="post" action="{% url 'producto-delete' p.pk %}"
+                      onsubmit="return confirm('¿Eliminar este producto?')">
                   {% csrf_token %}
                   <button type="submit" class="act danger">Eliminar</button>
                 </form>
@@ -498,7 +505,8 @@
               <div class="actions" style="margin-top:8px">
                 <a class="act info" href="{% url 'producto-detail' p.pk %}">Ver</a>
                 <a class="act" href="{% url 'producto-update' p.pk %}">Editar</a>
-                <form method="post" action="{% url 'producto-delete' p.pk %}" onsubmit="return confirm('¿Eliminar este producto?')">
+                <form method="post" action="{% url 'producto-delete' p.pk %}"
+                      onsubmit="return confirm('¿Eliminar este producto?')">
                   {% csrf_token %}
                   <button type="submit" class="act danger">Eliminar</button>
                 </form>

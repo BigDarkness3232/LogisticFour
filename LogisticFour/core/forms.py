@@ -69,35 +69,74 @@ class UsuarioPerfilEditForm(forms.ModelForm):
 #  (sin el campo ubicacion porque ya no existe en el modelo)
 # =========================================================
 class ProductoForm(forms.ModelForm):
-    marca = forms.ModelChoiceField(queryset=Marca.objects.none(), required=False, empty_label="— Selecciona una marca —")
-    categoria = forms.ModelChoiceField(queryset=CategoriaProducto.objects.none(), required=False, empty_label="— Selecciona una categoría —")
-    unidad_base = forms.ModelChoiceField(queryset=UnidadMedida.objects.none(), required=True, empty_label=None)
-    tasa_impuesto = forms.ModelChoiceField(queryset=TasaImpuesto.objects.none(), required=False, empty_label="— Sin impuesto —")
+    marca = forms.ModelChoiceField(
+        queryset=Marca.objects.none(),
+        required=False,
+        empty_label="— Selecciona una marca —",
+    )
+    categoria = forms.ModelChoiceField(
+        queryset=CategoriaProducto.objects.none(),
+        required=False,
+        empty_label="— Selecciona una categoría —",
+    )
+    unidad_base = forms.ModelChoiceField(
+        queryset=UnidadMedida.objects.none(),
+        required=True,
+        empty_label=None,
+    )
+    tasa_impuesto = forms.ModelChoiceField(
+        queryset=TasaImpuesto.objects.none(),
+        required=False,
+        empty_label="— Sin impuesto —",
+    )
 
     class Meta:
         model = Producto
         fields = [
-            "sku", "nombre", "descripcion",
-            "marca", "categoria",
-            "unidad_base", "tasa_impuesto",
-            "activo", "es_serializado", "tiene_vencimiento",
+            "sku",
+            "nombre",
+            # "descripcion",  ← LA SACAMOS PARA DESBLOQUEAR EL ERROR
+            "marca",
+            "categoria",
+            "unidad_base",
+            "tasa_impuesto",
+            "activo",
+            "es_serializado",
+            "tiene_vencimiento",
             "precio",
+            "stock",
         ]
         widgets = {
             "sku": forms.TextInput(attrs={"placeholder": "SKU o código interno"}),
             "nombre": forms.TextInput(attrs={"placeholder": "Nombre del producto"}),
+            # puedes dejar este widget o borrarlo; si el campo no está en fields,
+            # simplemente no se usará
+            # "descripcion": forms.Textarea(
+            #     attrs={
+            #         "rows": 3,
+            #         "placeholder": "Descripción del producto",
+            #     }
+            # ),
             "precio": forms.NumberInput(attrs={"min": 0, "step": 1}),
+            "stock": forms.NumberInput(attrs={"min": 0, "step": 1}),
         }
 
     def __init__(self, *args, include_stock: bool = False, **kwargs):
         super().__init__(*args, **kwargs)
 
+        # Querysets ordenados
         self.fields["marca"].queryset = Marca.objects.all().order_by("nombre")
         self.fields["categoria"].queryset = CategoriaProducto.objects.all().order_by("nombre")
         self.fields["unidad_base"].queryset = UnidadMedida.objects.all().order_by("codigo")
-        self.fields["tasa_impuesto"].queryset = TasaImpuesto.objects.filter(activo=True).order_by("nombre")
+        self.fields["tasa_impuesto"].queryset = (
+            TasaImpuesto.objects.filter(activo=True).order_by("nombre")
+        )
 
-        # APLICAR CLASES CORRECTAS POR TIPO DE WIDGET
+        # Si no quieres mostrar/editar stock en este formulario:
+        if not include_stock and "stock" in self.fields:
+            self.fields.pop("stock")
+
+        # Clases CSS según tipo de widget
         for name, field in self.fields.items():
             w = field.widget
             if isinstance(w, (forms.Select, forms.SelectMultiple)):
@@ -108,7 +147,7 @@ class ProductoForm(forms.ModelForm):
                 w.attrs.setdefault("class", "form-control")
 
 
- # donde tengas StockInlineForm (en views.py o forms.py)
+
 class StockInlineForm(forms.Form):
     bodega = forms.ModelChoiceField(queryset=Bodega.objects.all(), required=True, label="Bodega destino",
                                     widget=forms.Select(attrs={"class":"form-select"}))
@@ -758,7 +797,3 @@ class RecepcionMercaderiaForm(forms.ModelForm):
         })
 
 
-class ProductoForm(forms.ModelForm):
-    class Meta:
-        model = Producto
-        fields = ['sku', 'nombre', 'descripcion', 'stock', 'precio']

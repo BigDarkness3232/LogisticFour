@@ -7,7 +7,8 @@
    ESTILO GENERAL
 ======================== */
 .dashboard-wrap {
-  padding: 20px 0 40px;
+  width: 100%;
+  padding: 24px 48px 40px;
   animation: fadeIn .3s ease-out both;
 }
 @keyframes fadeIn {
@@ -22,7 +23,7 @@
   display:grid;
   gap:20px;
   grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
-  margin-bottom: 20px;
+  margin-bottom: 22px;
 }
 .kpi{
   background:white;
@@ -40,9 +41,10 @@
 }
 .kpi .num{ font-size:2.2rem; font-weight:800; color:#0f172a; }
 .kpi .lbl{ font-size:.9rem; color:#6b7280; }
+.kpi .hint{ font-size:.75rem; color:#9ca3af; }
 
 /* ========================
-   GRID GENERAL
+   GRIDS GENERALES
 ======================== */
 .grid-2{
   display:grid;
@@ -70,6 +72,11 @@
   font-weight:700;
   color:#0f172a;
   margin-bottom:12px;
+}
+.card-sub{
+  font-size:.8rem;
+  color:#9ca3af;
+  margin-bottom:10px;
 }
 
 /* ========================
@@ -144,6 +151,50 @@
 }
 
 /* ========================
+   TIMELINE / LISTAS
+======================== */
+.timeline{
+  list-style:none;
+  padding:0;
+  margin:0;
+  display:flex;
+  flex-direction:column;
+  gap:8px;
+}
+.timeline-item{
+  display:flex;
+  justify-content:space-between;
+  align-items:flex-start;
+  gap:10px;
+  font-size:.8rem;
+}
+.timeline-main{
+  color:#111827;
+}
+.timeline-meta{
+  text-align:right;
+  font-size:.75rem;
+  color:#9ca3af;
+  white-space:nowrap;
+}
+.pill{
+  display:inline-flex;
+  align-items:center;
+  padding:2px 8px;
+  border-radius:999px;
+  font-size:.72rem;
+  font-weight:500;
+}
+.pill--warn{
+  background:#fef2f2;
+  color:#b91c1c;
+}
+.pill--info{
+  background:#eff6ff;
+  color:#1d4ed8;
+}
+
+/* ========================
    TABLA SUCURSALES
 ======================== */
 .table { width:100%; }
@@ -166,6 +217,9 @@
 
 /* MOBILE */
 @media(max-width:760px){
+  .dashboard-wrap{
+    padding:18px 14px 32px;
+  }
   .tr{
     grid-template-columns:1fr;
     border-left:4px solid #0f172a;
@@ -186,25 +240,10 @@
 
   <h1 class="h1" style="margin-bottom:16px;">Tablero General</h1>
 
-  <!-- 🔹 KPIs -->
-  <div class="kpis">
-    <div class="kpi">
-      <div class="num">{{ sucursales_activas }}</div>
-      <div class="lbl">Sucursales Activas</div>
-    </div>
+  <!-- 🔹 KPIs superiores -->
 
-    <div class="kpi">
-      <div class="num">{{ bodegas_totales }}</div>
-      <div class="lbl">Bodegas Totales</div>
-    </div>
 
-    <div class="kpi">
-      <div class="num" style="color:#dc2626">{{ alertas_stock }}</div>
-      <div class="lbl">Alertas de Stock</div>
-    </div>
-  </div>
-
-  <!-- 🔹 Gráfico + Resumen -->
+  <!-- 🔹 Gráfico comparativo + resumen -->
   <div class="grid-2">
 
     <!-- 📊 Comparación en barras horizontales -->
@@ -278,6 +317,70 @@
       <ul style="margin:0; padding-left:18px;">
         <li>Ítems con bajo stock: <b>{{ alertas_stock }}</b></li>
         <li>Categorías disponibles: <b>{{ categorias_count }}</b></li>
+        <li>Total sucursales con stock: <b>{{ stock_sucursales_count|default:"0" }}</b></li>
+        <li>Total bodegas con stock: <b>{{ stock_bodegas_count|default:"0" }}</b></li>
+      </ul>
+    </div>
+
+  </div>
+
+  <!-- 🔹 Últimos movimientos + alertas recientes -->
+  <div class="grid-2">
+
+    <!-- Últimos movimientos -->
+    <div class="card">
+      <div class="card-title">Últimos movimientos de inventario</div>
+      <p class="card-sub">Últimos registros de entradas / salidas</p>
+      <ul class="timeline">
+        {% if ultimos_movimientos %}
+          {% for mov in ultimos_movimientos %}
+          <li class="timeline-item">
+            <div class="timeline-main">
+              {{ mov.producto__nombre|default:mov.producto.nombre }}
+              <br>
+              <span style="font-size:.75rem;color:#6b7280;">
+                {{ mov.tipo_movimiento__nombre|default:mov.tipo_movimiento.nombre }} ·
+                {{ mov.cantidad|floatformat:0 }} {{ mov.unidad__codigo|default:mov.unidad.codigo }}
+              </span>
+            </div>
+            <div class="timeline-meta">
+              {{ mov.ocurrido_en|date:"d/m H:i" }}
+            </div>
+          </li>
+          {% endfor %}
+        {% else %}
+          <li style="font-size:.8rem;color:#9ca3af;">Aún no hay movimientos registrados.</li>
+        {% endif %}
+      </ul>
+    </div>
+
+    <!-- Alertas recientes -->
+    <div class="card">
+      <div class="card-title">Alertas recientes</div>
+      <p class="card-sub">Eventos importantes detectados por el sistema</p>
+      <ul class="timeline">
+        {% if alertas_recientes %}
+          {% for a in alertas_recientes %}
+          <li class="timeline-item">
+            <div class="timeline-main">
+              <span class="pill pill--warn" style="margin-right:6px;">
+                {{ a.severidad|default:"ALERTA" }}
+              </span>
+              {{ a.mensaje|truncatechars:80 }}
+              <br>
+              <span style="font-size:.75rem;color:#6b7280;">
+                {{ a.producto__sku|default:a.producto.sku }} ·
+                {{ a.producto__nombre|default:a.producto.nombre }}
+              </span>
+            </div>
+            <div class="timeline-meta">
+              {{ a.creado_en|default:a.creado_en|date:"d/m H:i" }}
+            </div>
+          </li>
+          {% endfor %}
+        {% else %}
+          <li style="font-size:.8rem;color:#9ca3af;">No hay alertas recientes.</li>
+        {% endif %}
       </ul>
     </div>
 

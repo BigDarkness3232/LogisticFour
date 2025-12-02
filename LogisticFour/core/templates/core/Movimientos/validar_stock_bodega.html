@@ -542,7 +542,7 @@
   function cerrarModalValidacion() {
     const modal = document.getElementById("modalValidarStock");
     if (!modal) return;
-    const instancia = bootstrap.Modal.getInstance(modal);
+    const instancia = window.bootstrap?.Modal?.getInstance?.(modal);
     if (instancia) instancia.hide();
   }
 
@@ -555,7 +555,7 @@
 
   if (!tabla) return;
 
-  // Recalcular total validado (sumando lo digitado)
+  // 🔄 Recalcular total validado (sumando lo digitado)
   function recalcularTotalValidado(){
     if (!chipTotalVal) return;
     let suma = 0;
@@ -566,7 +566,7 @@
     chipTotalVal.textContent = suma.toLocaleString("es-CL");
   }
 
-  // Colorear filas con validación > 0
+  // 🎨 Colorear filas con validación > 0
   function refrescarEstilosFilas(){
     tabla.querySelectorAll("tbody tr[data-stock-id]").forEach(tr => {
       const input = tr.querySelector(".val-input");
@@ -579,7 +579,7 @@
     });
   }
 
-  // VALIDAR TODO
+  // ✅ VALIDAR TODO (llenar con el disponible)
   if (btnValidarTodo) {
     btnValidarTodo.addEventListener("click", () => {
       tabla.querySelectorAll("tbody tr[data-stock-id]").forEach(tr => {
@@ -593,21 +593,15 @@
     });
   }
 
-  // Cambios en inputs → recalcular y animar
+  // ✏️ Cambios en inputs → solo recalcular y pintar (ya no recortamos mientras escribes)
   tabla.querySelectorAll("tbody .val-input").forEach(input => {
     input.addEventListener("input", () => {
-      const max = parseFloat(input.dataset.disponible || "0");
-      let val = parseFloat(input.value || "0");
-      if (val < 0) val = 0;
-      if (!isNaN(max) && val > max) val = max;
-      input.value = val;
-
       refrescarEstilosFilas();
       recalcularTotalValidado();
     });
   });
 
-  // GUARDAR VALIDACIÓN
+  // 💾 GUARDAR VALIDACIÓN
   if (btnGuardar) {
     btnGuardar.addEventListener("click", async () => {
 
@@ -621,15 +615,15 @@
         const input   = tr.querySelector(".val-input");
         if (!input) return;
 
-        const max = parseFloat(input.dataset.disponible || "0");
-        let val   = parseFloat(input.value || "0");
+        let val = parseFloat(input.value || "0");
         if (isNaN(val)) val = 0;
 
-        if (val < 0 || val > max) {
+        // Solo bloqueamos negativos en el front.
+        if (val < 0) {
           tieneError = true;
           Swal.fire(
             "Cantidad inválida",
-            "La cantidad debe estar entre 0 y el disponible de la ubicación.",
+            "La cantidad no puede ser negativa.",
             "warning"
           );
           input.focus();
@@ -667,6 +661,7 @@
         }
 
         if (!res.ok || !data.ok) {
+          // Aquí verás el mensaje del backend (por ejemplo si superas el disponible)
           Swal.fire(
             "Error",
             (data && data.error) ? data.error : "No se pudo guardar la validación.",

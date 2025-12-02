@@ -106,25 +106,14 @@ urlpatterns = [
     path("finanzas/", views.finanzas_reporte, name="finanzas_reporte"),
     path("finanzas/export/excel/", views.finanzas_export_excel, name="finanzas_export_excel"),
     path("finanzas/export/pdf/",   views.finanzas_export_pdf,   name="finanzas_export_pdf"),
-    
-    # Cambio de moneda
+
     path("set-currency/", set_currency, name="set_currency"),
 
 
-    # Rutas para crear documentos de finanzas
+
     path('finanzas/crear/orden-compra/', views.crear_orden_compra, name='crear_orden_compra'),
     path('finanzas/crear/factura-proveedor/', views.crear_factura_proveedor, name='crear_factura_proveedor'),
     path('finanzas/crear/recepcion/', views.crear_recepcion, name='crear_recepcion'),
-
-
-
-
-
-
-
-
-
-
 
 
 
@@ -166,146 +155,9 @@ urlpatterns = [
     path("productos/stock/", views.stock_por_producto, name="stock-por-producto"),
     path("api/geocode/", views.geocode, name="geocode"),
     path("api/paypal/stock-in/", views.paypal_stock_in, name="paypal-stock-in"),
-<<<<<<< HEAD
     path("paypal/ingresos/", views.paypal_ingresos_view, name="paypal-ingresos"),   
 
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-    
-
-    # ...
-
-    # NUEVAS RUTAS:
-    # formulario para crear una ubicación de bodega
     path(
         "bodegas/ubicaciones/nueva/",
         views.agregar_ubicacion_bodega,
@@ -317,7 +169,6 @@ urlpatterns = [
     name="ubicacion-bodega-create",
     ),
 
-    # mover un producto entre ubicaciones de bodega
     path(
         "productos/<int:producto_id>/mover-ubicacion/",
         views.mover_producto_ubicacion,
@@ -408,11 +259,9 @@ urlpatterns = [
 
 
 
-=======
     path("paypal/ingresos/", views.paypal_ingresos_view, name="paypal-ingresos"),
     # urls.py
     path("catalogo/centro/", views.centro_catalogo, name="centro-catalogo"),
    
->>>>>>> d579f7273dd5601c1361e6364536ee1e941ce1ba
 ]
 

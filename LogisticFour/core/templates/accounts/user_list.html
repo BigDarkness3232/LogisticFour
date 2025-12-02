@@ -272,7 +272,7 @@
       <div>Usuario</div>
       <div>Nombre</div>
       <div>Email</div>
-      <div>Rol</div>
+ 
       <div>Acciones</div>
     </div>
 
@@ -282,30 +282,7 @@
         <div data-label="Nombre">{{ u.get_full_name|default:"—" }}</div>
         <div data-label="Email">{{ u.email|default:"—" }}</div>
 
-        <div data-label="Rol">
-          {% if u.perfil %}
-            {% if not u.is_superuser and u.id != request.user.id %}
-              <select
-                class="role-select"
-                data-user-id="{{ u.id }}"
-                data-current="{{ u.perfil.rol.code }}"
-                aria-label="Cambiar rol de {{ u.username }}"
-              >
-                {% for code,label in roles %}
-                  <option value="{{ code }}" {% if u.perfil.rol.code == code %}selected{% endif %}>{{ label }}</option>
-                {% endfor %}
-              </select>
-              <small class="text-muted d-block mt-1">
-                Cambios automáticos
-              </small>
-            {% else %}
-              <span class="badge" title="No modificable">{{ u.perfil.rol }}</span>
-              <small class="text-muted d-block mt-1">No editable</small>
-            {% endif %}
-          {% else %}
-            <span class="badge warn">Sin perfil</span>
-          {% endif %}
-        </div>
+  
 
         <div class="d-flex" style="gap:8px; align-items:center;" data-label="Acciones">
           <a class="btn ghost" href="{% url 'usuario-edit' u.id %}">Editar</a>
