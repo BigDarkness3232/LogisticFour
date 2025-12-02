@@ -247,15 +247,9 @@
         <button class="btn ghost" type="submit">Filtrar</button>
       </form>
 
-      <div class="dropdown">
-        <button type="button" class="btn primary">+ Nuevo usuario</button>
-        <div class="dropdown-menu">
-          <a class="item" href="{% url 'usuario-create' %}?role=ADMIN">Administrador</a>
-          <a class="item" href="{% url 'usuario-create' %}?role=BODEGUERO">Bodeguero</a>
-          <a class="item" href="{% url 'usuario-create' %}?role=AUDITOR">Auditor</a>
-          <a class="item" href="{% url 'usuario-create' %}?role=PROVEEDOR">Proveedor</a>
-        </div>
-      </div>
+       <a href="{% url 'usuario-create' %}" class="btn btn-primary">
+  + Nuevo usuario
+</a>
     </div>
   </div>
 
