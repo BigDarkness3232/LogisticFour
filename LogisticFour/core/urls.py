@@ -111,6 +111,11 @@ urlpatterns = [
     path("set-currency/", set_currency, name="set_currency"),
 
 
+    # Rutas para crear documentos de finanzas
+    path('finanzas/crear/orden-compra/', views.crear_orden_compra, name='crear_orden_compra'),
+    path('finanzas/crear/factura-proveedor/', views.crear_factura_proveedor, name='crear_factura_proveedor'),
+    path('finanzas/crear/recepcion/', views.crear_recepcion, name='crear_recepcion'),
+
 
 
 
@@ -161,6 +166,7 @@ urlpatterns = [
     path("productos/stock/", views.stock_por_producto, name="stock-por-producto"),
     path("api/geocode/", views.geocode, name="geocode"),
     path("api/paypal/stock-in/", views.paypal_stock_in, name="paypal-stock-in"),
+<<<<<<< HEAD
     path("paypal/ingresos/", views.paypal_ingresos_view, name="paypal-ingresos"),   
 
 
@@ -402,5 +408,11 @@ urlpatterns = [
 
 
 
+=======
+    path("paypal/ingresos/", views.paypal_ingresos_view, name="paypal-ingresos"),
+    # urls.py
+    path("catalogo/centro/", views.centro_catalogo, name="centro-catalogo"),
+   
+>>>>>>> d579f7273dd5601c1361e6364536ee1e941ce1ba
 ]
 

@@ -739,13 +739,42 @@ class LineaDevolucionProveedor(models.Model):
 #  COMPRAS
 # ============================================================
 class OrdenCompra(MarcaTiempo):
-    proveedor = models.ForeignKey(User, on_delete=models.CASCADE, related_name="ordenes_compra_proveedor")
-    tasa_impuesto = models.ForeignKey(TasaImpuesto, on_delete=models.SET_NULL, null=True, blank=True)
+    class EstadoOC(models.TextChoices):
+        DRAFT = "DRAFT", "Borrador"
+        APROBADA = "APROBADA", "Aprobada"
+        CERRADA = "CERRADA", "Cerrada"
+        PARTIAL = "PARTIAL", "Recepción parcial"
+        RECEIVED = "RECEIVED", "Recepcionada"
+        CANCELLED = "CANCELLED", "Cancelada"
+
+    proveedor = models.ForeignKey(
+        User,
+        on_delete=models.CASCADE,
+        related_name="ordenes_compra_proveedor",
+    )
+    tasa_impuesto = models.ForeignKey(
+        TasaImpuesto,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+    )
     bodega = models.ForeignKey(Bodega, on_delete=models.CASCADE)
     numero_orden = models.CharField(max_length=60, unique=True)
-    estado = models.CharField(max_length=30, default="DRAFT")
+
+    # ⬇️ ahora con choices y default usando la clase interna
+    estado = models.CharField(
+        max_length=30,
+        choices=EstadoOC.choices,
+        default=EstadoOC.DRAFT,
+    )
+
     fecha_esperada = models.DateField(null=True, blank=True)
-    creado_por = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True)
+    creado_por = models.ForeignKey(
+        User,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+    )
 
     class Meta:
         db_table = "ordenes_compra"
@@ -798,13 +827,22 @@ class LineaRecepcionMercaderia(models.Model):
 
 
 class FacturaProveedor(models.Model):
+    class EstadoFactura(models.TextChoices):
+        OPEN = "OPEN", "Abierta"
+        PAGADA = "PAGADA", "Pagada"
+        ANULADA = "ANULADA", "Anulada"
     proveedor = models.ForeignKey(User, on_delete=models.CASCADE, related_name="facturas_emitidas")
     numero_factura = models.CharField(max_length=80)
     tasa_impuesto = models.ForeignKey(TasaImpuesto, on_delete=models.SET_NULL, null=True, blank=True)
     monto_total = models.DecimalField(max_digits=14, decimal_places=4)
     fecha_factura = models.DateField()
     fecha_vencimiento = models.DateField(null=True, blank=True)
-    estado = models.CharField(max_length=30, default="OPEN")
+    # 🔹 Ahora usa choices, pero mantiene max_length y default que ya tenías
+    estado = models.CharField(
+        max_length=30,
+        choices=EstadoFactura.choices,
+        default=EstadoFactura.OPEN,
+    )
 
     class Meta:
         db_table = "facturas_proveedor"

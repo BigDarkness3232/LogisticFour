@@ -2,147 +2,312 @@
 {% block title %}Tablero — Logistic{% endblock %}
 {% block content %}
 
-<h1 class="h1">Tablero</h1>
-
 <style>
-/* ==== SOLO LAYOUT (sin cambiar colores) ==== */
+/* ========================
+   ESTILO GENERAL
+======================== */
+.dashboard-wrap {
+  padding: 20px 0 40px;
+  animation: fadeIn .3s ease-out both;
+}
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(6px); }
+  to { opacity: 1; transform: none; }
+}
 
-/* KPIs: rejilla fluida */
+/* ========================
+   KPI CARDS
+======================== */
 .kpis{
   display:grid;
-  gap:12px;
-  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+  gap:20px;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  margin-bottom: 20px;
 }
-.kpi{ display:grid; gap:6px; }
-
-/* Grid de 2 columnas → 1 en móvil */
-.grid-2{
-  display:grid;
-  gap:16px;
-  grid-template-columns: repeat(2, minmax(0,1fr));
-}
-@media (max-width: 920px){
-  .grid-2{ grid-template-columns: 1fr; }
-}
-
-/* Barras “gráfico” */
-.bars{
-  display:flex;
-  gap:10px;
-  align-items:flex-end;
-  min-height:160px;
-}
-.bar{
-  flex:1 1 0;
+.kpi{
+  background:white;
+  padding:16px 18px;
+  border-radius:18px;
+  box-shadow:0 5px 16px rgba(0,0,0,0.06);
   display:flex;
   flex-direction:column;
+  gap:4px;
+  transition:.18s;
+}
+.kpi:hover{
+  transform:translateY(-3px);
+  box-shadow:0 10px 24px rgba(0,0,0,0.09);
+}
+.kpi .num{ font-size:2.2rem; font-weight:800; color:#0f172a; }
+.kpi .lbl{ font-size:.9rem; color:#6b7280; }
+
+/* ========================
+   GRID GENERAL
+======================== */
+.grid-2{
+  display:grid;
+  gap:20px;
+  grid-template-columns: repeat(auto-fit, minmax(340px, 1fr));
+  margin-bottom:20px;
+}
+
+/* ========================
+   CARD
+======================== */
+.card{
+  background:white;
+  border-radius:22px;
+  padding:18px 20px;
+  box-shadow:0 8px 22px rgba(0,0,0,.06);
+  transition:.18s;
+}
+.card:hover{
+  transform:translateY(-3px);
+  box-shadow:0 14px 30px rgba(0,0,0,.08);
+}
+.card-title{
+  font-size:1.2rem;
+  font-weight:700;
+  color:#0f172a;
+  margin-bottom:12px;
+}
+
+/* ========================
+   PANEL DE BARRAS HORIZONTALES
+======================== */
+.metrics-grid{
+  display:grid;
+  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+  gap:16px;
+}
+
+.metric-section{
+  background:#f9fafb;
+  border-radius:16px;
+  padding:12px 14px;
+  box-shadow:0 4px 12px rgba(15,23,42,0.04);
+}
+
+.metric-title{
+  display:flex;
   align-items:center;
   gap:8px;
+  font-size:.9rem;
+  font-weight:600;
+  color:#111827;
+  margin-bottom:8px;
 }
-.bar > span{
-  width:100%;
-  min-height:6px;
-  border-radius:8px 8px 0 0;
-  /* Usa el color actual del texto (no introduce nuevos colores) */
-  background: currentColor;
-}
-.bar label{ font-size:12px; text-align:center; }
 
-/* Tabla responsive (div-table → tarjetas en móvil) */
-.table{ width:100%; }
+.metric-title span.dot{
+  width:10px;
+  height:10px;
+  border-radius:3px;
+  display:inline-block;
+}
+
+.metric-list{
+  display:flex;
+  flex-direction:column;
+  gap:6px;
+}
+
+.metric-row{
+  display:grid;
+  grid-template-columns: 1.2fr 3fr auto;
+  align-items:center;
+  gap:8px;
+  font-size:.8rem;
+}
+
+.metric-name{
+  color:#111827;
+  font-weight:500;
+}
+
+.metric-bar{
+  background:#e5e7eb;
+  border-radius:999px;
+  overflow:hidden;
+  height:8px;
+}
+.metric-bar-fill{
+  height:100%;
+  border-radius:999px;
+}
+.metric-bar-fill--sucursal{ background:#000000; }
+.metric-bar-fill--bodega{ background:#4b5563; }
+
+.metric-value{
+  font-variant-numeric:tabular-nums;
+  color:#4b5563;
+  font-size:.78rem;
+}
+
+/* ========================
+   TABLA SUCURSALES
+======================== */
+.table { width:100%; }
 .tr{
   display:grid;
-  grid-template-columns: 2fr 1fr 1fr 1fr;
+  grid-template-columns: 1fr 140px;
+  background:white;
+  margin-bottom:8px;
+  border-radius:14px;
+  box-shadow:0 5px 16px rgba(0,0,0,.05);
 }
-.tr > div{ padding:12px; }
-.tr.th{ font-weight:700; }
+.tr.th{
+  background:#eef1f7;
+  font-weight:700;
+  box-shadow:none;
+}
+.tr div{
+  padding:12px 14px;
+}
 
-/* En pantallas pequeñas se convierte en tarjetas */
-@media (max-width: 760px){
-  .tr.th{ display:none; }
+/* MOBILE */
+@media(max-width:760px){
   .tr{
-    grid-template-columns: 1fr;
+    grid-template-columns:1fr;
+    border-left:4px solid #0f172a;
   }
-  .tr + .tr{
-    margin-top:10px;      /* separación entre tarjetas */
-  }
-  .tr > div{
+  .tr.th{ display:none; }
+  .tr div{
     display:flex;
     justify-content:space-between;
-    align-items:center;
-    gap:10px;
-    padding:10px 12px;
   }
-  .tr > div::before{
+  .tr div::before{
     content: attr(data-label);
     font-weight:600;
-    opacity:.8;           /* sin definir color nuevo */
   }
 }
 </style>
 
+<div class="dashboard-wrap">
 
+  <h1 class="h1" style="margin-bottom:16px;">Tablero General</h1>
 
-<div class="grid-2">
+  <!-- 🔹 KPIs -->
+  <div class="kpis">
+    <div class="kpi">
+      <div class="num">{{ sucursales_activas }}</div>
+      <div class="lbl">Sucursales Activas</div>
+    </div>
+
+    <div class="kpi">
+      <div class="num">{{ bodegas_totales }}</div>
+      <div class="lbl">Bodegas Totales</div>
+    </div>
+
+    <div class="kpi">
+      <div class="num" style="color:#dc2626">{{ alertas_stock }}</div>
+      <div class="lbl">Alertas de Stock</div>
+    </div>
+  </div>
+
+  <!-- 🔹 Gráfico + Resumen -->
+  <div class="grid-2">
+
+    <!-- 📊 Comparación en barras horizontales -->
+    <div class="card">
+      <div class="card-title">Comparación de Stock por Sucursal y Bodega</div>
+
+      <div class="metrics-grid">
+
+        <!-- Sucursales -->
+        <div class="metric-section">
+          <div class="metric-title">
+            <span class="dot" style="background:#000;"></span>
+            Sucursales
+          </div>
+          <div class="metric-list">
+            {% if stock_por_sucursal %}
+              {% for item in stock_por_sucursal %}
+                <div class="metric-row">
+                  <div class="metric-name">
+                    {{ item.ubicacion_sucursal__sucursal__nombre }}
+                  </div>
+                  <div class="metric-bar">
+                    <div class="metric-bar-fill metric-bar-fill--sucursal"
+                         style="width: {{ item.pct }}%;"></div>
+                  </div>
+                  <div class="metric-value">
+                    {{ item.total|floatformat:0 }} u.
+                  </div>
+                </div>
+              {% endfor %}
+            {% else %}
+              <div style="font-size:.8rem;color:#9ca3af;">Sin stock en sucursales.</div>
+            {% endif %}
+          </div>
+        </div>
+
+        <!-- Bodegas -->
+        <div class="metric-section">
+          <div class="metric-title">
+            <span class="dot" style="background:#4b5563;"></span>
+            Bodegas
+          </div>
+          <div class="metric-list">
+            {% if stock_por_bodega %}
+              {% for item in stock_por_bodega %}
+                <div class="metric-row">
+                  <div class="metric-name">
+                    {{ item.ubicacion_bodega__bodega__nombre }}
+                  </div>
+                  <div class="metric-bar">
+                    <div class="metric-bar-fill metric-bar-fill--bodega"
+                         style="width: {{ item.pct }}%;"></div>
+                  </div>
+                  <div class="metric-value">
+                    {{ item.total|floatformat:0 }} u.
+                  </div>
+                </div>
+              {% endfor %}
+            {% else %}
+              <div style="font-size:.8rem;color:#9ca3af;">Sin stock en bodegas.</div>
+            {% endif %}
+          </div>
+        </div>
+
+      </div>
+    </div>
+
+    <!-- 📄 Resumen de stock -->
+    <div class="card">
+      <div class="card-title">Resumen de Stock</div>
+      <ul style="margin:0; padding-left:18px;">
+        <li>Ítems con bajo stock: <b>{{ alertas_stock }}</b></li>
+        <li>Categorías disponibles: <b>{{ categorias_count }}</b></li>
+      </ul>
+    </div>
+
+  </div>
+
+  <!-- 🔹 Tabla de sucursales y órdenes -->
   <div class="card">
-    <div class="card-title">Ventas / Movimientos</div>
-    <div class="bars">
-      <div class="bar"><span style="height:140px"></span><label>Confirmados</label></div>
-      <div class="bar"><span style="height:20px"></span><label>Empaquetados</label></div>
-      <div class="bar"><span style="height:60px"></span><label>Devueltos</label></div>
-      <div class="bar"><span style="height:35px"></span><label>Despachados</label></div>
+    <div class="card-title">Sucursales y Órdenes</div>
+
+    <div class="table">
+      <div class="tr th">
+        <div>Sucursal</div>
+        <div>Órdenes</div>
+      </div>
+
+      {% for sucursal in sucursales %}
+      <div class="tr">
+        <div data-label="Sucursal">{{ sucursal.nombre }}</div>
+        <div data-label="Órdenes">
+          {{ sucursal.transferencias_sucursal_origen.count }} órdenes
+        </div>
+      </div>
+      {% empty %}
+      <div class="tr">
+        <div>No hay sucursales disponibles.</div>
+      </div>
+      {% endfor %}
     </div>
   </div>
 
-  <div class="card">
-    <div class="card-title">Stock</div>
-    <ul class="list" style="margin:0;padding-left:18px;">
-      <li>Ítems con bajo stock <b>58</b></li>
-      <li>Categorías <b>10</b></li>
-      <li>Ítems devueltos <b>5</b></li>
-    </ul>
-  </div>
-</div>
-
-<div class="card">
-  <div class="card-title">Sucursales / Bodegas</div>
-  <div class="table">
-    <div class="tr th">
-      <div>Sucursal / Bodega</div><div>Colaboradores</div><div>Ítems</div><div>Órdenes</div>
-    </div>
-
-    <!-- En móvil, cada celda muestra su etiqueta con data-label -->
-    <div class="tr">
-      <div data-label="Sucursal / Bodega">Casa Matriz</div>
-      <div data-label="Colaboradores">34 colaboradores</div>
-      <div data-label="Ítems">140 ítems</div>
-      <div data-label="Órdenes">15 órdenes</div>
-    </div>
-    <div class="tr">
-      <div data-label="Sucursal / Bodega">Bodega Norte</div>
-      <div data-label="Colaboradores">20 colaboradores</div>
-      <div data-label="Ítems">280 ítems</div>
-      <div data-label="Órdenes">20 órdenes</div>
-    </div>
-    <div class="tr">
-      <div data-label="Sucursal / Bodega">Bodega Sur</div>
-      <div data-label="Colaboradores">18 colaboradores</div>
-      <div data-label="Ítems">400 ítems</div>
-      <div data-label="Órdenes">13 órdenes</div>
-    </div>
-    <div class="tr">
-      <div data-label="Sucursal / Bodega">Obra Alto Maipo</div>
-      <div data-label="Colaboradores">42 colaboradores</div>
-      <div data-label="Ítems">300 ítems</div>
-      <div data-label="Órdenes">16 órdenes</div>
-    </div>
-    <div class="tr">
-      <div data-label="Sucursal / Bodega">Obra Ñuñoa</div>
-      <div data-label="Colaboradores">15 colaboradores</div>
-      <div data-label="Ítems">150 ítems</div>
-      <div data-label="Órdenes">10 órdenes</div>
-    </div>
-  </div>
 </div>
 
 {% endblock %}

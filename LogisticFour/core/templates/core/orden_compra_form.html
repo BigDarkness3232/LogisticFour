@@ -1,0 +1,80 @@
+{% extends "core/base.html" %}
+
+{% block content %}
+<div class="container mt-4" style="max-width: 900px;">
+  <div class="card shadow-sm">
+    <div class="card-body">
+      <h2 class="mb-3">Crear Orden de Compra</h2>
+      <p class="text-muted mb-4">
+        Registra una nueva orden vinculando proveedor y bodega. Luego podrás recepcionarla y facturarla.
+      </p>
+
+      <form method="post">
+        {% csrf_token %}
+
+        {% if form.non_field_errors %}
+          <div class="alert alert-danger">
+            {{ form.non_field_errors }}
+          </div>
+        {% endif %}
+
+        <!-- Número de orden -->
+        <div class="mb-3">
+          <label class="form-label" for="{{ form.numero_orden.id_for_label }}">
+            {{ form.numero_orden.label }}
+          </label>
+          {{ form.numero_orden }}
+          {{ form.numero_orden.errors }}
+        </div>
+
+        <!-- Proveedor / Bodega -->
+        <div class="row">
+          <div class="col-md-6 mb-3">
+            <label class="form-label" for="{{ form.proveedor.id_for_label }}">
+              {{ form.proveedor.label }}
+            </label>
+            {{ form.proveedor }}
+            {{ form.proveedor.errors }}
+          </div>
+
+          <div class="col-md-6 mb-3">
+            <label class="form-label" for="{{ form.bodega.id_for_label }}">
+              {{ form.bodega.label }}
+            </label>
+            {{ form.bodega }}
+            {{ form.bodega.errors }}
+          </div>
+        </div>
+
+        <!-- Estado / Fecha esperada -->
+        <div class="row">
+          <div class="col-md-6 mb-3">
+            <label class="form-label" for="{{ form.estado.id_for_label }}">
+              {{ form.estado.label }}
+            </label>
+            {{ form.estado }}
+            {{ form.estado.errors }}
+          </div>
+
+          <div class="col-md-6 mb-3">
+            <label class="form-label" for="{{ form.fecha_esperada.id_for_label }}">
+              {{ form.fecha_esperada.label }}
+            </label>
+            {{ form.fecha_esperada }}
+            {{ form.fecha_esperada.errors }}
+          </div>
+        </div>
+
+        <div class="d-flex justify-content-between mt-3">
+          <a href="{% url 'finanzas_reporte' %}" class="btn btn-outline-secondary">
+            Volver
+          </a>
+          <button type="submit" class="btn btn-primary">
+            Guardar
+          </button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+{% endblock %}

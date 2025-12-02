@@ -1,0 +1,250 @@
+{% extends "core/base.html" %}
+{% load static %}
+
+{% block content %}
+
+<style>
+  .catalog-page{
+    min-height: calc(100vh - 80px);
+    padding: 32px 0 40px;
+    background: radial-gradient(circle at 0% 0%, #ffffff 0%, #eef2ff 55%, #e5edf7 100%);
+  }
+
+  .catalog-page .container{
+    max-width: 1150px;
+  }
+
+  .catalog-page h1{
+    font-size: 2.2rem;
+    font-weight: 800;
+    color: #0f172a;
+  }
+
+  .catalog-page p.text-muted{
+    color: #6b7280 !important;
+    font-size: 0.95rem;
+  }
+
+  /* Cards */
+  .catalog-page .card{
+    border: none;
+    border-radius: 20px;
+    background: #ffffff;
+    box-shadow: 0 18px 45px rgba(15,23,42,0.06);
+    transition: transform .18s ease, box-shadow .18s ease;
+    padding: 26px;
+    position: relative;
+  }
+
+  .catalog-page .card:hover{
+    transform: translateY(-4px);
+    box-shadow: 0 24px 60px rgba(15,23,42,0.10);
+  }
+
+  .catalog-page .card h4{
+    font-size: 1.15rem;
+    font-weight: 700;
+    color: #0f172a;
+  }
+
+  .catalog-page .card p{
+    margin-bottom: 1rem;
+    font-size: 0.9rem;
+    color: #6b7280;
+  }
+
+  /* Inputs */
+  .catalog-page form .mb-3 label{
+    font-weight: 600;
+    font-size: 0.9rem;
+    color: #111827;
+    margin-bottom: 4px;
+  }
+
+  .catalog-page form input,
+  .catalog-page form select{
+    font-size: 0.9rem;
+    border-radius: 10px;
+    border: 1px solid #d1d5db;
+    padding: 0.45rem 0.7rem;
+    width: 100%;
+    background-color: #f9fafb;
+    transition: border-color .15s ease, box-shadow .15s ease;
+  }
+
+  .catalog-page form input:focus,
+  .catalog-page form select:focus{
+    border-color: #2563eb;
+    box-shadow: 0 0 0 1px rgba(37,99,235,0.25);
+    background-color: #ffffff;
+  }
+
+  .catalog-page .invalid-feedback,
+  .catalog-page .errorlist{
+    color: #b91c1c;
+    font-size: 0.8rem;
+  }
+
+  .catalog-page .errorlist{
+    list-style: none;
+    padding-left: 0;
+    margin: 0;
+  }
+
+  /* botones */
+  .catalog-page .btn-primary{
+    background-color: #111827;
+    border-color: #111827;
+    border-radius: 999px;
+    font-weight: 600;
+    font-size: 0.9rem;
+    padding: 0.55rem 1.2rem;
+  }
+
+  .catalog-page .btn-primary:hover{
+    background-color: #020617;
+  }
+</style>
+
+
+<div class="catalog-page">
+  <div class="container">
+
+    <h1 class="text-center mb-2 fw-bold">Centro de Catálogo</h1>
+    <p class="text-center text-muted mb-4">
+      Administra rápidamente las entidades base del sistema.
+    </p>
+
+    <div class="row g-4 justify-content-center">
+
+      <!-- ▢ Marca -->
+      <div class="col-md-5">
+        <div class="card h-100">
+          <h4 class="mb-2">➕ Marca</h4>
+          <p>Agrega nuevas marcas de productos.</p>
+
+          <form method="post">
+            {% csrf_token %}
+
+            {{ marca_form.non_field_errors }}
+
+            <div class="mb-3">
+              {{ marca_form.nombre.label_tag }}
+              {{ marca_form.nombre }}
+              {{ marca_form.nombre.errors }}
+            </div>
+
+            <button type="submit" name="submit_marca" class="btn btn-primary w-100">
+              Guardar Marca
+            </button>
+          </form>
+        </div>
+      </div>
+
+      <!-- ▢ Unidad -->
+      <div class="col-md-5">
+        <div class="card h-100">
+          <h4 class="mb-2">➕ Unidad</h4>
+          <p>Define nuevas unidades de medida.</p>
+
+          <form method="post">
+            {% csrf_token %}
+
+            {{ unidad_form.non_field_errors }}
+
+            <div class="mb-3">
+              {{ unidad_form.codigo.label_tag }}
+              {{ unidad_form.codigo }}
+              {{ unidad_form.codigo.errors }}
+            </div>
+
+            <div class="mb-3">
+              {{ unidad_form.descripcion.label_tag }}
+              {{ unidad_form.descripcion }}
+              {{ unidad_form.descripcion.errors }}
+            </div>
+
+            <button type="submit" name="submit_unidad" class="btn btn-primary w-100">
+              Guardar Unidad
+            </button>
+          </form>
+        </div>
+      </div>
+
+      <!-- ▢ Tasa -->
+      <div class="col-md-5">
+        <div class="card h-100">
+          <h4 class="mb-2">➕ Tasa</h4>
+          <p>Crea o actualiza impuestos aplicables.</p>
+
+          <form method="post">
+            {% csrf_token %}
+
+            {{ tasa_form.non_field_errors }}
+
+            <div class="mb-3">
+              {{ tasa_form.nombre.label_tag }}
+              {{ tasa_form.nombre }}
+              {{ tasa_form.nombre.errors }}
+            </div>
+
+            <div class="mb-3">
+              {{ tasa_form.porcentaje.label_tag }}
+              {{ tasa_form.porcentaje }}
+              {{ tasa_form.porcentaje.errors }}
+            </div>
+
+            <div class="mb-3">
+              {{ tasa_form.activo.label_tag }}
+              {{ tasa_form.activo }}
+              {{ tasa_form.activo.errors }}
+            </div>
+
+            <button type="submit" name="submit_tasa" class="btn btn-primary w-100">
+              Guardar Tasa
+            </button>
+          </form>
+        </div>
+      </div>
+
+      <!-- ▢ Categoría -->
+      <div class="col-md-5">
+        <div class="card h-100">
+          <h4 class="mb-2">➕ Categoría</h4>
+          <p>Organiza tus productos en categorías.</p>
+
+          <form method="post">
+            {% csrf_token %}
+
+            {{ categoria_form.non_field_errors }}
+
+            <div class="mb-3">
+              {{ categoria_form.padre.label_tag }}
+              {{ categoria_form.padre }}
+              {{ categoria_form.padre.errors }}
+            </div>
+
+            <div class="mb-3">
+              {{ categoria_form.nombre.label_tag }}
+              {{ categoria_form.nombre }}
+              {{ categoria_form.nombre.errors }}
+            </div>
+
+            <div class="mb-3">
+              {{ categoria_form.codigo.label_tag }}
+              {{ categoria_form.codigo }}
+              {{ categoria_form.codigo.errors }}
+            </div>
+
+            <button type="submit" name="submit_categoria" class="btn btn-primary w-100">
+              Guardar Categoría
+            </button>
+          </form>
+        </div>
+      </div>
+
+    </div>
+  </div>
+</div>
+
+{% endblock %}
