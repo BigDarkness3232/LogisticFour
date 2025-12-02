@@ -46,10 +46,19 @@ INSTALLED_APPS = [
     'core',
     'django.contrib.sites',
     'widget_tweaks',
+    'django.contrib.humanize',
 
    
 
 ]
+
+# settings.py
+
+USE_L10N = True  # o False, como lo tengas, pero esto no afecta al separador custom
+USE_THOUSAND_SEPARATOR = True
+THOUSAND_SEPARATOR = "."
+NUMBER_GROUPING = 3
+
 
 SITE_ID = 1
 

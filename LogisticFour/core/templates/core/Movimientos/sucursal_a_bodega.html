@@ -151,7 +151,6 @@
 
   .mv-btn:active { transform: translateY(0); }
 
-  /* ❗ Estilo copiado del botón de "Sucursal → Sucursal" */
   .mv-btn-ghost {
     background: #ffffff;
     border-radius: 999px;
@@ -245,6 +244,46 @@
     color: var(--muted);
   }
 
+  /* ==== Chips validado vs stock total ==== */
+  .mv-product-meta {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    margin-top: 6px;
+    font-size: .78rem;
+    transition: opacity .15s ease;
+  }
+
+  .mv-product-meta.is-empty {
+    opacity: .6;
+  }
+
+  .mv-chip {
+    border-radius: 999px;
+    padding: 3px 9px;
+    font-weight: 500;
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+  }
+
+  .mv-chip-dot {
+    width: 7px;
+    height: 7px;
+    border-radius: 999px;
+    background: currentColor;
+  }
+
+  .mv-chip-valid {
+    background: #dcfce7;
+    color: #166534;
+  }
+
+  .mv-chip-stock {
+    background: #e0f2fe;
+    color: #075985;
+  }
+
   @keyframes fadeUp {
     from { opacity: 0; transform: translateY(5px); }
     to   { opacity: 1; transform: translateY(0); }
@@ -324,21 +363,55 @@
             <label for="productoSelect" class="mv-label">
               Producto a devolver
             </label>
-            {% if productos %}
-              <select name="producto" id="productoSelect" class="mv-select" required>
-                <option value="">— Selecciona un producto —</option>
-                {% for p in productos %}
-                  <option value="{{ p.id }}">
-                    {{ p.sku }} — {{ p.nombre }} (stock sucursal: {{ p.stock_total|default:0 }})
-                  </option>
-                {% endfor %}
-              </select>
-              <small class="mv-loading">Solo se muestran productos con stock en la sucursal origen.</small>
+
+            {# productos == None → aún no cargados
+               productos vacío → sucursal sin productos validados #}
+            {% if productos is not None %}
+              {% if productos %}
+                <select name="producto" id="productoSelect" class="mv-select" required>
+                  <option value="">— Selecciona un producto —</option>
+                  {% for p in productos %}
+                    <option
+                      value="{{ p.id }}"
+                      data-validado="{{ p.stock_validado|floatformat:0 }}"
+                      data-stock="{{ p.stock_total|floatformat:0 }}"
+                    >
+                      {{ p.sku }} — {{ p.nombre }}
+                      — ✅ {{ p.stock_validado|floatformat:0 }} val. · 📦 {{ p.stock_total|floatformat:0 }} stock
+                    </option>
+                  {% endfor %}
+                </select>
+                <small class="mv-loading">
+                  Solo se muestran productos con stock <strong>validado</strong> en la sucursal origen.
+                </small>
+              {% else %}
+                <select id="productoSelect" class="mv-select" disabled>
+                  <option>No hay productos con stock validado en esta sucursal.</option>
+                </select>
+                <small class="mv-loading">
+                  Valida productos en la sucursal para poder devolverlos a bodega.
+                </small>
+              {% endif %}
             {% else %}
               <select id="productoSelect" class="mv-select" disabled>
                 <option>Elige sucursal + bodega y vuelve a enviar para ver productos…</option>
               </select>
+              <small class="mv-loading">
+                Primero selecciona la sucursal y la bodega.
+              </small>
             {% endif %}
+
+            <!-- Chips verde/azul -->
+            <div class="mv-product-meta is-empty" id="productoMeta" aria-live="polite">
+              <span class="mv-chip mv-chip-valid">
+                <span class="mv-chip-dot"></span>
+                Validado: <span id="metaValidado">—</span>
+              </span>
+              <span class="mv-chip mv-chip-stock">
+                <span class="mv-chip-dot"></span>
+                Stock total: <span id="metaStock">—</span>
+              </span>
+            </div>
           </div>
 
           <!-- Cantidad -->
@@ -417,4 +490,44 @@
     </div>
   </div>
 </div>
+
+<script>
+document.addEventListener("DOMContentLoaded", () => {
+  const productoSelect = document.getElementById("productoSelect");
+  const productoMeta   = document.getElementById("productoMeta");
+  const metaValidado   = document.getElementById("metaValidado");
+  const metaStock      = document.getElementById("metaStock");
+
+  function resetProductoMeta() {
+    if (!productoMeta) return;
+    metaValidado.textContent = "—";
+    metaStock.textContent    = "—";
+    productoMeta.classList.add("is-empty");
+  }
+
+  resetProductoMeta();
+
+  if (productoSelect && !productoSelect.disabled) {
+    // Por si llega seleccionado tras un POST con error
+    const initial = productoSelect.options[productoSelect.selectedIndex];
+    if (initial && initial.dataset.validado) {
+      metaValidado.textContent = initial.dataset.validado || "0";
+      metaStock.textContent    = initial.dataset.stock || "0";
+      productoMeta.classList.remove("is-empty");
+    }
+
+    productoSelect.addEventListener("change", () => {
+      const opt = productoSelect.options[productoSelect.selectedIndex];
+      if (!opt || !opt.dataset.validado) {
+        resetProductoMeta();
+        return;
+      }
+      metaValidado.textContent = opt.dataset.validado || "0";
+      metaStock.textContent    = opt.dataset.stock || "0";
+      productoMeta.classList.remove("is-empty");
+    });
+  }
+});
+</script>
+
 {% endblock %}

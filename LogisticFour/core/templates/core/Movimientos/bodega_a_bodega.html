@@ -153,7 +153,6 @@
     transform: translateY(0);
   }
 
-  /* === BOTÓN GHOST IGUAL AL DE "SUCURSAL → SUCURSAL" === */
   .mv-btn-ghost {
     background: #ffffff;
     border-radius: 999px;
@@ -253,6 +252,46 @@
     color: var(--muted);
   }
 
+  /* === Chips para validado vs stock total === */
+  .mv-product-meta {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    margin-top: 6px;
+    font-size: .78rem;
+    transition: opacity .15s ease;
+  }
+
+  .mv-product-meta.is-empty {
+    opacity: .6;
+  }
+
+  .mv-chip {
+    border-radius: 999px;
+    padding: 3px 9px;
+    font-weight: 500;
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+  }
+
+  .mv-chip-dot {
+    width: 7px;
+    height: 7px;
+    border-radius: 999px;
+    background: currentColor;
+  }
+
+  .mv-chip-valid {
+    background: #dcfce7;
+    color: #166534;
+  }
+
+  .mv-chip-stock {
+    background: #e0f2fe;
+    color: #075985;
+  }
+
   @keyframes fadeUp {
     from { opacity: 0; transform: translateY(5px); }
     to   { opacity: 1; transform: translateY(0); }
@@ -277,8 +316,8 @@
         <span class="mv-title-badge">Inventario</span>
       </h1>
       <p class="mv-sub">
-        Mueve stock entre bodegas. Selecciona la bodega origen, la bodega destino
-        y el producto que quieres transferir.
+        Mueve stock entre bodegas. Solo se podrán transferir productos con stock <strong>validado</strong>
+        en la bodega origen.
       </p>
     </div>
   </div>
@@ -310,7 +349,7 @@
                 </option>
               {% endfor %}
             </select>
-            <p class="mv-loading">De aquí se descontará el stock.</p>
+            <p class="mv-loading">De aquí se descontará el stock validado.</p>
           </div>
 
           <!-- BODEGA DESTINO -->
@@ -323,7 +362,9 @@
               <option value="">— Selecciona bodega destino —</option>
               {% if bodegas_destino %}
                 {% for b in bodegas_destino %}
-                  <option value="{{ b.id }}">
+                  <option value="{{ b.id }}"
+                    {% if bodega_destino_sel and b.id|stringformat:"s" == bodega_destino_sel|stringformat:"s" %}selected{% endif %}
+                  >
                     {{ b.codigo }} — {{ b.nombre }}
                   </option>
                 {% endfor %}
@@ -338,32 +379,55 @@
             <small class="mv-loading">Aquí se sumará el stock.</small>
           </div>
 
-          <!-- PRODUCTO -->
+          <!-- PRODUCTO (SOLO VALIDADOS) -->
           <div class="mv-field">
             <label class="mv-label" for="productoSelect">
-              Producto
+              Producto validado
             </label>
             {% if productos %}
               <select name="producto" id="productoSelect" class="mv-select" required>
-                <option value="">— Selecciona un producto —</option>
+                <option value="">— Selecciona un producto validado —</option>
                 {% for p in productos %}
-                  <option value="{{ p.id }}">
-                    {{ p.sku }} — {{ p.nombre }} (stock origen: {{ p.stock_total|default:0 }})
+                  <option
+                    value="{{ p.id }}"
+                    data-validado="{{ p.stock_validado|floatformat:0 }}"
+                    data-stock="{{ p.stock_total|floatformat:0 }}"
+                  >
+                    {{ p.sku }} — {{ p.nombre }}
+                    — ✅ {{ p.stock_validado|floatformat:0 }} val. · 📦 {{ p.stock_total|floatformat:0 }} stock
                   </option>
                 {% endfor %}
               </select>
               <small class="mv-loading">
-                Solo se muestran productos con stock en la bodega origen.
+                Solo se muestran productos con stock <strong>validado</strong> y disponible en la bodega origen.
               </small>
             {% elif bodega_sel %}
               <select id="productoSelect" class="mv-select" disabled>
-                <option>No hay productos con stock en esta bodega.</option>
+                <option>No hay productos con stock validado en esta bodega.</option>
               </select>
+              <small class="mv-loading">
+                Valida productos en esta bodega para poder mover stock.
+              </small>
             {% else %}
               <select id="productoSelect" class="mv-select" disabled>
-                <option>Selecciona la bodega origen y vuelve a enviar para ver productos…</option>
+                <option>Selecciona la bodega origen para ver productos validados…</option>
               </select>
+              <small class="mv-loading">
+                Primero selecciona la bodega de origen.
+              </small>
             {% endif %}
+
+            <!-- Chips de colores para validado / stock total -->
+            <div class="mv-product-meta is-empty" id="productoMeta" aria-live="polite">
+              <span class="mv-chip mv-chip-valid">
+                <span class="mv-chip-dot"></span>
+                Validado: <span id="metaValidado">—</span>
+              </span>
+              <span class="mv-chip mv-chip-stock">
+                <span class="mv-chip-dot"></span>
+                Stock total: <span id="metaStock">—</span>
+              </span>
+            </div>
           </div>
 
           <!-- CANTIDAD -->
@@ -433,7 +497,7 @@
           <strong>{{ bodegas|length|default:0 }}</strong>
         </div>
         <div class="mv-metric">
-          <small>Productos en bodega origen</small>
+          <small>Productos validados en bodega origen</small>
           <strong>
             {% if productos %}
               {{ productos|length }}
@@ -446,7 +510,7 @@
           <small>Estado</small>
           <span class="mv-loading">
             {% if bodega_sel %}
-              Origen seleccionado. Completa destino y producto.
+              Origen seleccionado. Solo productos con stock validado.
             {% else %}
               Selecciona una bodega de origen para comenzar.
             {% endif %}
@@ -463,6 +527,7 @@
   const bDestino = document.getElementById('bodega_destino');
 
   function syncBodegas() {
+    if (!bOrigen || !bDestino) return;
     const oVal = bOrigen.value;
     [...bDestino.options].forEach(o => {
       o.disabled = (o.value && o.value === oVal);
@@ -473,5 +538,43 @@
     bOrigen.addEventListener('change', syncBodegas);
     syncBodegas();
   }
+
+  // Chips de producto (validado vs stock total)
+  document.addEventListener("DOMContentLoaded", () => {
+    const productoSelect = document.getElementById("productoSelect");
+    const productoMeta   = document.getElementById("productoMeta");
+    const metaValidado   = document.getElementById("metaValidado");
+    const metaStock      = document.getElementById("metaStock");
+
+    function resetProductoMeta() {
+      if (!productoMeta) return;
+      metaValidado.textContent = "—";
+      metaStock.textContent    = "—";
+      productoMeta.classList.add("is-empty");
+    }
+
+    resetProductoMeta();
+
+    if (productoSelect && !productoSelect.disabled) {
+      // por si ya viene uno seleccionado tras un POST con error
+      const initial = productoSelect.options[productoSelect.selectedIndex];
+      if (initial && initial.dataset.validado) {
+        metaValidado.textContent = initial.dataset.validado || "0";
+        metaStock.textContent    = initial.dataset.stock || "0";
+        productoMeta.classList.remove("is-empty");
+      }
+
+      productoSelect.addEventListener("change", () => {
+        const opt = productoSelect.options[productoSelect.selectedIndex];
+        if (!opt || !opt.dataset.validado) {
+          resetProductoMeta();
+          return;
+        }
+        metaValidado.textContent = opt.dataset.validado || "0";
+        metaStock.textContent    = opt.dataset.stock || "0";
+        productoMeta.classList.remove("is-empty");
+      });
+    }
+  });
 </script>
 {% endblock %}

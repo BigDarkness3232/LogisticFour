@@ -1,6 +1,6 @@
 {% extends "core/base.html" %}
 {% load static %}
-{% block title %}Productos de {{ bodega.nombre }}{% endblock %}
+{% block title %}Productos de {{ sucursal.nombre }}{% endblock %}
 
 {% block content %}
 <style>
@@ -26,30 +26,33 @@
   .btn-sm{padding:6px 10px;font-size:.78rem;border-radius:999px}
   .btn-outline{background:#f8fafc;border:1px solid #cbd5e1;color:#111827}
 
-  /* Botón principal verde para lector QR */
-  .btn-scan-main{
+  /* botón general de QR */
+  .btn-qr-main{
     background:#047857;
-    color:#ffffff;
-    padding:10px 20px;
+    border:1px solid #059669;
+    color:#ecfdf5;
     border-radius:999px;
-    font-size:.88rem;
-    font-weight:700;
+    padding:9px 15px;
+    font-size:.85rem;
     display:inline-flex;
     align-items:center;
     gap:8px;
-    text-decoration:none;
-    border:1px solid #065f46;
-    box-shadow:0 6px 16px rgba(4,120,87,.35);
-    white-space:nowrap;
-    transition:background .15s ease, transform .1s ease, box-shadow .15s ease;
+    font-weight:700;
   }
-  .btn-scan-main span.icon{
+  .btn-qr-main:hover{
+    background:#059669;
+  }
+  .btn-qr-icon{
     font-size:1rem;
   }
-  .btn-scan-main:hover{
-    background:#065f46;
-    transform:translateY(-1px);
-    box-shadow:0 8px 22px rgba(4,120,87,.45);
+
+  .btn-validate{
+    background:#ecfdf5;
+    border:1px solid #22c55e;
+    color:#15803d;
+  }
+  .btn-validate:hover{
+    background:#bbf7d0;
   }
 
   table{width:100%;border-collapse:separate;border-spacing:0}
@@ -68,11 +71,8 @@
     gap:6px;
   }
   @keyframes fade{from{opacity:0;transform:translateY(4px)}to{opacity:1;transform:none}}
-
   @media(max-width:760px){
     .head{flex-direction:column;align-items:flex-start}
-    .metrics{width:100%;justify-content:flex-start}
-    .btn-scan-main{width:100%;justify-content:center;}
     thead{display:none}
     table{display:block}
     tbody{display:grid;gap:12px}
@@ -83,11 +83,13 @@
     .actions-stack{flex-direction:row;flex-wrap:wrap;}
   }
 
-  /* Diferenciar filas */
-  .row-no-ubicacion{background:#fff8e1 !important;}
-  .row-con-ubicacion{background:#ffffff;}
+  .row-no-ubicacion{
+    background:#fff8e1 !important;
+  }
+  .row-con-ubicacion{
+    background:#ffffff;
+  }
 
-  /* Filtros de estado (tags) */
   .ubi-filters-secondary{
     display:flex;
     flex-wrap:wrap;
@@ -109,7 +111,6 @@
     border-color:#111827;
   }
 
-  /* Modal asignar ubicación */
   .asig-backdrop{
     position:fixed;
     inset:0;
@@ -173,9 +174,9 @@
 <div class="wrap">
   <div class="head">
     <div>
-      <h1 class="title">Productos de {{ bodega.nombre }}</h1>
+      <h1 class="title">Productos de sucursal {{ sucursal.nombre }}</h1>
       <p class="sub">
-        Se muestran los productos con stock registrado en ubicaciones de esta bodega.
+        Se muestran los productos con stock registrado en ubicaciones de esta sucursal.
       </p>
     </div>
     <div class="metrics">
@@ -185,13 +186,14 @@
       <div class="metric">
         <small>Suma stock</small><strong>{{ suma_stock|floatformat:0 }}</strong>
       </div>
-      <a href="{% url 'bodega-list' %}" class="btn-ghost">← Volver</a>
 
-      {# BOTÓN VERDE AL LECTOR QR #}
-      <a href="{% url 'escanear-qr-bodega' bodega.id %}" class="btn-scan-main">
-        <span class="icon">📷</span>
-        <span>Validar producto</span>
+      {# Botón general, llamativo, para escanear productos por QR #}
+      <a href="{% url 'escanear_qr_sucursal' sucursal.id %}" class="btn-qr-main">
+        <span class="btn-qr-icon">📷</span>
+        Validar producto
       </a>
+
+      <a href="{% url 'sucursal-list' %}" class="btn-ghost">← Volver</a>
     </div>
   </div>
 
@@ -200,13 +202,15 @@
       <form method="get" class="filters">
         <input class="input" type="text" name="q" value="{{ q }}" placeholder="Buscar por SKU o nombre…">
         <button class="btn" type="submit">Buscar</button>
-        {% if q %}<a class="btn-ghost" href="{% url 'bodega-productos' bodega.id %}">Limpiar</a>{% endif %}
+        {% if q %}
+          <a class="btn-ghost" href="{% url 'sucursal-productos' sucursal.id %}">Limpiar</a>
+        {% endif %}
       </form>
 
       <div class="ubi-filters-secondary">
         <button type="button" class="tag-filter tag-active" data-filter="all">Todos</button>
-        <button type="button" class="tag-filter" data-filter="no-ubi">Productos sin ubicación</button>
-        <button type="button" class="tag-filter" data-filter="con-ubi">Productos con ubicación</button>
+        <button type="button" class="tag-filter" data-filter="no-ubi">Solo sin ubicación real</button>
+        <button type="button" class="tag-filter" data-filter="con-ubi">Solo con ubicación real</button>
       </div>
 
       <div class="table-wrap">
@@ -215,9 +219,9 @@
             <tr>
               <th>SKU</th>
               <th>Nombre</th>
-              <th class="mono">Stock en bodega</th>
+              <th class="mono">Stock en sucursal</th>
               <th class="mono">Stock validado p/mov.</th>
-              <th>Productos recepcionados</th>
+              <th>Productos recepcionado</th>
               <th>Ubicaciones internas</th>
               <th>Acciones</th>
             </tr>
@@ -227,19 +231,20 @@
               <tr>
                 <td class="mono" data-label="SKU">{{ p.sku }}</td>
                 <td data-label="Nombre"><strong>{{ p.nombre }}</strong></td>
-                <td class="mono" data-label="Stock">{{ p.stock_total|floatformat:0 }}</td>
+
+                {# stock total en la sucursal #}
+                <td class="mono" data-label="Stock">{{ p.stock_sucursal|floatformat:0 }}</td>
 
                 <td class="mono" data-label="Stock validado p/mov.">
                   {% if p.stock_validado %}
                     {{ p.stock_validado|floatformat:0 }}
                   {% else %}
-                    –
+                    – 
                   {% endif %}
                 </td>
 
                 <td data-label="Sin ubicación">
                   <div class="ubi-default" data-producto="{{ p.id }}">
-                    <span class="muted">Cargando…</span>
                   </div>
                 </td>
 
@@ -274,7 +279,7 @@
   </div>
 </div>
 
-{# === MODAL para asignar producto a una ubicación === #}
+{# === MODAL para asignar producto a una ubicación de la sucursal === #}
 <div id="asig-backdrop" class="asig-backdrop" aria-hidden="true">
   <div class="asig-modal" role="dialog" aria-modal="true" aria-labelledby="asig-title">
     <div class="asig-head">
@@ -286,10 +291,10 @@
     </div>
     <div class="asig-body">
       <input type="hidden" id="asig-producto-id" value="">
-      <input type="hidden" id="asig-bodega-id" value="{{ bodega.id }}">
+      <input type="hidden" id="asig-sucursal-id" value="{{ sucursal.id }}">
 
       <div class="field">
-        <label for="asig-ubicacion">Ubicación de bodega</label>
+        <label for="asig-ubicacion">Ubicación en sucursal</label>
         <select id="asig-ubicacion">
           {% for u in ubicaciones %}
             <option value="{{ u.id }}">{{ u.codigo }}{% if u.area %} — {{ u.area }}{% endif %}</option>
@@ -305,7 +310,7 @@
       </div>
 
       <p class="muted" style="font-size:.78rem;">
-        Se creará o actualizará el registro de stock para esta ubicación.  
+        Se creará o actualizará el registro de stock para esta ubicación de sucursal.  
         Si la cantidad es 0, solo se asociará la ubicación (según cómo manejes tu modelo de stock).
       </p>
     </div>
@@ -318,7 +323,7 @@
 
 <script>
   (function(){
-    const bodegaId = {{ bodega.id }};
+    const sucursalId = {{ sucursal.id }};
     const defaultCells = document.querySelectorAll('.ubi-default');
     const realCells    = document.querySelectorAll('.ubi-real');
     const cache = new Map();
@@ -337,15 +342,9 @@
       rows.forEach(function(tr){
         const noUbi  = tr.classList.contains("row-no-ubicacion");
         const conUbi = tr.classList.contains("row-con-ubicacion");
-
         tr.style.display = "";
-
-        if (mode === "no-ubi" && !noUbi){
-          tr.style.display = "none";
-        }
-        if (mode === "con-ubi" && !conUbi){
-          tr.style.display = "none";
-        }
+        if (mode === "no-ubi" && !noUbi)  tr.style.display = "none";
+        if (mode === "con-ubi" && !conUbi) tr.style.display = "none";
       });
     }
 
@@ -353,7 +352,6 @@
       const defCell  = document.querySelector('.ubi-default[data-producto="'+productId+'"]');
       const realCell = document.querySelector('.ubi-real[data-producto="'+productId+'"]');
       const tr       = defCell ? defCell.closest("tr") : null;
-
       if (!defCell || !realCell || !tr) return;
 
       if (cache.has(productId)){
@@ -367,7 +365,8 @@
       }
 
       try{
-        const res = await fetch(`/ajax/ubicaciones-por-producto/?bodega_id=${bodegaId}&producto_id=${productId}`);
+        const baseUrl = "{% url 'ajax-ubicaciones-sucursal-por-producto' %}";
+        const res  = await fetch(`${baseUrl}?sucursal_id=${sucursalId}&producto_id=${productId}`);
         const data = await res.json();
 
         if (!data.ok){
@@ -387,9 +386,9 @@
           const realUbis    = [];
 
           data.ubicaciones.forEach(function(u){
-            const nombreU = (u.nombre || "").toUpperCase();
+            const nombreU = (u.area || "").toUpperCase();
             const isDefault =
-              u.codigo.endsWith("-000-000") ||
+              (u.codigo && u.codigo.endsWith("-000-000")) ||
               nombreU.includes("SIN UBICACIÓN");
 
             if (isDefault){
@@ -412,7 +411,7 @@
             className = "row-no-ubicacion";
           }else{
             realHtml = realUbis.map(function(u){
-              return `<span class="pill pill-real">${u.codigo}${u.nombre ? ' — '+u.nombre : ''} · <strong>${u.cantidad}</strong></span>`;
+              return `<span class="pill pill-real">${u.codigo}${u.area ? ' — '+u.area : ''} · <strong>${u.cantidad}</strong></span>`;
             }).join(" ");
             className = "row-con-ubicacion";
           }
@@ -460,9 +459,9 @@
       backdrop.classList.remove('open');
     };
 
-    // 🔹 Siempre cerrar el modal al presionar Guardar, incluso si hay errores
+    // 🔹 Siempre cerrar el modal al presionar Guardar, incluso con errores
     window.submitAsignacion = async function(){
-      // Cierra el modal al tiro
+      // se cierra SIEMPRE al iniciar
       closeAsignarModal();
 
       const productoId  = prodInput.value;
@@ -488,14 +487,14 @@
       }
 
       try{
-        const res = await fetch("{% url 'ajax-asignar-producto-ubicacion' %}", {
+        const res = await fetch("{% url 'ajax-asignar-producto-ubicacion-sucursal' %}", {
           method: "POST",
           headers:{
             "Content-Type": "application/json",
             "X-CSRFToken": csrfToken
           },
           body: JSON.stringify({
-            bodega_id: {{ bodega.id }},
+            sucursal_id: {{ sucursal.id }},
             producto_id: productoId,
             ubicacion_id: ubicacionId,
             cantidad: cantidad

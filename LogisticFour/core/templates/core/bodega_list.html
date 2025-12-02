@@ -11,272 +11,721 @@
   }
   body.modal-open{ overflow:hidden; }
 
-  .bodega-page{display:grid;gap:16px}
-  .page-head{display:flex;align-items:center;justify-content:space-between;gap:12px}
-  .page-title{margin:0;font-weight:800;letter-spacing:.2px;display:flex;gap:6px;align-items:center}
-  .page-sub{margin:2px 0 0;color:var(--muted);font-size:.82rem}
-  .page-actions{display:flex;gap:10px;flex-wrap:wrap}
+  /* Layout general */
+  .bodega-page{
+    display:grid;
+    gap:16px;
+    max-width:1180px;
+    margin:8px auto 24px;
+    padding:8px 12px 24px;
+  }
+
+  .page-head{
+    display:flex;
+    align-items:flex-start;
+    justify-content:space-between;
+    gap:12px;
+    flex-wrap:wrap;
+  }
+  .page-title{
+    margin:0;
+    font-weight:800;
+    letter-spacing:.2px;
+    display:flex;
+    gap:8px;
+    align-items:center;
+    font-size:clamp(1.25rem,2.2vw,1.5rem);
+  }
+  .page-title-icon{
+    width:28px;height:28px;border-radius:999px;
+    display:inline-flex;align-items:center;justify-content:center;
+    background:#e5edff;font-size:1.1rem;
+  }
+  .page-sub{
+    margin:2px 0 0;
+    color:var(--muted);
+    font-size:.82rem;
+  }
+  .page-actions{
+    display:flex;
+    gap:10px;
+    flex-wrap:wrap;
+    justify-content:flex-end;
+  }
 
   .btn-primary{
-    background:var(--pri);color:var(--pri-ink);border-radius:999px;border:1px solid rgba(15,23,42,.08);
-    padding:9px 14px;font-weight:700;display:inline-flex;align-items:center;gap:8px;
-    text-decoration:none;cursor:pointer;transition:transform .12s ease, box-shadow .12s ease; font-size:.84rem;
+    background:var(--pri);
+    color:var(--pri-ink);
+    border-radius:999px;
+    border:1px solid rgba(15,23,42,.08);
+    padding:9px 14px;
+    font-weight:700;
+    display:inline-flex;
+    align-items:center;
+    gap:8px;
+    text-decoration:none;
+    cursor:pointer;
+    transition:transform .12s ease, box-shadow .12s ease;
+    font-size:.84rem;
+    white-space:nowrap;
   }
-  .btn-primary:hover{transform:translateY(-1px); box-shadow:var(--shadow)}
+  .btn-primary:hover{
+    transform:translateY(-1px);
+    box-shadow:var(--shadow);
+  }
 
-  .filter-card{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:10px 12px;
-    display:flex;gap:8px;align-items:center;flex-wrap:wrap;animation:fadeIn .25s ease}
-  .filter-input{flex:1 1 280px;min-width:220px;padding:8.5px 11px;border:1px solid #cbd5e1;border-radius:10px;
-    background:#f8fafc;transition:border .12s ease, box-shadow .12s ease; font-size:.9rem}
-  .filter-input:focus{border:1px solid rgba(15,23,42,.58);box-shadow:0 0 0 3px rgba(15,23,42,.08);background:#fff;outline:none}
-  .btn-filter{background:var(--pri);color:#fff;border:none;border-radius:10px;padding:9px 13px;display:inline-flex;gap:6px;align-items:center;cursor:pointer;font-weight:600}
-  .btn-ghost{background:#fff;color:#0f172a;border:1px solid var(--line);border-radius:10px;padding:9px 13px;display:inline-flex;gap:6px;align-items:center;text-decoration:none;font-weight:600}
+  /* Filtros */
+  .filter-card{
+    background:var(--card);
+    border:1px solid var(--line);
+    border-radius:14px;
+    padding:10px 12px;
+    display:flex;
+    gap:8px;
+    align-items:center;
+    flex-wrap:wrap;
+    animation:fadeIn .25s ease;
+  }
+  .filter-input{
+    flex:1 1 280px;
+    min-width:220px;
+    padding:8.5px 11px;
+    border:1px solid #cbd5e1;
+    border-radius:10px;
+    background:#f8fafc;
+    transition:border .12s ease, box-shadow .12s ease;
+    font-size:.9rem;
+  }
+  .filter-input:focus{
+    border:1px solid rgba(15,23,42,.58);
+    box-shadow:0 0 0 3px rgba(15,23,42,.08);
+    background:#fff;
+    outline:none;
+  }
+  .btn-filter{
+    background:var(--pri);
+    color:#fff;
+    border:none;
+    border-radius:10px;
+    padding:9px 13px;
+    display:inline-flex;
+    gap:6px;
+    align-items:center;
+    cursor:pointer;
+    font-weight:600;
+    font-size:.82rem;
+    white-space:nowrap;
+  }
+  .btn-ghost{
+    background:#fff;
+    color:#0f172a;
+    border:1px solid var(--line);
+    border-radius:10px;
+    padding:9px 13px;
+    display:inline-flex;
+    gap:6px;
+    align-items:center;
+    text-decoration:none;
+    font-weight:600;
+    font-size:.82rem;
+    white-space:nowrap;
+  }
+  .filter-pill{
+    font-size:.78rem;
+    padding:4px 8px;
+    border-radius:999px;
+    border:1px solid #cbd5e1;
+    background:#f9fafb;
+    color:var(--muted);
+  }
 
-  .table-wrap{background:var(--card);border:1px solid var(--line);border-radius:14px;overflow:hidden;animation:fadeIn .25s ease}
-  .data-table{width:100%;border-collapse:separate;border-spacing:0;font-size:.92rem}
-  .data-table thead th{position:sticky;top:0;background:var(--head);z-index:1;text-align:left;padding:10px;
-    font-weight:800;border-bottom:1px solid var(--line);color:#0f172a;font-size:.75rem}
-  .data-table thead th:last-child{text-align:right}
-  .data-table tbody td{padding:10px;border-bottom:1px solid var(--line);vertical-align:middle}
-  .data-table tbody tr:hover{background:#f8fafc}
-  .mono{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace}
-  .col-actions{text-align:right;white-space:nowrap;min-width:460px}
+  /* Tabla */
+  .table-wrap{
+    background:var(--card);
+    border:1px solid var(--line);
+    border-radius:14px;
+    overflow:hidden;
+    animation:fadeIn .25s ease;
+  }
+  /* scroll horizontal en pantallas medianas */
+  .table-scroller{
+    width:100%;
+    overflow-x:auto;
+  }
 
-  .badge{display:inline-flex;align-items:center;gap:6px;padding:4px 8px;border-radius:999px;border:1px solid rgba(148,163,184,.4);font-size:.72rem;background:#f8fafc}
-  .badge.ok{background:var(--success-50); border-color:#a7f3d0; color:#166534}
-  .badge.no{background:var(--danger-50); border-color:#fecaca; color:#b91c1c}
+  .data-table{
+    width:100%;
+    border-collapse:separate;
+    border-spacing:0;
+    font-size:.92rem;
+    min-width:980px; /* para que respire en desktop sin comprimirse demasiado */
+  }
+  .data-table thead th{
+    position:sticky;
+    top:0;
+    background:var(--head);
+    z-index:1;
+    text-align:left;
+    padding:10px;
+    font-weight:800;
+    border-bottom:1px solid var(--line);
+    color:#0f172a;
+    font-size:.75rem;
+  }
+  .data-table thead th:last-child{
+    text-align:right;
+  }
+  .data-table tbody td{
+    padding:10px;
+    border-bottom:1px solid var(--line);
+    vertical-align:middle;
+  }
+  .data-table tbody tr:hover{
+    background:#f8fafc;
+  }
+  .mono{
+    font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
+  }
+  .col-actions{
+    text-align:right;
+    white-space:nowrap;
+    min-width:520px;
+  }
 
-  .acts{display:flex;gap:8px;flex-wrap:wrap;justify-content:flex-end}
+  .badge{
+    display:inline-flex;
+    align-items:center;
+    gap:6px;
+    padding:4px 8px;
+    border-radius:999px;
+    border:1px solid rgba(148,163,184,.4);
+    font-size:.72rem;
+    background:#f8fafc;
+  }
+  .badge.ok{
+    background:var(--success-50);
+    border-color:#a7f3d0;
+    color:#166534;
+  }
+  .badge.no{
+    background:var(--danger-50);
+    border-color:#fecaca;
+    color:#b91c1c;
+  }
+
+  .acts{
+    display:flex;
+    gap:8px;
+    flex-wrap:wrap;
+    justify-content:flex-end;
+  }
   .btnx{
     --bg:#fff; --bd:rgba(148,163,184,.4); --ink:#0f172a;
-    background:var(--bg); color:var(--ink); border:1px solid var(--bd);
-    border-radius:999px; padding:7px 10px; font-size:.78rem; line-height:1; font-weight:600;
-    display:inline-flex; align-items:center; gap:6px; text-decoration:none; cursor:pointer;
+    background:var(--bg);
+    color:var(--ink);
+    border:1px solid var(--bd);
+    border-radius:999px;
+    padding:7px 10px;
+    font-size:.78rem;
+    line-height:1;
+    font-weight:600;
+    display:inline-flex;
+    align-items:center;
+    gap:6px;
+    text-decoration:none;
+    cursor:pointer;
     transition:background .12s ease, transform .12s ease, box-shadow .12s ease;
   }
-  .btnx:hover{background:#f3f4f6}
-  .btnx--sm{padding:6.5px 9px; font-size:.76rem}
-  .btnx--primary{--bg:#0f172a; --bd:#0f172a; --ink:#fff}
-  .btnx--primary:hover{transform:translateY(-1px); box-shadow:var(--shadow)}
-  .btnx--soft{--bg:#f8fafc}
-  .btnx--danger{--bg:#fff; --bd:#fecaca; --ink:#dc2626}
-  .btnx--danger:hover{background:#fef2f2}
-  .btnx .ico{font-size:.95rem; line-height:1}
+  .btnx:hover{
+    background:#f3f4f6;
+  }
+  .btnx--sm{
+    padding:6.5px 9px;
+    font-size:.76rem;
+  }
+  .btnx--primary{
+    --bg:#0f172a; --bd:#0f172a; --ink:#fff;
+  }
+  .btnx--primary:hover{
+    transform:translateY(-1px);
+    box-shadow:var(--shadow);
+  }
+  .btnx--soft{
+    --bg:#f8fafc;
+  }
+  .btnx--danger{
+    --bg:#fff; --bd:#fecaca; --ink:#dc2626;
+  }
+  .btnx--danger:hover{
+    background:#fef2f2;
+  }
+  .btnx .ico{
+    font-size:.95rem;
+    line-height:1;
+  }
 
   /* Expand (animado como Sucursales) */
-  .expand-row td{padding:0 !important;background:#fbfcff}
-  .expand{border-top:1px dashed var(--line)}
+  .expand-row td{
+    padding:0 !important;
+    background:#fbfcff;
+  }
+  .expand{
+    border-top:1px dashed var(--line);
+  }
   .expand__inner{
-    display:grid;gap:12px;padding:12px 14px;
+    display:grid;
+    gap:12px;
+    padding:12px 14px;
     grid-template-columns:1.1fr 0.9fr 1fr;
-    max-height:0; opacity:0; overflow:hidden;
+    max-height:0;
+    opacity:0;
+    overflow:hidden;
     transition:max-height .35s ease, opacity .25s ease;
   }
-  .expand.open .expand__inner{opacity:1}
+  .expand.open .expand__inner{
+    opacity:1;
+  }
 
-  .card-mini{background:#fff;border:1px solid var(--line);border-radius:12px;padding:10px}
-  .kv{display:grid;gap:7px}
-  .kv-row{display:grid;grid-template-columns:150px 1fr;gap:8px;align-items:start}
-  .kv-row small{color:var(--muted);font-weight:700}
-  .metrics{display:flex;gap:8px;flex-wrap:wrap}
-  .metric{background:#f8fafc;border:1px solid #d1d5db;border-radius:12px;padding:8px 12px;min-width:120px}
-  .metric small{display:block;color:var(--muted)}
-  .metric strong{font-size:1.05rem}
-  .muted{color:var(--muted)}
+  .card-mini{
+    background:#fff;
+    border:1px solid var(--line);
+    border-radius:12px;
+    padding:10px;
+  }
+  .card-mini h4{
+    margin:0 0 8px;
+    font-weight:800;
+    font-size:.9rem;
+  }
+  .kv{
+    display:grid;
+    gap:7px;
+  }
+  .kv-row{
+    display:grid;
+    grid-template-columns:150px 1fr;
+    gap:8px;
+    align-items:start;
+  }
+  .kv-row small{
+    color:var(--muted);
+    font-weight:700;
+    font-size:.74rem;
+    text-transform:uppercase;
+    letter-spacing:.04em;
+  }
+  .metrics{
+    display:flex;
+    gap:8px;
+    flex-wrap:wrap;
+  }
+  .metric{
+    background:#f8fafc;
+    border:1px solid #d1d5db;
+    border-radius:12px;
+    padding:8px 12px;
+    min-width:120px;
+  }
+  .metric small{
+    display:block;
+    color:var(--muted);
+    font-size:.74rem;
+    text-transform:uppercase;
+    letter-spacing:.04em;
+  }
+  .metric strong{
+    font-size:1.05rem;
+  }
+  .muted{
+    color:var(--muted);
+  }
 
-  @keyframes fadeIn{from{opacity:0;transform:translateY(3px)}to{opacity:1;transform:translateY(0)}}
+  @keyframes fadeIn{
+    from{opacity:0;transform:translateY(3px)}
+    to{opacity:1;transform:translateY(0)}
+  }
 
+  /* Responsive */
   @media (max-width:870px){
-    .page-head{flex-direction:column;align-items:flex-start}
-    .acts{justify-content:flex-start}
-  }
-  @media (max-width:760px){
-    .data-table thead{display:none}
-    .data-table{display:block}
-    .data-table tbody{display:grid;gap:12px}
-    .data-table tr{display:grid;gap:8px;background:#fff;border:1px solid var(--line);border-radius:12px;margin:0 10px 4px}
-    .data-table td{border:none;padding:6px 12px}
-    .data-table td[data-label]::before{content:attr(data-label) ": ";font-weight:700;color:#64748b;margin-right:6px}
-    .expand__inner{grid-template-columns:1fr}
-    .kv-row{grid-template-columns:1fr}
+    .page-head{
+      flex-direction:column;
+      align-items:flex-start;
+    }
+    .page-actions{
+      justify-content:flex-start;
+    }
   }
 
-  /* MODAL PAYPAL (real modal, centra y bloquea scroll) */
+  @media (max-width:760px){
+    .table-wrap{
+      border:0;
+      background:transparent;
+    }
+    .table-scroller{
+      overflow-x:visible;
+    }
+    .data-table{
+      display:block;
+      min-width:0;
+    }
+    .data-table thead{
+      display:none;
+    }
+    .data-table tbody{
+      display:grid;
+      gap:12px;
+    }
+    .data-table tr{
+      display:grid;
+      gap:8px;
+      background:#fff;
+      border:1px solid var(--line);
+      border-radius:12px;
+      margin:0 0 4px;
+    }
+    .data-table td{
+      border:none;
+      padding:6px 12px;
+    }
+    .data-table td[data-label]::before{
+      content:attr(data-label) ": ";
+      font-weight:700;
+      color:#64748b;
+      margin-right:6px;
+      font-size:.78rem;
+    }
+    .col-actions{
+      min-width:0;
+      text-align:left;
+    }
+    .acts{
+      justify-content:flex-start;
+    }
+    .expand__inner{
+      grid-template-columns:1fr;
+    }
+    .kv-row{
+      grid-template-columns:1fr;
+    }
+  }
+
+  @media (prefers-reduced-motion:reduce){
+    .data-table tbody tr,
+    .btn-primary,
+    .btnx,
+    .expand__inner{
+      transition:none !important;
+    }
+  }
+
+  /* MODAL PAYPAL */
   #paypalBackdrop.pp-backdrop{
-    position:fixed; inset:0;
-    display:none; align-items:center; justify-content:center;
-    background:rgba(15,23,42,.45); z-index:5000;
+    position:fixed;
+    inset:0;
+    display:none;
+    align-items:center;
+    justify-content:center;
+    background:rgba(15,23,42,.45);
+    z-index:5000;
   }
-  #paypalBackdrop.pp-backdrop.open{display:flex}
+  #paypalBackdrop.pp-backdrop.open{
+    display:flex;
+  }
   .pp-modal{
-    background:#fff; border-radius:14px;
-    width:min(520px,95vw); max-height:85vh;
-    overflow:hidden; box-shadow:0 20px 50px rgba(15,23,42,.25);
-    display:flex; flex-direction:column;
+    background:#fff;
+    border-radius:14px;
+    width:min(520px,95vw);
+    max-height:85vh;
+    overflow:hidden;
+    box-shadow:0 20px 50px rgba(15,23,42,.25);
+    display:flex;
+    flex-direction:column;
   }
-  .pp-head{padding:12px 16px;border-bottom:1px solid #e5e7eb;
-    display:flex;justify-content:space-between;align-items:center}
-  .pp-body{padding:14px 16px;overflow:auto;display:grid;gap:10px}
-  .pp-footer{padding:12px 16px;border-top:1px solid #e5e7eb}
-  .pp-field{display:grid;gap:4px}
-  .pp-field label{font-size:.82rem;color:#475569;font-weight:600}
-  .pp-field input,.pp-field select{
-    border:1px solid #e2e8f0;border-radius:9px;padding:8px 10px;font-size:.92rem;background:#f8fafc;
+  .pp-head{
+    padding:12px 16px;
+    border-bottom:1px solid #e5e7eb;
+    display:flex;
+    justify-content:space-between;
+    align-items:center;
   }
-  #paypalBackdrop .pp-clickout{position:absolute;inset:0}
+  .pp-body{
+    padding:14px 16px;
+    overflow:auto;
+    display:grid;
+    gap:10px;
+  }
+  .pp-footer{
+    padding:12px 16px;
+    border-top:1px solid #e5e7eb;
+  }
+  .pp-field{
+    display:grid;
+    gap:4px;
+  }
+  .pp-field label{
+    font-size:.82rem;
+    color:#475569;
+    font-weight:600;
+  }
+  .pp-field input,
+  .pp-field select{
+    border:1px solid #e2e8f0;
+    border-radius:9px;
+    padding:8px 10px;
+    font-size:.92rem;
+    background:#f8fafc;
+  }
+  #paypalBackdrop .pp-clickout{
+    position:absolute;
+    inset:0;
+  }
 </style>
 
 <div class="bodega-page">
   <header class="page-head">
     <div>
-      <h1 class="page-title">Bodegas</h1>
-      <p class="page-sub">Listado general de bodegas con sus sucursales, ubicaciones y stock agregado.</p>
+      <h1 class="page-title">
+        <span class="page-title-icon">🏭</span>
+        <span>Bodegas</span>
+      </h1>
+      <p class="page-sub">
+        Listado general de bodegas con sus sucursales, ubicaciones y stock agregado.
+      </p>
+      <p class="page-sub" style="margin-top:4px;font-size:.78rem;">
+        Total bodegas: <strong>{{ bodegas|length }}</strong>
+      </p>
     </div>
     <div class="page-actions">
       {% if request.user.is_superuser or request.user.perfil.rol == 'ADMIN' %}
-        <a class="btn-primary" href="{% url 'bodega-create' %}">＋ Crear bodega</a>
+        <a class="btn-primary" href="{% url 'bodega-create' %}">
+          <span>＋</span> Crear bodega
+        </a>
       {% endif %}
     </div>
   </header>
 
-  <form method="get" class="filter-card">
-    <input type="text" name="q" class="filter-input" value="{{ q }}" placeholder="Buscar por código, nombre, descripción o sucursal…">
+  <form method="get" class="filter-card" id="bodegaSearchForm">
+    <input
+      type="search"
+      name="q"
+      id="qBodega"
+      class="filter-input"
+      value="{{ q }}"
+      placeholder="Buscar por código, nombre, descripción o sucursal…">
     <button class="btn-filter" type="submit">🔎 Buscar</button>
     <a class="btn-ghost" href="{% url 'bodega-list' %}">Limpiar</a>
+    {% if q %}
+      <span class="filter-pill">
+        Filtro aplicado: «{{ q }}»
+      </span>
+    {% endif %}
   </form>
 
   <div class="table-wrap">
-    <table class="data-table">
-      <thead>
-        <tr>
-          <th>Código</th><th>Nombre</th><th>Descripción</th><th>Sucursales</th>
-          <th>Ubicaciones</th><th>Productos</th><th>Stock total</th><th>Activo</th><th>Acciones</th>
-        </tr>
-      </thead>
-      <tbody id="rows-bod">
-        {% for b in bodegas %}
-        <tr id="row-{{ b.pk }}">
-          <td class="mono">{{ b.codigo }}</td>
-          <td><strong>{{ b.nombre }}</strong></td>
-          <td>{{ b.descripcion|default:"—"|truncatechars:55 }}</td>
-          <td>{{ b.sucursales_count|floatformat:0 }}</td>
-          <td>{{ b.ubicaciones_count|floatformat:0 }}</td>
-          <td>{{ b.productos_count|floatformat:0 }}</td>
-          <td class="mono"><strong>{{ b.total_stock|floatformat:0 }}</strong></td>
-          <td>{% if b.activo %}<span class="badge ok">Sí</span>{% else %}<span class="badge no">No</span>{% endif %}</td>
-          <td class="col-actions">
-            <div class="acts">
-              <button type="button" class="btnx btnx--primary btnx--sm" data-target="b{{ b.pk }}" aria-controls="b{{ b.pk }}" aria-expanded="false">
-                <span class="ico">👁</span> Ver
-              </button>
+    <div class="table-scroller">
+      <table class="data-table">
+        <thead>
+          <tr>
+            <th>Código</th>
+            <th>Nombre</th>
+            <th>Descripción</th>
+            <th>Sucursales</th>
+            <th>Ubicaciones</th>
+            <th>Productos</th>
+            <th>Stock total</th>
+            <th>Activo</th>
+            <th>Acciones</th>
+          </tr>
+        </thead>
+        <tbody id="rows-bod">
+          {% for b in bodegas %}
+          <tr id="row-{{ b.pk }}">
+            <td class="mono" data-label="Código">{{ b.codigo }}</td>
+            <td data-label="Nombre"><strong>{{ b.nombre }}</strong></td>
+            <td data-label="Descripción">{{ b.descripcion|default:"—"|truncatechars:55 }}</td>
+            <td data-label="Sucursales">{{ b.sucursales_count|floatformat:0 }}</td>
+            <td data-label="Ubicaciones">{{ b.ubicaciones_count|floatformat:0 }}</td>
+            <td data-label="Productos">{{ b.productos_count|floatformat:0 }}</td>
+            <td class="mono" data-label="Stock total">
+              <strong>{{ b.total_stock|floatformat:0 }}</strong>
+            </td>
+            <td data-label="Activo">
+              {% if b.activo %}
+                <span class="badge ok">Sí</span>
+              {% else %}
+                <span class="badge no">No</span>
+              {% endif %}
+            </td>
 
-              <a href="{% url 'bodega-productos' b.pk %}" class="btnx btnx--soft btnx--sm"><span class="ico">📋</span> Ver productos</a>
+            <td class="col-actions" data-label="Acciones">
+              <div class="acts" style="flex-direction:column;align-items:flex-end;gap:6px;">
 
-              <a href="{% url 'bodega-agregar-sucursal' b.id %}" class="btnx btnx--soft btnx--sm"><span class="ico">🏢</span> Agregar sucursal</a>
+                <!-- Fila superior: 4 botones -->
+                <div style="display:flex;flex-wrap:wrap;gap:8px;justify-content:flex-end;">
+                  <button type="button"
+                          class="btnx btnx--primary btnx--sm"
+                          data-target="b{{ b.pk }}"
+                          aria-controls="b{{ b.pk }}"
+                          aria-expanded="false">
+                    <span class="ico">👁</span> Ver
+                  </button>
 
-              <button type="button" class="btnx btnx--soft btnx--sm"
-                      onclick="openPaypalModal({{ b.id }}, '{{ b.nombre|escapejs }}')">
-                <span class="ico">💳</span> Agregar Stock
-              </button>
+                  <a href="{% url 'bodega-productos' b.pk %}"
+                     class="btnx btnx--soft btnx--sm">
+                    <span class="ico">📋</span> Ver productos
+                  </a>
 
-              <a href="{% url 'bodega-edit' b.pk %}" class="btnx btnx--soft btnx--sm"><span class="ico">✎</span> Editar</a>
+                  <a href="{% url 'bodega-agregar-sucursal' b.id %}"
+                     class="btnx btnx--soft btnx--sm">
+                    <span class="ico">🏢</span> Agregar sucursal
+                  </a>
 
-              <button type="button" class="btnx btnx--danger btnx--sm"
-                      data-url="{% url 'bodega-delete' b.pk %}"
-                      data-nombre="{{ b.nombre|escapejs }}">
-                <span class="ico">🗑</span> Eliminar
-              </button>
-            </div>
-          </td>
-        </tr>
+                  <a href="{% url 'ubicacion-bodega-create-bodega' b.id %}"
+                     class="btnx btnx--soft btnx--sm">
+                    <span class="ico">📍</span> Agregar ubicación
+                  </a>
+                </div>
 
-        <!-- Expand animado con ficha -->
-        <tr id="b{{ b.pk }}" class="expand-row">
-          <td colspan="9">
-            <div class="expand" data-expand>
-              <div class="expand__inner">
-                <div class="card-mini">
-                  <h4 style="margin:0 0 8px;font-weight:800">Información de la bodega</h4>
-                  <div class="kv">
-                    <div class="kv-row"><small>Código</small><span class="mono">{{ b.codigo }}</span></div>
-                    <div class="kv-row"><small>Nombre</small><span>{{ b.nombre }}</span></div>
-                    <div class="kv-row"><small>Descripción</small><span>{{ b.descripcion|default:"—" }}</span></div>
-                    <div class="kv-row"><small>Estado</small>
-                      <span>
-                        {% if b.activo %}
-                          <span class="badge ok">Activa</span>
-                        {% else %}
-                          <span class="badge no">Inactiva</span>
-                        {% endif %}
-                      </span>
+                <!-- Fila inferior: 3 botones -->
+                <div style="display:flex;flex-wrap:wrap;gap:8px;justify-content:flex-end;">
+                  <button type="button"
+                          class="btnx btnx--soft btnx--sm"
+                          onclick="openPaypalModal({{ b.id }}, '{{ b.nombre|escapejs }}')">
+                    <span class="ico">💳</span> Agregar Stock
+                  </button>
+
+                  <a href="{% url 'bodega-edit' b.pk %}"
+                     class="btnx btnx--soft btnx--sm">
+                    <span class="ico">✎</span> Editar
+                  </a>
+
+                  <button type="button"
+                          class="btnx btnx--danger btnx--sm"
+                          data-url="{% url 'bodega-delete' b.pk %}"
+                          data-nombre="{{ b.nombre|escapejs }}">
+                    <span class="ico">🗑</span> Eliminar
+                  </button>
+                </div>
+
+              </div>
+            </td>
+          </tr>
+
+          <!-- Expand animado con ficha -->
+          <tr id="b{{ b.pk }}" class="expand-row">
+            <td colspan="9">
+              <div class="expand" data-expand>
+                <div class="expand__inner">
+                  <div class="card-mini">
+                    <h4>Información de la bodega</h4>
+                    <div class="kv">
+                      <div class="kv-row">
+                        <small>Código</small>
+                        <span class="mono">{{ b.codigo }}</span>
+                      </div>
+                      <div class="kv-row">
+                        <small>Nombre</small>
+                        <span>{{ b.nombre }}</span>
+                      </div>
+                      <div class="kv-row">
+                        <small>Descripción</small>
+                        <span>{{ b.descripcion|default:"—" }}</span>
+                      </div>
+                      <div class="kv-row">
+                        <small>Estado</small>
+                        <span>
+                          {% if b.activo %}
+                            <span class="badge ok">Activa</span>
+                          {% else %}
+                            <span class="badge no">Inactiva</span>
+                          {% endif %}
+                        </span>
+                      </div>
                     </div>
                   </div>
-                </div>
 
-                <div class="card-mini">
-                  <h4 style="margin:0 0 8px;font-weight:800">Resumen</h4>
-                  <div class="metrics">
-                    <div class="metric"><small>Sucursales</small><strong>{{ b.sucursales_count|floatformat:0 }}</strong></div>
-                    <div class="metric"><small>Ubicaciones</small><strong>{{ b.ubicaciones_count|floatformat:0 }}</strong></div>
-                    <div class="metric"><small>Productos</small><strong>{{ b.productos_count|floatformat:0 }}</strong></div>
-                    <div class="metric"><small>Stock total</small><strong>{{ b.total_stock|floatformat:0 }}</strong></div>
-                  </div>
-                </div>
-
-                <div class="card-mini">
-                  <h4 style="margin:0 0 8px;font-weight:800">Sucursales, ubicaciones y stock</h4>
-
-                  <div class="kv">
-                    <small style="font-weight:800;color:var(--muted)">Sucursales</small>
-                    {% with sucs=b.sucursales.all %}
-                      {% if sucs %}
-                        <ul style="margin:0;padding-left:1rem">
-                          {% for s in sucs %}
-                            <li>{{ s.codigo }} — {{ s.nombre }}</li>
-                          {% endfor %}
-                        </ul>
-                      {% else %}
-                        <span class="muted">No hay sucursales asociadas.</span>
-                      {% endif %}
-                    {% endwith %}
+                  <div class="card-mini">
+                    <h4>Resumen</h4>
+                    <div class="metrics">
+                      <div class="metric">
+                        <small>Sucursales</small>
+                        <strong>{{ b.sucursales_count|floatformat:0 }}</strong>
+                      </div>
+                      <div class="metric">
+                        <small>Ubicaciones</small>
+                        <strong>{{ b.ubicaciones_count|floatformat:0 }}</strong>
+                      </div>
+                      <div class="metric">
+                        <small>Productos</small>
+                        <strong>{{ b.productos_count|floatformat:0 }}</strong>
+                      </div>
+                      <div class="metric">
+                        <small>Stock total</small>
+                        <strong>{{ b.total_stock|floatformat:0 }}</strong>
+                      </div>
+                    </div>
                   </div>
 
-                  <div class="kv" style="margin-top:8px">
-                    <small style="font-weight:800;color:var(--muted)">Stock por ubicación</small>
-                    {% with sucs=b.sucursales.all %}
-                      {% if sucs %}
-                        <ul style="margin:0;padding-left:1rem">
-                          {% for s in sucs %}
-                            {% for u in s.ubicaciones.all %}
-                              {% for st in u.stocks.all %}
-                                {% if st.cantidad_disponible|default:0 > 0 %}
-                                  <li>
-                                    <strong class="mono">{{ st.producto.sku }}</strong> — {{ st.producto.nombre }}
-                                    <span class="muted">({{ s.nombre }} / {{ u.codigo }})</span>:
-                                    <strong>{{ st.cantidad_disponible|default:0|floatformat:0 }}</strong>
-                                  </li>
-                                {% endif %}
+                  <div class="card-mini">
+                    <h4>Sucursales, ubicaciones y stock</h4>
+
+                    <div class="kv">
+                      <small>Sucursales</small>
+                      {% with sucs=b.sucursales.all %}
+                        {% if sucs %}
+                          <ul style="margin:0;padding-left:1rem">
+                            {% for s in sucs %}
+                              <li>{{ s.codigo }} — {{ s.nombre }}</li>
+                            {% endfor %}
+                          </ul>
+                        {% else %}
+                          <span class="muted">No hay sucursales asociadas.</span>
+                        {% endif %}
+                      {% endwith %}
+                    </div>
+
+                    <div class="kv" style="margin-top:8px">
+                      <small>Stock por ubicación</small>
+                      {% with sucs=b.sucursales.all %}
+                        {% if sucs %}
+                          <ul style="margin:0;padding-left:1rem;max-height:220px;overflow:auto;">
+                            {% for s in sucs %}
+                              {% for u in s.ubicaciones.all %}
+                                {% for st in u.stocks.all %}
+                                  {% if st.cantidad_disponible|default:0 > 0 %}
+                                    <li>
+                                      <strong class="mono">{{ st.producto.sku }}</strong>
+                                      — {{ st.producto.nombre }}
+                                      <span class="muted">({{ s.nombre }} / {{ u.codigo }})</span>:
+                                      <strong>{{ st.cantidad_disponible|default:0|floatformat:0 }}</strong>
+                                    </li>
+                                  {% endif %}
+                                {% endfor %}
                               {% endfor %}
                             {% endfor %}
-                          {% endfor %}
-                        </ul>
-                      {% else %}
-                        <span class="muted">Sin stock en ubicaciones de esta bodega.</span>
-                      {% endif %}
-                    {% endwith %}
-                  </div>
+                          </ul>
+                        {% else %}
+                          <span class="muted">Sin stock en ubicaciones de esta bodega.</span>
+                        {% endif %}
+                      {% endwith %}
+                    </div>
 
+                  </div>
                 </div>
               </div>
-            </div>
-          </td>
-        </tr>
+            </td>
+          </tr>
 
-        {% empty %}
-          <tr><td colspan="9" style="text-align:center;color:var(--muted);padding:20px;">No hay bodegas aún.</td></tr>
-        {% endfor %}
-      </tbody>
-    </table>
+          {% empty %}
+            <tr>
+              <td colspan="9" style="text-align:center;color:var(--muted);padding:20px;">
+                No hay bodegas aún.
+              </td>
+            </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
   </div>
 </div>
 
@@ -308,7 +757,9 @@
       </div>
       <small class="muted">Al aprobar el pago se registrará y se sumará el stock a la bodega.</small>
     </div>
-    <div class="pp-footer"><div id="paypal-button-container"></div></div>
+    <div class="pp-footer">
+      <div id="paypal-button-container"></div>
+    </div>
   </div>
 </div>
 
@@ -317,6 +768,19 @@
 <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
 
 <script>
+  // Buscar con Enter
+  (function(){
+    const form  = document.getElementById('bodegaSearchForm');
+    const input = document.getElementById('qBodega');
+    if(!form || !input) return;
+    input.addEventListener('keydown', (e)=>{
+      if(e.key === 'Enter'){
+        e.preventDefault();
+        form.requestSubmit();
+      }
+    });
+  })();
+
   /* ===== Acordeón "Ver" con animación ===== */
   (function(){
     const tbody = document.getElementById('rows-bod');
@@ -327,7 +791,10 @@
         .forEach(btn => btn.setAttribute('aria-expanded','false'));
       tbody.querySelectorAll('.expand').forEach(wrap=>{
         const inner = wrap.querySelector('.expand__inner');
-        if(inner){ inner.style.maxHeight='0px'; inner.style.opacity='0'; }
+        if(inner){
+          inner.style.maxHeight='0px';
+          inner.style.opacity='0';
+        }
         wrap.classList.remove('open');
       });
     }
@@ -366,7 +833,6 @@
     ppBackdrop.classList.add('open');
     document.body.classList.add('modal-open');
 
-    // re-render del botón (evita “already rendered”)
     const cont = document.getElementById('paypal-button-container');
     cont.innerHTML = '';
     renderPaypal();
@@ -375,9 +841,10 @@
     ppBackdrop.classList.remove('open');
     document.body.classList.remove('modal-open');
   }
-  // cierre por click fuera y ESC
   ppBackdrop.querySelector('.pp-clickout').addEventListener('click', closePaypalModal);
-  document.addEventListener('keydown', (e)=>{ if(e.key==='Escape' && ppBackdrop.classList.contains('open')) closePaypalModal(); });
+  document.addEventListener('keydown', (e)=>{
+    if(e.key==='Escape' && ppBackdrop.classList.contains('open')) closePaypalModal();
+  });
 
   function renderPaypal(){
     paypal.Buttons({
@@ -397,21 +864,43 @@
           };
           fetch("{% url 'paypal-stock-in' %}",{
             method:"POST",
-            headers:{"Content-Type":"application/json","X-CSRFToken":csrfToken},
+            headers:{
+              "Content-Type":"application/json",
+              "X-CSRFToken":csrfToken
+            },
             body:JSON.stringify(body)
           }).then(r=>r.json()).then(resp=>{
             if(resp.ok){
               closePaypalModal();
-              Swal.fire({icon:'success',title:'Pago aprobado y stock registrado',timer:1400,showConfirmButton:false});
+              Swal.fire({
+                icon:'success',
+                title:'Pago aprobado y stock registrado',
+                timer:1400,
+                showConfirmButton:false
+              });
               setTimeout(()=>location.reload(), 900);
             }else{
-              Swal.fire({icon:'warning',title:'Pago aprobado, pero no se registró en Django'});
+              Swal.fire({
+                icon:'warning',
+                title:'Pago aprobado, pero no se registró en Django'
+              });
             }
-          }).catch(()=>Swal.fire({icon:'error',title:'Error al registrar en Django'}));
+          }).catch(()=>{
+            Swal.fire({icon:'error',title:'Error al registrar en Django'});
+          });
         });
       },
-      onCancel:()=>Swal.fire({icon:'info',title:'Pago cancelado',timer:1200,showConfirmButton:false}),
-      onError:()=>Swal.fire({icon:'error',title:'Error con PayPal'})
+      onCancel:()=>{
+        Swal.fire({
+          icon:'info',
+          title:'Pago cancelado',
+          timer:1200,
+          showConfirmButton:false
+        });
+      },
+      onError:()=>{
+        Swal.fire({icon:'error',title:'Error con PayPal'});
+      }
     }).render('#paypal-button-container');
   }
 

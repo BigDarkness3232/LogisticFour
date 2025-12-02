@@ -368,44 +368,151 @@ class TipoUbicacionForm(forms.ModelForm):
 #  Ubicaciones NUEVAS
 # =========================================================
 class UbicacionBodegaForm(forms.ModelForm):
+    area_codigo = forms.CharField(
+        max_length=20,
+        required=True,
+        label="Area codigo",
+        widget=forms.TextInput(
+            attrs={
+                "class": "form-control",
+                "placeholder": "Ej: 003",
+            }
+        ),
+    )
+    estante_codigo = forms.CharField(
+        max_length=20,
+        required=True,
+        label="Estante codigo",
+        widget=forms.TextInput(
+            attrs={
+                "class": "form-control",
+                "placeholder": "Ej: 001",
+            }
+        ),
+    )
+
     class Meta:
         model = UbicacionBodega
-        fields = ["bodega", "codigo", "nombre", "area", "tipo", "pickeable", "almacenable", "activo"]
+        fields = [
+            "area_codigo",
+            "estante_codigo",
+            "area",
+            "tipo",
+            "activo",
+        ]
         widgets = {
-            "bodega": forms.Select(attrs={"class": "form-select"}),
-            "codigo": forms.TextInput(attrs={"placeholder": "Ej: PAS-01-N2", "class": "form-control"}),
-            "nombre": forms.TextInput(attrs={"placeholder": "Nombre visible (opcional)", "class": "form-control"}),
-            "area": forms.TextInput(attrs={"placeholder": "Zona / Pasillo / Sector", "class": "form-control"}),
+            "area": forms.TextInput(
+                attrs={
+                    "class": "form-control",
+                    "placeholder": "Zona / pasillo / sector (opcional)",
+                }
+            ),
             "tipo": forms.Select(attrs={"class": "form-select"}),
-            "pickeable": forms.CheckboxInput(attrs={"class": "form-check-input"}),
-            "almacenable": forms.CheckboxInput(attrs={"class": "form-check-input"}),
             "activo": forms.CheckboxInput(attrs={"class": "form-check-input"}),
         }
 
-    def clean_codigo(self):
-        codigo = (self.cleaned_data.get("codigo") or "").strip()
-        return codigo.upper()
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+
+        # Si estamos editando una ubicación, rellenar los componentes
+        if self.instance and self.instance.pk:
+            self.fields["area_codigo"].initial = self.instance.area_codigo
+            self.fields["estante_codigo"].initial = self.instance.estante_codigo
+
+    def save(self, commit=True):
+        instance = super().save(commit=False)
+
+        # Guardamos los códigos separados en el instance
+        area_cod = (self.cleaned_data["area_codigo"] or "").strip().upper()
+        estante_cod = (self.cleaned_data["estante_codigo"] or "").strip().upper()
+
+        instance.area_codigo = area_cod
+        instance.estante_codigo = estante_cod
+
+        # NO llamamos a set_codigo aquí si todavía no tiene bodega
+        if instance.bodega_id:
+            instance.set_codigo(area_cod, estante_cod)
+
+        if commit:
+            instance.save()
+        return instance
 
 
 class UbicacionSucursalForm(forms.ModelForm):
+    """
+    Igual idea que UbicacionBodegaForm, pero para sucursales.
+    codigo = <sucursal.codigo>-<area_codigo>-<estante_codigo>
+    """
+
+    area_codigo = forms.CharField(
+        max_length=20,
+        required=True,
+        label="Area codigo",
+        widget=forms.TextInput(
+            attrs={
+                "class": "form-control",
+                "placeholder": "Ej: 003",
+            }
+        ),
+    )
+
+    estante_codigo = forms.CharField(
+        max_length=20,
+        required=True,
+        label="Estante codigo",
+        widget=forms.TextInput(
+            attrs={
+                "class": "form-control",
+                "placeholder": "Ej: 001",
+            }
+        ),
+    )
+
     class Meta:
         model = UbicacionSucursal
-        fields = ["sucursal", "codigo", "nombre", "area", "tipo", "pickeable", "almacenable", "activo"]
+        # 👇 OJO: ya NO incluimos "sucursal" aquí
+        fields = [
+            "area_codigo",
+            "estante_codigo",
+            "area",
+            "tipo",
+            "activo",
+        ]
         widgets = {
-            "sucursal": forms.Select(attrs={"class": "form-select"}),
-            "codigo": forms.TextInput(attrs={"placeholder": "Ej: ANDEN-01", "class": "form-control"}),
-            "nombre": forms.TextInput(attrs={"placeholder": "Nombre visible (opcional)", "class": "form-control"}),
-            "area": forms.TextInput(attrs={"placeholder": "Zona / Sector", "class": "form-control"}),
+            "area": forms.TextInput(
+                attrs={
+                    "class": "form-control",
+                    "placeholder": "Zona / sector (opcional)",
+                }
+            ),
             "tipo": forms.Select(attrs={"class": "form-select"}),
-            "pickeable": forms.CheckboxInput(attrs={"class": "form-check-input"}),
-            "almacenable": forms.CheckboxInput(attrs={"class": "form-check-input"}),
             "activo": forms.CheckboxInput(attrs={"class": "form-check-input"}),
         }
 
-    def clean_codigo(self):
-        codigo = (self.cleaned_data.get("codigo") or "").strip()
-        return codigo.upper()
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
 
+        # Si estamos editando, rellenar los códigos
+        if self.instance and self.instance.pk:
+            self.fields["area_codigo"].initial = self.instance.area_codigo
+            self.fields["estante_codigo"].initial = self.instance.estante_codigo
+
+    def save(self, commit=True):
+        instance: UbicacionSucursal = super().save(commit=False)
+
+        area_cod = (self.cleaned_data.get("area_codigo") or "").strip().upper()
+        estante_cod = (self.cleaned_data.get("estante_codigo") or "").strip().upper()
+
+        instance.area_codigo = area_cod
+        instance.estante_codigo = estante_cod
+
+        # Aquí asumimos que la vista ya puso instance.sucursal
+        if instance.sucursal_id and hasattr(instance, "set_codigo"):
+            instance.set_codigo(area_cod, estante_cod)
+
+        if commit:
+            instance.save()
+        return instance
 
 # =========================================================
 #  Lotes
@@ -533,3 +640,49 @@ class SerieProductoForm(forms.ModelForm):
             self.add_error("lote", "El lote seleccionado no pertenece a este producto.")
         return cd
 
+
+
+
+
+
+
+from django import forms
+from .models import UbicacionBodega, Producto
+
+class UbicacionBodegaProductoForm(forms.ModelForm):
+    productos = forms.ModelMultipleChoiceField(
+        queryset=Producto.objects.filter(activo=True),  # Solo productos activos
+        widget=forms.CheckboxSelectMultiple,
+        required=True
+    )
+
+    class Meta:
+        model = UbicacionBodega
+        fields = ["bodega", "codigo", "area", "tipo", "productos"]
+        widgets = {
+            "bodega": forms.Select(attrs={"class": "form-select"}),
+            "codigo": forms.TextInput(attrs={"placeholder": "Ej: 031-033-301", "class": "form-control", "readonly": "readonly"}),  # Código de la ubicación, autocompletado
+            "area": forms.TextInput(attrs={"placeholder": "Zona / Pasillo / Sector", "class": "form-control"}),
+            "tipo": forms.Select(attrs={"class": "form-select"}),
+        }
+
+    def save(self, commit=True):
+        instance = super().save(commit=False)
+        # Crear el código completo de la ubicación
+        bodega_codigo = self.cleaned_data.get("bodega").codigo  # Suponiendo que bodega tiene un código
+        area_codigo = self.cleaned_data.get("area_codigo", "000")  # Default si no se especifica
+        estante_codigo = self.cleaned_data.get("estante_codigo", "000")  # Default si no se especifica
+        instance.set_codigo(bodega_codigo, area_codigo, estante_codigo)
+
+        if commit:
+            instance.save()
+
+        # Asignar los productos seleccionados a la ubicación
+        productos = self.cleaned_data.get("productos")
+        for producto in productos:
+            # Verificar si el producto tiene una ubicación, de lo contrario asignar la ubicación por defecto
+            if not producto.ubicacion:
+                producto.ubicacion = instance
+                producto.save()
+
+        return instance

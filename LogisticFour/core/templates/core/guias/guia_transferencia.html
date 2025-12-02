@@ -15,19 +15,29 @@
     --badge:#111827;
   }
 
+  html, body{
+    max-width:100%;
+    overflow-x:hidden;
+  }
+
+  *{
+    box-sizing:border-box;
+  }
+
   .gd-shell{
-    max-width: 900px;
+    max-width: 820px;          /* ⬅ un poco más angosto que antes */
+    width:100%;
     margin: 0 auto;
     padding: 20px 18px 32px;
     background:#f9fafb;
   }
 
-  /* ===== Toolbar externa (volver / imprimir) ===== */
   .gd-toolbar{
     display:flex;
     justify-content:space-between;
     gap:8px;
     margin-bottom:10px;
+    flex-wrap:wrap;
   }
 
   .gd-btn{
@@ -43,6 +53,7 @@
     text-decoration:none;
     color:var(--ink);
     transition:.15s ease;
+    white-space:nowrap;
   }
 
   .gd-btn:hover{
@@ -57,6 +68,8 @@
     border: 1px solid #e5e7eb;
     box-shadow: 0 18px 45px rgba(15,23,42,.08);
     padding: 24px 26px 26px;
+    width:100%;
+    max-width:100%;
   }
 
   .gd-header{
@@ -148,6 +161,10 @@
     gap:12px 32px;
   }
 
+  .gd-block-item{
+    min-width:200px;
+  }
+
   .gd-block-item label{
     display:block;
     font-size:.75rem;
@@ -162,17 +179,22 @@
     font-weight:500;
   }
 
+  /* ⬇ contenedor y tabla más estrechos en desktop */
   .gd-table-wrap{
     border-radius:10px;
     border:1px solid var(--line);
-    overflow:hidden;
     background:#fff;
+    max-width:720px;           /* ⬅ límite para el ancho del detalle */
+    margin:0 auto;             /* centrado */
+    overflow-x:auto;
+    -webkit-overflow-scrolling:touch;
   }
 
   .gd-table{
     width:100%;
     border-collapse:collapse;
     font-size:.87rem;
+    table-layout:auto;
   }
 
   .gd-table thead{
@@ -184,6 +206,7 @@
     padding:8px 10px;
     border-bottom:1px solid #e5e7eb;
     text-align:left;
+    white-space:nowrap;
   }
 
   .gd-table th{
@@ -209,6 +232,7 @@
     margin-top:28px;
     font-size:.8rem;
     color:var(--muted);
+    flex-wrap:wrap;
   }
 
   .gd-firmas{
@@ -236,26 +260,19 @@
   }
 
   @media print {
-    body {
-      background:#fff !important;
-    }
+    body { background:#fff !important; }
+    body * { visibility:hidden; }
 
-    /* Ocultar todo por defecto */
-    body * {
-      visibility: hidden;
-    }
-
-    /* Mostrar solo la guía */
     .gd-print-area,
     .gd-print-area * {
-      visibility: visible;
+      visibility:visible;
     }
 
     .gd-print-area {
-      position: absolute;
-      inset: 0;
-      margin: 0 !important;
-      padding: 0 !important;
+      position:absolute;
+      inset:0;
+      margin:0 !important;
+      padding:0 !important;
     }
 
     .gd-page {
@@ -264,23 +281,16 @@
       padding:8px 10px 10px !important;
     }
 
-    /* Ocultar toolbar en impresión */
-    .gd-toolbar{
-      display:none !important;
-    }
+    .gd-toolbar{ display:none !important; }
 
     .gd-header{
       margin-bottom:10px !important;
       padding-bottom:8px !important;
     }
 
-    .gd-section{
-      margin-bottom:8px !important;
-    }
+    .gd-section{ margin-bottom:8px !important; }
 
-    .gd-block{
-      padding:6px 8px !important;
-    }
+    .gd-block{ padding:6px 8px !important; }
 
     .gd-table th,
     .gd-table td{
@@ -292,33 +302,68 @@
       gap:20px !important;
     }
 
-    .gd-firma-line{
-      margin-top:28px !important;
-    }
+    .gd-firma-line{ margin-top:28px !important; }
 
-    .gd-footer{
-      margin-top:12px !important;
-    }
+    .gd-footer{ margin-top:12px !important; }
   }
 
   @media(max-width:640px){
+    .gd-shell{
+      padding:16px 10px 24px;
+    }
+
+    .gd-page{
+      padding:18px 14px 20px;
+      border-radius:12px;
+      box-shadow:0 12px 30px rgba(15,23,42,.06);
+    }
+
     .gd-header{
       flex-direction:column;
       align-items:flex-start;
+      gap:10px;
     }
+
     .gd-doc-meta{
       text-align:left;
     }
+
+    .gd-block-row{
+      flex-direction:column;
+      gap:8px;
+    }
+
+    .gd-block-item{
+      min-width:0;
+    }
+
+    .gd-table-wrap{
+      max-width:100%;   /* en móvil vuelve a usar todo el ancho disponible */
+    }
+
+    .gd-table th,
+    .gd-table td{
+      font-size:.8rem;
+      padding:6px 8px;
+    }
+
     .gd-firmas{
       flex-direction:column;
       gap:20px;
+    }
+
+    .gd-firma-line{
+      margin-top:28px;
+    }
+
+    .gd-toolbar{
+      justify-content:flex-start;
     }
   }
 </style>
 
 <div class="gd-shell gd-print-area">
 
-  <!-- BOTONES FUERA DE LA GUÍA -->
   <div class="gd-toolbar">
     <button type="button" class="gd-btn" onclick="window.history.back()">
       ← Volver
@@ -363,8 +408,6 @@
       <h2 class="gd-section-title">Datos de traslado</h2>
       <div class="gd-block">
         <div class="gd-block-row">
-
-          <!-- ORIGEN dinámico (bodega o sucursal) -->
           <div class="gd-block-item">
             <label>Origen</label>
             <span>
@@ -384,7 +427,6 @@
             </span>
           </div>
 
-          <!-- DESTINO dinámico -->
           <div class="gd-block-item">
             <label>Destino</label>
             <span>
@@ -415,11 +457,10 @@
         <table class="gd-table">
           <thead>
             <tr>
-              <th style="width:45%;">Producto</th>
-              <th style="width:15%;">SKU</th>
-              <th style="width:15%; text-align:right;">Cantidad</th>
-              <th style="width:10%;">Unidad</th>
-              <th style="width:15%;">Lote / Serie</th>
+              <th>Producto</th>
+              <th>SKU</th>
+              <th style="text-align:right;">Cantidad</th>
+              <th>Unidad</th>
             </tr>
           </thead>
           <tbody>
@@ -429,25 +470,16 @@
                 <td>{{ linea.producto.sku }}</td>
                 <td style="text-align:right;">{{ linea.cantidad|floatformat:0 }}</td>
                 <td>{{ linea.unidad.codigo }}</td>
-                <td>
-                  {% if linea.lote %}
-                    Lote: {{ linea.lote.codigo }}
-                  {% elif linea.serie %}
-                    Serie: {{ linea.serie.codigo }}
-                  {% else %}
-                    —
-                  {% endif %}
-                </td>
               </tr>
             {% empty %}
               <tr>
-                <td colspan="5">No hay líneas asociadas a esta transferencia.</td>
+                <td colspan="4">No hay líneas asociadas a esta transferencia.</td>
               </tr>
             {% endfor %}
           </tbody>
           <tfoot>
             <tr>
-              <td colspan="5">
+              <td colspan="4">
                 Total ítems: {{ total_cantidad|floatformat:0 }}
               </td>
             </tr>
