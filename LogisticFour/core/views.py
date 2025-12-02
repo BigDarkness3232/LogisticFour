@@ -148,31 +148,63 @@ def _unidad_default() -> UnidadMedida | None:
         or UnidadMedida.objects.order_by("id").first()
     )
 # ==== /Helpers Kardex ====
+from itertools import chain
 # ==== /Helpers Kardex ====
 
+@login_required
 def dashboard(request):
-    # Obtener las métricas
     alertas_stock = Stock.objects.filter(cantidad_disponible__lt=10).count()
-    productos_totales = Producto.objects.all().count()
-    categorias_count = CategoriaProducto.objects.all().count()
+    productos_totales = Producto.objects.count()
+    categorias_count = CategoriaProducto.objects.count()
 
-    # Obtener las sucursales activas
-    sucursales = Sucursal.objects.filter(activo=True)
+    sucursales = Sucursal.objects.all()
+    bodegas = Bodega.objects.all()
 
-    # Pasa estos datos al template
+    # STOCK TOTAL POR SUCURSAL
+    stock_por_sucursal_qs = (
+        Stock.objects
+        .filter(ubicacion_sucursal__isnull=False)
+        .values('ubicacion_sucursal__sucursal__nombre')
+        .annotate(total=Sum('cantidad_disponible'))
+        .order_by('ubicacion_sucursal__sucursal__nombre')
+    )
+
+    # STOCK TOTAL POR BODEGA
+    stock_por_bodega_qs = (
+        Stock.objects
+        .filter(ubicacion_bodega__isnull=False)
+        .values('ubicacion_bodega__bodega__nombre')
+        .annotate(total=Sum('cantidad_disponible'))
+        .order_by('ubicacion_bodega__bodega__nombre')
+    )
+
+    stock_por_sucursal = list(stock_por_sucursal_qs)
+    stock_por_bodega = list(stock_por_bodega_qs)
+
+    # % relativo dentro de cada grupo (para ancho de la barra)
+    suc_totales = [float(i["total"]) for i in stock_por_sucursal]
+    bod_totales = [float(i["total"]) for i in stock_por_bodega]
+
+    max_suc = max(suc_totales) if suc_totales else 0
+    max_bod = max(bod_totales) if bod_totales else 0
+
+    for item in stock_por_sucursal:
+        item["pct"] = int((float(item["total"]) / max_suc) * 100) if max_suc > 0 else 0
+
+    for item in stock_por_bodega:
+        item["pct"] = int((float(item["total"]) / max_bod) * 100) if max_bod > 0 else 0
+
     context = {
-        'sucursales_activas': sucursales.count(),
-        'bodegas_totales': Bodega.objects.all().count(),
-        'alertas_stock': alertas_stock,
-        'productos_totales': productos_totales,
-        'categorias_count': categorias_count,
-        'sucursales': sucursales,
-        'alertas_stock_height': alertas_stock * 10,  # Ajustar si es necesario
-        'productos_totales_height': productos_totales * 10,
-        'categorias_count_height': categorias_count * 10,
+        "sucursales_activas": sucursales.count(),
+        "bodegas_totales": bodegas.count(),
+        "alertas_stock": alertas_stock,
+        "productos_totales": productos_totales,
+        "categorias_count": categorias_count,
+        "sucursales": sucursales,
+        "stock_por_sucursal": stock_por_sucursal,
+        "stock_por_bodega": stock_por_bodega,
     }
-
-    return render(request, 'core/dashboard.html', context)
+    return render(request, "core/dashboard.html", context)
 
 @login_required
 def products(request):

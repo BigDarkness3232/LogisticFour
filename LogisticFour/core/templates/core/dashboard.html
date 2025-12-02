@@ -3,176 +3,188 @@
 {% block content %}
 
 <style>
-/* ==============================
-   🎨 ESTILO GENERAL DEL DASHBOARD
-   ============================== */
-.dashboard-wrap{
+/* ========================
+   ESTILO GENERAL
+======================== */
+.dashboard-wrap {
   padding: 20px 0 40px;
-  animation: fadeIn .4s ease-out both;
+  animation: fadeIn .3s ease-out both;
+}
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(6px); }
+  to { opacity: 1; transform: none; }
 }
 
-@keyframes fadeIn{
-  from{ opacity:0; transform:translateY(8px); }
-  to{ opacity:1; transform:none; }
-}
-
-/* ======================
-   🔷 KPI CARDS
-   ====================== */
+/* ========================
+   KPI CARDS
+======================== */
 .kpis{
   display:grid;
-  gap:18px;
+  gap:20px;
   grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
-  margin-bottom: 25px;
+  margin-bottom: 20px;
+}
+.kpi{
+  background:white;
+  padding:16px 18px;
+  border-radius:18px;
+  box-shadow:0 5px 16px rgba(0,0,0,0.06);
+  display:flex;
+  flex-direction:column;
+  gap:4px;
+  transition:.18s;
+}
+.kpi:hover{
+  transform:translateY(-3px);
+  box-shadow:0 10px 24px rgba(0,0,0,0.09);
+}
+.kpi .num{ font-size:2.2rem; font-weight:800; color:#0f172a; }
+.kpi .lbl{ font-size:.9rem; color:#6b7280; }
+
+/* ========================
+   GRID GENERAL
+======================== */
+.grid-2{
+  display:grid;
+  gap:20px;
+  grid-template-columns: repeat(auto-fit, minmax(340px, 1fr));
+  margin-bottom:20px;
 }
 
-.kpi{
-  background: white;
-  padding: 18px 20px;
-  border-radius: 18px;
-  box-shadow: 0 6px 18px rgba(0,0,0,0.06);
+/* ========================
+   CARD
+======================== */
+.card{
+  background:white;
+  border-radius:22px;
+  padding:18px 20px;
+  box-shadow:0 8px 22px rgba(0,0,0,.06);
+  transition:.18s;
+}
+.card:hover{
+  transform:translateY(-3px);
+  box-shadow:0 14px 30px rgba(0,0,0,.08);
+}
+.card-title{
+  font-size:1.2rem;
+  font-weight:700;
+  color:#0f172a;
+  margin-bottom:12px;
+}
+
+/* ========================
+   PANEL DE BARRAS HORIZONTALES
+======================== */
+.metrics-grid{
+  display:grid;
+  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+  gap:16px;
+}
+
+.metric-section{
+  background:#f9fafb;
+  border-radius:16px;
+  padding:12px 14px;
+  box-shadow:0 4px 12px rgba(15,23,42,0.04);
+}
+
+.metric-title{
+  display:flex;
+  align-items:center;
+  gap:8px;
+  font-size:.9rem;
+  font-weight:600;
+  color:#111827;
+  margin-bottom:8px;
+}
+
+.metric-title span.dot{
+  width:10px;
+  height:10px;
+  border-radius:3px;
+  display:inline-block;
+}
+
+.metric-list{
   display:flex;
   flex-direction:column;
   gap:6px;
-  transition: transform .15s ease, box-shadow .15s ease;
-}
-.kpi:hover{
-  transform: translateY(-4px);
-  box-shadow: 0 12px 25px rgba(0,0,0,0.1);
 }
 
-.kpi .num{
-  font-size: 2.2rem;
-  font-weight: 800;
-  color:#0f172a;
-  letter-spacing:-1px;
-}
-.kpi .lbl{
-  font-size:.9rem;
-  color:#6b7280;
-}
-
-/* ======================
-   🔷 GRID PRINCIPAL
-   ====================== */
-.grid-2{
+.metric-row{
   display:grid;
-  gap:22px;
-  grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
-  margin-bottom:25px;
-}
-
-/* ======================
-   🔷 CARD GENERALES
-   ====================== */
-.card{
-  background:white;
-  border-radius: 22px;
-  padding:24px;
-  box-shadow:0 10px 28px rgba(0,0,0,.06);
-  transition:transform .15s ease, box-shadow .15s ease;
-}
-.card:hover{
-  transform:translateY(-4px);
-  box-shadow:0 16px 32px rgba(0,0,0,.08);
-}
-
-.card-title{
-  font-size:1.25rem;
-  font-weight:700;
-  color:#0f172a;
-  margin-bottom:16px;
-}
-
-/* ======================
-   🔷 BARS (Gráfico simple)
-   ====================== */
-.bars{
-  display:flex;
-  gap:18px;
-  align-items:flex-end;
-  min-height:200px;
-  padding-top:12px;
-}
-
-.bar{
-  flex:1 1 0;
-  display:flex;
-  flex-direction:column;
+  grid-template-columns: 1.2fr 3fr auto;
   align-items:center;
   gap:8px;
-  animation:fadeInBars .6s ease-out both;
+  font-size:.8rem;
 }
 
-@keyframes fadeInBars{
-  from{ opacity:0; transform:scaleY(.4); }
-  to{ opacity:1; transform:scaleY(1); }
+.metric-name{
+  color:#111827;
+  font-weight:500;
 }
 
-.bar span{
-  width:100%;
-  border-radius:8px 8px 0 0;
-  background:#0f172a !important; /* BARRAS NEGRAS */
-  transition:height .4s ease;
+.metric-bar{
+  background:#e5e7eb;
+  border-radius:999px;
+  overflow:hidden;
+  height:8px;
 }
-.bar label{
-  font-size:.82rem;
-  color:#374151;
+.metric-bar-fill{
+  height:100%;
+  border-radius:999px;
+}
+.metric-bar-fill--sucursal{ background:#000000; }
+.metric-bar-fill--bodega{ background:#4b5563; }
+
+.metric-value{
+  font-variant-numeric:tabular-nums;
+  color:#4b5563;
+  font-size:.78rem;
 }
 
-/* ======================
-   🔷 TABLE RESPONSIVE
-   ====================== */
-
-.table{ width:100%; }
-
+/* ========================
+   TABLA SUCURSALES
+======================== */
+.table { width:100%; }
 .tr{
   display:grid;
-  grid-template-columns: 1fr 120px;
+  grid-template-columns: 1fr 140px;
   background:white;
+  margin-bottom:8px;
   border-radius:14px;
-  margin-bottom:10px;
-  box-shadow:0 8px 20px rgba(0,0,0,.05);
+  box-shadow:0 5px 16px rgba(0,0,0,.05);
 }
-
-.tr > div{
-  padding:14px 16px;
-  font-size:.9rem;
-}
-
-/* Header */
 .tr.th{
-  background:#f3f4f6;
+  background:#eef1f7;
   font-weight:700;
   box-shadow:none;
 }
+.tr div{
+  padding:12px 14px;
+}
 
-/* Mobile view */
+/* MOBILE */
 @media(max-width:760px){
-  .tr.th{ display:none; }
-
   .tr{
     grid-template-columns:1fr;
     border-left:4px solid #0f172a;
   }
-
-  .tr > div{
+  .tr.th{ display:none; }
+  .tr div{
     display:flex;
     justify-content:space-between;
-    padding:12px 15px;
   }
-  .tr > div::before{
+  .tr div::before{
     content: attr(data-label);
     font-weight:600;
-    color:#374151;
   }
 }
 </style>
 
-
 <div class="dashboard-wrap">
 
-  <h1 class="h1" style="margin-bottom:18px;">Tablero General</h1>
+  <h1 class="h1" style="margin-bottom:16px;">Tablero General</h1>
 
   <!-- 🔹 KPIs -->
   <div class="kpis">
@@ -192,33 +204,78 @@
     </div>
   </div>
 
-
-  <!-- 🔹 Gráficos y listados -->
+  <!-- 🔹 Gráfico + Resumen -->
   <div class="grid-2">
 
+    <!-- 📊 Comparación en barras horizontales -->
     <div class="card">
-      <div class="card-title">Actividad del Inventario</div>
+      <div class="card-title">Comparación de Stock por Sucursal y Bodega</div>
 
-      <div class="bars">
-        <div class="bar">
-          <span style="height:{{ alertas_stock_height }}px;"></span>
-          <label>Alertas</label>
+      <div class="metrics-grid">
+
+        <!-- Sucursales -->
+        <div class="metric-section">
+          <div class="metric-title">
+            <span class="dot" style="background:#000;"></span>
+            Sucursales
+          </div>
+          <div class="metric-list">
+            {% if stock_por_sucursal %}
+              {% for item in stock_por_sucursal %}
+                <div class="metric-row">
+                  <div class="metric-name">
+                    {{ item.ubicacion_sucursal__sucursal__nombre }}
+                  </div>
+                  <div class="metric-bar">
+                    <div class="metric-bar-fill metric-bar-fill--sucursal"
+                         style="width: {{ item.pct }}%;"></div>
+                  </div>
+                  <div class="metric-value">
+                    {{ item.total|floatformat:0 }} u.
+                  </div>
+                </div>
+              {% endfor %}
+            {% else %}
+              <div style="font-size:.8rem;color:#9ca3af;">Sin stock en sucursales.</div>
+            {% endif %}
+          </div>
         </div>
-        <div class="bar">
-          <span style="height:{{ productos_totales_height }}px;"></span>
-          <label>Productos</label>
+
+        <!-- Bodegas -->
+        <div class="metric-section">
+          <div class="metric-title">
+            <span class="dot" style="background:#4b5563;"></span>
+            Bodegas
+          </div>
+          <div class="metric-list">
+            {% if stock_por_bodega %}
+              {% for item in stock_por_bodega %}
+                <div class="metric-row">
+                  <div class="metric-name">
+                    {{ item.ubicacion_bodega__bodega__nombre }}
+                  </div>
+                  <div class="metric-bar">
+                    <div class="metric-bar-fill metric-bar-fill--bodega"
+                         style="width: {{ item.pct }}%;"></div>
+                  </div>
+                  <div class="metric-value">
+                    {{ item.total|floatformat:0 }} u.
+                  </div>
+                </div>
+              {% endfor %}
+            {% else %}
+              <div style="font-size:.8rem;color:#9ca3af;">Sin stock en bodegas.</div>
+            {% endif %}
+          </div>
         </div>
-        <div class="bar">
-          <span style="height:{{ categorias_count_height }}px;"></span>
-          <label>Categorías</label>
-        </div>
+
       </div>
     </div>
 
+    <!-- 📄 Resumen de stock -->
     <div class="card">
       <div class="card-title">Resumen de Stock</div>
-
-      <ul style="margin:0;padding-left:18px;">
+      <ul style="margin:0; padding-left:18px;">
         <li>Ítems con bajo stock: <b>{{ alertas_stock }}</b></li>
         <li>Categorías disponibles: <b>{{ categorias_count }}</b></li>
       </ul>
@@ -226,8 +283,7 @@
 
   </div>
 
-
-  <!-- 🔹 Tabla de sucursales -->
+  <!-- 🔹 Tabla de sucursales y órdenes -->
   <div class="card">
     <div class="card-title">Sucursales y Órdenes</div>
 
