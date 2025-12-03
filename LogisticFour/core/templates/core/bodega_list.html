@@ -440,6 +440,7 @@
     box-shadow:0 20px 50px rgba(15,23,42,.25);
     display:flex;
     flex-direction:column;
+    position:relative;
   }
   .pp-head{
     padding:12px 16px;
@@ -474,10 +475,6 @@
     padding:8px 10px;
     font-size:.92rem;
     background:#f8fafc;
-  }
-  #paypalBackdrop .pp-clickout{
-    position:absolute;
-    inset:0;
   }
 </style>
 
@@ -731,7 +728,6 @@
 
 <!-- MODAL PAYPAL -->
 <div id="paypalBackdrop" class="pp-backdrop" aria-hidden="true">
-  <div class="pp-clickout"></div>
   <div class="pp-modal" role="dialog" aria-modal="true" aria-labelledby="pp-title">
     <div class="pp-head">
       <strong id="pp-title">Comprar stock</strong>
@@ -841,7 +837,14 @@
     ppBackdrop.classList.remove('open');
     document.body.classList.remove('modal-open');
   }
-  ppBackdrop.querySelector('.pp-clickout').addEventListener('click', closePaypalModal);
+
+  // Cerrar haciendo click sólo fuera del modal
+  ppBackdrop.addEventListener('click', (e)=>{
+    if (!e.target.closest('.pp-modal')) {
+      closePaypalModal();
+    }
+  });
+
   document.addEventListener('keydown', (e)=>{
     if(e.key==='Escape' && ppBackdrop.classList.contains('open')) closePaypalModal();
   });
