@@ -425,143 +425,151 @@
           <th class="lx-actions">Acciones</th>
         </tr>
       </thead>
-      <tbody id="rows-suc">
-        {% for s in sucursales %}
-        <tr>
-          <td data-label="Código"><span class="mono">{{ s.codigo }}</span></td>
-          <td data-label="Nombre"><strong>{{ s.nombre }}</strong></td>
-          <td data-label="Ciudad">{{ s.ciudad|default:"—" }}</td>
-          <td data-label="Bodega">
-            {% if s.bodega %}
-              {{ s.bodega.codigo }} — {{ s.bodega.nombre }}
-            {% else %}
-              — 
-            {% endif %}
-          </td>
-          <td data-label="Ubicaciones">{{ s.ubicaciones_count|default:0 }}</td>
-          <td data-label="Productos">{{ s.productos_count|default:0 }}</td>
-          <td data-label="Stock total"><strong>{{ s.total_stock|default:0|floatformat:0 }}</strong></td>
-          <td data-label="Activo">
-            {% if s.activo %}
-              <span class="lx-badge ok">Sí</span>
-            {% else %}
-              <span class="lx-badge no">No</span>
-            {% endif %}
-          </td>
-          <td class="lx-actions" data-label="Acciones">
-            <div class="lx-acts">
+<tbody id="rows-suc">
+  {% for s in sucursales %}
+  <tr>
+    <td data-label="Código"><span class="mono">{{ s.codigo }}</span></td>
+    <td data-label="Nombre"><strong>{{ s.nombre }}</strong></td>
+    <td data-label="Ciudad">{{ s.ciudad|default:"—" }}</td>
+    <td data-label="Bodega">
+      {% if s.bodega %}
+        {{ s.bodega.codigo }} — {{ s.bodega.nombre }}
+      {% else %}
+        — 
+      {% endif %}
+    </td>
+    <td data-label="Ubicaciones">{{ s.ubicaciones_count|default:0 }}</td>
+    <td data-label="Productos">{{ s.productos_count|default:0 }}</td>
+    <td data-label="Stock total"><strong>{{ s.total_stock|default:0|floatformat:0 }}</strong></td>
+    <td data-label="Activo">
+      {% if s.activo %}
+        <span class="lx-badge ok">Sí</span>
+      {% else %}
+        <span class="lx-badge no">No</span>
+      {% endif %}
+    </td>
+    <td class="lx-actions" data-label="Acciones">
+      <div class="lx-acts">
 
-              <!-- Ver (detalle expandible) -->
-              <button type="button"
-                      class="lx-act lx-act-main"
-                      data-target="s{{ s.pk }}"
-                      aria-controls="s{{ s.pk }}"
-                      aria-expanded="false">
-                <span class="lx-act-icon">👁️</span>
-                <span>Ver</span>
-              </button>
+        <!-- Ver (detalle expandible) -->
+        <button type="button"
+                class="lx-act lx-act-main"
+                data-target="s{{ s.pk }}"
+                aria-controls="s{{ s.pk }}"
+                aria-expanded="false">
+          <span class="lx-act-icon">👁️</span>
+          <span>Ver</span>
+        </button>
 
-              <!-- Ver productos -->
-              <a class="lx-act" href="{% url 'sucursal-productos' s.pk %}">
-                <span class="lx-act-icon">📄</span>
-                <span>Ver productos</span>
-              </a>
+        <!-- Ver productos -->
+        <a class="lx-act" href="{% url 'sucursal-productos' s.pk %}">
+          <span class="lx-act-icon">📄</span>
+          <span>Ver productos</span>
+        </a>
 
-              <!-- Agregar sucursal (lleva al create general) -->
-              <a class="lx-act" href="{% url 'sucursal-create' %}">
-                <span class="lx-act-icon">📅</span>
-                <span>Agregar sucursal</span>
-              </a>
+        <!-- Agregar sucursal (lleva al create general) -->
+        <a class="lx-act" href="{% url 'sucursal-create' %}">
+          <span class="lx-act-icon">📅</span>
+          <span>Agregar sucursal</span>
+        </a>
 
-              <!-- Agregar ubicación -->
-              <a class="lx-act" href="{% url 'sucursal-ubicacion-add' s.pk %}">
-                <span class="lx-act-icon">📍</span>
-                <span>Agregar ubicación</span>
-              </a>
+        <!-- Ver en mapa -->
+        <button type="button"
+                class="lx-act"
+                onclick="showOnMap('{{ s.direccion|default:'' }} {{ s.ciudad|default:'' }} {{ s.region|default:'' }}')">
+          <span class="lx-act-icon">📍</span>
+          <span>Ver en mapa</span>
+        </button>
 
+        <!-- Agregar ubicación -->
+        <a class="lx-act" href="{% url 'sucursal-ubicacion-add' s.pk %}">
+          <span class="lx-act-icon">📍</span>
+          <span>Agregar ubicación</span>
+        </a>
 
-              <!-- Editar -->
-              <a class="lx-act" href="{% url 'sucursal-edit' s.pk %}">
-                <span class="lx-act-icon">✏️</span>
-                <span>Editar</span>
-              </a>
+        <!-- Editar -->
+        <a class="lx-act" href="{% url 'sucursal-edit' s.pk %}">
+          <span class="lx-act-icon">✏️</span>
+          <span>Editar</span>
+        </a>
 
-              <!-- Eliminar con SweetAlert -->
-              <a class="lx-act lx-act-danger btn-del-suc"
-                 href="{% url 'sucursal-delete' s.pk %}"
-                 data-suc="{{ s.nombre }}"
-                 data-code="{{ s.codigo }}">
-                <span class="lx-act-icon">🗑️</span>
-                <span>Eliminar</span>
-              </a>
+        <!-- Eliminar con SweetAlert -->
+        <a class="lx-act lx-act-danger btn-del-suc"
+           href="{% url 'sucursal-delete' s.pk %}"
+           data-suc="{{ s.nombre }}"
+           data-code="{{ s.codigo }}">
+          <span class="lx-act-icon">🗑️</span>
+          <span>Eliminar</span>
+        </a>
 
-            </div>
-          </td>
-        </tr>
+      </div>
+    </td>
+  </tr>
 
-        <!-- fila de detalle -->
-        <tr id="s{{ s.pk }}" class="lx-expand-row">
-          <td colspan="9">
-            <div class="lx-expand" data-expand>
-              <div class="lx-expand__inner">
-                <div class="lx-kv">
-                  <small>Ubicaciones de la sucursal</small>
-                  {% with ubicaciones_list=s.ubicaciones.all %}
-                    {% if ubicaciones_list %}
-                      <ul style="margin:0; padding-left:1rem">
-                        {% for u in ubicaciones_list %}
-                          <li>
-                            {{ u.codigo }}
-                            {% if u.area %} ({{ u.area }}){% endif %}
-                            {% if u.tipo %} — {{ u.tipo.codigo }}{% endif %}
-                          </li>
-                        {% endfor %}
-                      </ul>
-                    {% else %}
-                      <span class="muted">No hay ubicaciones para esta sucursal.</span>
-                    {% endif %}
-                  {% endwith %}
-                </div>
+  <!-- fila de detalle -->
+  <tr id="s{{ s.pk }}" class="lx-expand-row">
+    <td colspan="9">
+      <div class="lx-expand" data-expand>
+        <div class="lx-expand__inner">
+          <div class="lx-kv">
+            <small>Ubicaciones de la sucursal</small>
+            {% with ubicaciones_list=s.ubicaciones.all %}
+              {% if ubicaciones_list %}
+                <ul style="margin:0; padding-left:1rem">
+                  {% for u in ubicaciones_list %}
+                    <li>
+                      {{ u.codigo }}
+                      {% if u.area %} ({{ u.area }}){% endif %}
+                      {% if u.tipo %} — {{ u.tipo.codigo }}{% endif %}
+                    </li>
+                  {% endfor %}
+                </ul>
+              {% else %}
+                <span class="muted">No hay ubicaciones para esta sucursal.</span>
+              {% endif %}
+            {% endwith %}
+          </div>
 
-                <div class="lx-kv">
-                  <small>Productos con stock aquí</small>
-                  {% with ubicaciones_list=s.ubicaciones.all %}
-                    {% if s.productos_count > 0 %}
-                      <ul style="margin:0; padding-left:1rem; max-height:220px; overflow:auto;">
-                        {% for u in ubicaciones_list %}
-                          {% for st in u.stocks.all %}
-                            {% if st.cantidad_disponible|default:0 > 0 %}
-                              <li>
-                                {{ st.producto.sku }} — {{ st.producto.nombre }}:
-                                <strong>{{ st.cantidad_disponible|default:0|floatformat:0 }}</strong>
-                              </li>
-                            {% endif %}
-                          {% endfor %}
-                        {% endfor %}
-                      </ul>
-                    {% else %}
-                      <span class="muted">No hay productos con stock en esta sucursal.</span>
-                    {% endif %}
-                  {% endwith %}
-                </div>
+          <div class="lx-kv">
+            <small>Productos con stock aquí</small>
+            {% with ubicaciones_list=s.ubicaciones.all %}
+              {% if s.productos_count > 0 %}
+                <ul style="margin:0; padding-left:1rem; max-height:220px; overflow:auto;">
+                  {% for u in ubicaciones_list %}
+                    {% for st in u.stocks.all %}
+                      {% if st.cantidad_disponible|default:0 > 0 %}
+                        <li>
+                          {{ st.producto.sku }} — {{ st.producto.nombre }}:
+                          <strong>{{ st.cantidad_disponible|default:0|floatformat:0 }}</strong>
+                        </li>
+                      {% endif %}
+                    {% endfor %}
+                  {% endfor %}
+                </ul>
+              {% else %}
+                <span class="muted">No hay productos con stock en esta sucursal.</span>
+              {% endif %}
+            {% endwith %}
+          </div>
 
-                <div class="lx-kv">
-                  <small>Nota</small>
-                  <span class="muted">
-                    El stock total se calcula desde las filas de
-                    <code>Stock</code> asociadas a las ubicaciones de esta sucursal.
-                  </span>
-                </div>
-              </div>
-            </div>
-          </td>
-        </tr>
-        {% empty %}
-        <tr>
-          <td colspan="9">No hay sucursales.</td>
-        </tr>
-        {% endfor %}
-      </tbody>
+          <div class="lx-kv">
+            <small>Nota</small>
+            <span class="muted">
+              El stock total se calcula desde las filas de
+              <code>Stock</code> asociadas a las ubicaciones de esta sucursal.
+            </span>
+          </div>
+        </div>
+      </div>
+    </td>
+  </tr>
+  {% empty %}
+  <tr>
+    <td colspan="9">No hay sucursales.</td>
+  </tr>
+  {% endfor %}
+</tbody>
+
     </table>
   </div>
 
